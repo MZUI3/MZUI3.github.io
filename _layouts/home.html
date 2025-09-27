@@ -1,0 +1,148 @@
+---
+layout: default
+---
+
+<!-- Overrides the Chirpy v7.6.0 home layout: series, intro posts, and a compact post list -->
+
+{% include lang.html %}
+
+{% assign all_pinned = site.posts | where: 'pin', 'true' %}
+{% assign all_normal = site.posts | where_exp: 'item', 'item.pin != true and item.hidden != true' %}
+
+{% if paginator.page == 1 %}
+  <!-- Series (defined in _data/series.yml) -->
+
+  <section class="home-section">
+    <div class="section-head">
+      <h2>시리즈</h2>
+      <a href="{{ '/categories/' | relative_url }}">카테고리 전체 <i class="fas fa-angle-right"></i></a>
+    </div>
+
+    <div class="series-grid">
+      {% for s in site.data.series %}
+        {% assign n = 0 %}
+        {% for post in site.posts %}
+          {% include post-series.html post=post %}
+          {% if post_series.id == s.id %}
+            {% assign n = n | plus: 1 %}
+          {% endif %}
+        {% endfor %}
+
+        <a class="series" href="{{ '/series/' | relative_url }}#{{ s.id }}">
+          <div class="series-top">
+            <span class="series-no">{{ forloop.index | prepend: '0' | slice: -2, 2 }}</span>
+            <span class="series-count">{{ n }}편</span>
+          </div>
+          <div class="series-title">{{ s.title }}</div>
+          <div class="series-desc">{{ s.desc }}</div>
+        </a>
+      {% endfor %}
+    </div>
+  </section>
+
+  <!-- Intro posts (listed in _data/intro.yml) -->
+
+  {% if site.data.intro.size > 0 %}
+    <section class="home-section">
+      <div class="section-head">
+        <h2>입문 글</h2>
+      </div>
+
+      <div class="intro-grid">
+        {% for slug in site.data.intro %}
+          {% assign post = site.posts | where: 'slug', slug | first %}
+          {% if post %}
+            {% include post-series.html post=post %}
+            <a class="intro" href="{{ post.url | relative_url }}">
+              <div class="intro-label">{{ post_series.title | default: post.categories[0] }}</div>
+              <div class="intro-title">{% include post-title.html post=post %}</div>
+              <div class="intro-desc">{% include post-summary.html max_length=90 %}</div>
+            </a>
+          {% endif %}
+        {% endfor %}
+      </div>
+    </section>
+  {% endif %}
+
+  <div class="section-head" id="latest-head">
+    <h2>최근 글</h2>
+    <a href="{{ '/archives/' | relative_url }}">아카이브 <i class="fas fa-angle-right"></i></a>
+  </div>
+{% endif %}
+
+{% assign posts = '' | split: '' %}
+
+<!-- Get pinned posts on current page -->
+
+{% assign visible_start = paginator.page | minus: 1 | times: paginator.per_page %}
+{% assign visible_end = visible_start | plus: paginator.per_page %}
+
+{% if all_pinned.size > visible_start %}
+  {% if all_pinned.size > visible_end %}
+    {% assign pinned_size = paginator.per_page %}
+  {% else %}
+    {% assign pinned_size = all_pinned.size | minus: visible_start %}
+  {% endif %}
+
+  {% for i in (visible_start..all_pinned.size) limit: pinned_size %}
+    {% assign posts = posts | push: all_pinned[i] %}
+  {% endfor %}
+{% else %}
+  {% assign pinned_size = 0 %}
+{% endif %}
+
+<!-- Get normal posts on current page -->
+
+{% assign normal_size = paginator.posts | size | minus: pinned_size %}
+
+{% if normal_size > 0 %}
+  {% if pinned_size > 0 %}
+    {% assign normal_start = 0 %}
+  {% else %}
+    {% assign normal_start = visible_start | minus: all_pinned.size %}
+  {% endif %}
+
+  {% assign normal_end = normal_start | plus: normal_size | minus: 1 %}
+
+  {% for i in (normal_start..normal_end) %}
+    {% assign posts = posts | push: all_normal[i] %}
+  {% endfor %}
+{% endif %}
+
+<div id="post-list" class="flex-grow-1 px-xl-1">
+  {% for post in posts %}
+    <article class="post-row">
+      <div class="post-row-meta">
+        <time datetime="{{ post.date | date_to_xmlschema }}">{{ post.date | date: '%Y-%m-%d' }}</time>
+        {% if post.categories.size > 0 %}
+          <span>{{ post.categories | join: ' › ' }}</span>
+        {% endif %}
+        {% if post.pin %}
+          <span class="pin"><i class="fas fa-thumbtack"></i> {{ site.data.locales[lang].post.pin_prompt }}</span>
+        {% endif %}
+      </div>
+
+      <h3 class="post-row-title">
+        <a href="{{ post.url | relative_url }}">{% include post-title.html post=post %}</a>
+      </h3>
+
+      <p class="post-row-desc">{% include post-summary.html %}</p>
+
+      <div class="post-row-foot">
+        {% if post.content contains 'language-python' %}
+          <span class="badge-code">코드 재현</span>
+        {% endif %}
+        {% for tag in post.tags limit: 3 %}
+          {% capture tag_url %}/tags/{{ tag | slugify | url_encode }}/{% endcapture %}
+          <a class="row-tag" href="{{ tag_url | relative_url }}">#{{ tag }}</a>
+        {% endfor %}
+        <span class="post-row-time">{% include read-time.html content=post.content lang=lang %}</span>
+      </div>
+    </article>
+  {% endfor %}
+</div>
+<!-- #post-list -->
+
+{% if paginator.total_pages > 1 %}
+  {% include post-paginator.html %}
+{% endif %}

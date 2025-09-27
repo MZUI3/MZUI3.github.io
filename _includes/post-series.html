@@ -1,0 +1,18 @@
+{%- comment -%}
+  Find the series (from _data/series.yml) that a post belongs to.
+
+  Arguments:
+    post: the post to look up
+
+  Sets `post_series` to the matching series, or nil when none matches.
+{%- endcomment -%}
+
+{%- assign post_series = nil -%}
+{%- capture _series_pair -%}{{ include.post.categories[0] }}/{{ include.post.categories[1] }}{%- endcapture -%}
+
+{%- for _series in site.data.series -%}
+  {%- if _series.match contains include.post.categories[0] or _series.match contains _series_pair -%}
+    {%- assign post_series = _series -%}
+    {%- break -%}
+  {%- endif -%}
+{%- endfor -%}
