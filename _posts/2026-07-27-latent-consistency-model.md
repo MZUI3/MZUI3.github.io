@@ -187,8 +187,6 @@ image = pipe(
 image.save("lcm_cat.png")
 ```
 
-(여기에 직접 실행한 결과 이미지와 사용한 GPU, 생성 시간을 넣으세요. 예: `![LCM 4 step 결과](/assets/img/posts/latent-consistency-model/lcm_cat.png)`, "RTX ○○○○에서 4 step 약 ○초")
-
 > CFG가 모델 안에 증류되어 있어서, 일반 Stable Diffusion처럼 매 step 조건 없는 예측을 따로 계산하지 않습니다. 그 대가로 **negative prompt가 거의 효과가 없고**, guidance 세기를 바꾸는 폭도 학습 때 넣어 준 $$\omega$$ 범위 안으로 제한됩니다. 속도와 맞바꾼 제어 자유도라고 볼 수 있습니다.
 {: .prompt-warning }
 
