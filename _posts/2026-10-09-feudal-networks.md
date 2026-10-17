@@ -28,7 +28,7 @@ math: true
 - FRL에서 영감을 받은, **end-to-end로 미분 가능한** 일반적인 모델
 - 목표의 **의미(semantic meaning)**를 이용해 Manager를 학습하는 **approximate transition policy gradient**
 - 절대적인 목표 지점이 아니라 **방향성을 갖는 목표**. 예: "적을 피해라", "특정 위치에서 점프해라" 같은 상태 변화의 방향
-- Manager의 장기 기억을 위한 **Dilated LSTM**으로 효과적인 역전파
+- Manager가 긴 시간 의존성을 기억하고 먼 과거까지 기울기를 전달하도록 돕는 **Dilated LSTM**
 
 ## 3. 구조
 
