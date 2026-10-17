@@ -28,7 +28,7 @@ tags: [REST, API, HTTP]
 | `PATCH /api/posts/42` | 게시글 일부 수정 |
 | `DELETE /api/posts/42` | 게시글 삭제 |
 
-URL을 동사로 늘리기보다 리소스와 표준 HTTP 메서드 조합으로 의미를 전달합니다. 예를 들어 `POST /api/deletePost?id=42`처럼 동작을 URL에 넣으면, 메서드마다 URL이 하나씩 늘어나고 캐시·로그·권한 규칙도 URL마다 따로 관리해야 합니다. 단, 실제 API에서는 인증과 권한 확인을 각 요청에 맞게 적용해야 합니다.
+URL을 동사로 늘리기보다 리소스와 표준 HTTP 메서드 조합으로 의미를 전달합니다. 예를 들어 `POST /api/deletePost?id=42`처럼 동작을 URL에 넣으면, 메서드마다 URL이 하나씩 늘어나고 캐시·로그·권한 규칙도 URL마다 따로 관리해야 합니다.
 
 ## 메서드를 고르는 기준: 안전성과 멱등성
 
@@ -115,9 +115,6 @@ GET /api/posts?page=2&size=20&sort=-createdAt&tag=python
 GET /api/posts?cursor=eyJpZCI6NDJ9&size=20
 ```
 </details>
-
-> (여기에 실제 프로젝트에서 API 계약을 정하며 겪은 일 — 예: 상태 코드나 필드 이름을 두고 프론트엔드와 맞춘 경험 — 을 적으면 글의 설득력이 크게 올라갑니다.)
-{: .prompt-tip }
 
 ## 참고 자료
 

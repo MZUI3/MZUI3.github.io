@@ -3,7 +3,7 @@ title: "[RL] Thought Cloning: 행동뿐 아니라 생각까지 모방하기"
 date: 2026-09-29 21:36:00 +0900
 categories: [Reinforcement Learning, Imitation Learning]
 tags: [reinforcement-learning, imitation-learning, thought-cloning, behavior-cloning, language, interpretability, ai-safety, babyai]
-description: 전문가의 행동뿐 아니라 행동하며 떠올린 생각(자연어)까지 모방해 더 빨리 배우고 잘 일반화하며 실행 전 개입이 가능한 에이전트를 만드는 Thought Cloning의 구조와 실험을 정리합니다.
+description: 전문가의 행동뿐 아니라 행동하며 떠올린 생각(자연어)까지 모방하는 Thought Cloning의 구조와 실험을 정리합니다. 이렇게 학습한 에이전트는 더 빨리 배우고, 더 잘 일반화하며, 위험한 행동을 실행 전에 막을 수 있습니다.
 math: true
 ---
 
@@ -50,8 +50,8 @@ $$
 \mathcal{L} = \underbrace{-\sum_t\log\pi_{action}\big(a_t \mid o_{\le t},\ th_t\big)}_{\text{Behavior Cloning}} + \alpha\cdot\underbrace{\Big(-\sum_t\log\pi_{thought}\big(th_t \mid m,\ o_{\le t},\ th_{<t}\big)\Big)}_{\text{Thought Cloning}}
 $$
 
-- **BC loss**: 전문가 행동을 따라 함
-- **TC loss**: 전문가의 생각 문장을 단어 단위 cross entropy로 따라 함
+- **BC loss**: 전문가의 행동을 따라 하도록 학습합니다.
+- **TC loss**: 전문가의 생각 문장을 단어 단위 cross entropy로 따라 하도록 학습합니다.
 - 학습 초반에는 action generator에 **정답 생각**을 넣어 주고(teacher forcing), 점점 **스스로 생성한 생각**을 넣도록 바꿔 갑니다.
 
 ```python

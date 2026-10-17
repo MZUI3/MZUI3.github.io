@@ -3,7 +3,7 @@ title: "[AI 기초 13] Edge AI를 위한 하드웨어와 온디바이스 학습:
 date: 2026-06-28 17:27:00 +0900
 categories: [Neural Network, Lightweight]
 tags: [edge-ai, on-device-learning, tinytl, sram, pim, in-memory-computing, risc-v, posit, cmsis-nn, fpga, lightweight]
-description: 경량 모델을 실제 기기에서 돌리고 학습하기 위해 필요한 것들 — TinyTL의 학습 메모리 절감, SRAM과 PIM, RISC-V 커스텀 명령어, Posit 숫자 체계, CMSIS-NN — 을 알고리즘부터 하드웨어까지 정리합니다.
+description: 경량 모델을 실제 기기에서 돌리고 학습하는 데 필요한 TinyTL의 학습 메모리 절감, SRAM과 PIM, RISC-V 커스텀 명령어, Posit 숫자 체계, CMSIS-NN을 알고리즘부터 하드웨어까지 정리합니다.
 math: true
 ---
 
@@ -29,7 +29,7 @@ math: true
 
 TinyTL(Cai et al., NeurIPS 2020)의 핵심 관찰은 이렇습니다.
 
-> MobileNetV2는 ResNet-50보다 **파라미터가 4.3배 적지만**, 학습 시 **활성값 메모리는 1.1배밖에 적지 않다.**
+> MobileNetV2는 파라미터 수가 ResNet-50의 **4.3분의 1**이지만, 학습 시 **활성값 메모리는 ResNet-50과 거의 같다(차이가 1.1배에 불과).**
 
 경량 모델은 파라미터를 줄이는 데는 성공했지만, 학습 메모리의 진짜 주범인 **활성값**은 줄이지 못했다는 뜻입니다. 그래서 TinyTL의 부제가 *"Reduce Memory, Not Parameters"*입니다.
 
@@ -41,7 +41,7 @@ TinyTL(Cai et al., NeurIPS 2020)의 핵심 관찰은 이렇습니다.
 2. **Conv의 일부만 고정**하고 나머지 층과 classifier 학습
 3. **Conv는 모두 고정**하고 classifier만 학습
 
-3번은 학습 파라미터가 매우 적지만 정확도도 크게 떨어집니다. 여기에 BN 층만 추가로 학습하면 정확도는 꽤 오르지만, **활성값 메모리는 거의 그대로**입니다. 즉 기존 방법들은 parameter-efficient할 뿐 **memory-efficient하지 않습니다.**
+3번은 학습 파라미터가 매우 적지만 정확도도 크게 떨어집니다. 여기에 BN 층만 추가로 학습하면 정확도는 꽤 오르지만, **활성값 메모리는 거의 그대로**입니다. 즉 기존 방법들은 학습할 파라미터를 줄였을 뿐, **학습 메모리는 줄이지 못했습니다.**
 
 ### 왜 bias만 학습하면 메모리가 줄까
 
