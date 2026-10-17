@@ -1,0 +1,201 @@
+# The Site Configuration
+
+# Import the theme
+theme: jekyll-theme-chirpy
+
+# 언어 설정 (ko-KR로 지정하면 메뉴·날짜 등이 한국어로 표시됨)
+lang: ko-KR
+
+# 시간대
+timezone: Asia/Seoul
+
+# jekyll-seo-tag settings › https://github.com/jekyll/jekyll-seo-tag/blob/master/docs/usage.md
+# ↓ --------------------------
+
+title: MZUI.log # 블로그 제목
+
+tagline: AI · Algorithm · Dev # 제목 아래 부제
+
+description: >- # SEO 메타 설명 및 RSS 피드에 사용
+  AI 모델링, 알고리즘, 웹 개발 과정을 기록하는 기술 블로그
+
+# 블로그 주소 (끝에 / 붙이지 않기)
+url: "https://MZUI3.github.io"
+
+github:
+  username: MZUI3
+
+twitter:
+  username:
+
+social:
+  # 글 작성자 기본값 및 하단 저작권 표시에 사용
+  name: 양경동
+  email: mzui2033@email.com
+  fediverse_handle:
+  links:
+    # 첫 번째 링크가 저작권 표시 링크로 사용됨
+    - https://github.com/MZUI3
+    # - https://www.linkedin.com/in/username
+
+# 검색엔진 사이트 인증
+webmaster_verifications:
+  google: # Google Search Console 인증 코드
+  bing:
+  alexa:
+  yandex:
+  baidu:
+  facebook:
+
+# ↑ --------------------------
+# The end of `jekyll-seo-tag` settings
+
+# 방문자 분석
+analytics:
+  google:
+    id: # Google Analytics ID (G-XXXXXXXXXX)
+  goatcounter:
+    id:
+  umami:
+    id:
+    domain:
+  matomo:
+    id:
+    domain:
+  cloudflare:
+    id:
+  fathom:
+    id:
+
+# 조회수 표시
+pageviews:
+  provider: # 현재 goatcounter만 지원
+
+# 테마 모드: 비워두면 시스템 설정을 따르고 사이드바에 전환 버튼 표시
+theme_mode: # [light | dark]
+
+# 미디어 CDN 주소 (비워둬야 로컬 이미지가 정상 표시됨)
+cdn:
+
+# 사이드바 프로필 이미지
+avatar: /assets/img/avatar.jpg
+
+# 링크 공유 시 표시되는 기본 미리보기 이미지
+social_preview_image:
+
+# 글 목차(TOC) 전체 on/off
+toc: true
+
+actions:
+  edit_post:
+    enabled: true
+    url: "https://github.com/MZUI3/MZUI3.github.io/edit/main"
+    static_url: false
+
+comments:
+  # GitHub 저장소의 Issues 기능이 활성화되어 있어야 댓글을 작성할 수 있습니다.
+  provider: utterances
+  disqus:
+    shortname:
+  utterances:
+    repo: MZUI3/MZUI3.github.io
+    issue_term: pathname
+  giscus:
+    repo:
+    repo_id:
+    category:
+    category_id:
+    mapping:
+    strict:
+    input_position:
+    lang:
+    reactions_enabled:
+
+# Self-hosted static assets, optional › https://github.com/cotes2020/chirpy-static-assets
+assets:
+  self_host:
+    enabled:
+    env:
+
+pwa:
+  enabled: true
+  cache:
+    enabled: false
+    deny_paths:
+      # - "/example"
+
+# 한 페이지에 표시할 글 개수
+paginate: 10
+
+# 사용자 사이트(아이디.github.io)이므로 비워둠
+baseurl: ""
+
+# ------------ 아래 설정은 수정하지 않는 것을 권장 ------------------
+
+kramdown:
+  footnote_backlink: "&#8617;&#xfe0e;"
+  syntax_highlighter: rouge
+  syntax_highlighter_opts:
+    css_class: highlight
+    span:
+      line_numbers: false
+    block:
+      line_numbers: true
+      start_line: 1
+
+collections:
+  tabs:
+    output: true
+    sort_by: order
+
+defaults:
+  - scope:
+      path: ""
+      type: posts
+    values:
+      layout: post
+      comments: true
+      toc: true
+      permalink: /posts/:title/
+  - scope:
+      path: _drafts
+    values:
+      comments: false
+  - scope:
+      path: ""
+      type: tabs
+    values:
+      layout: page
+      permalink: /:title/
+
+sass:
+  style: compressed
+
+compress_html:
+  clippings: all
+  comments: all
+  endings: all
+  profile: false
+  blanklines: false
+  ignore:
+    envs: [development]
+
+exclude:
+  - "*.gem"
+  - "*.gemspec"
+  - docs
+  - tools
+  - README.md
+  - LICENSE
+  - purgecss.js
+  - "*.config.js"
+  - "package*.json"
+
+jekyll-archives:
+  enabled: [categories, tags]
+  layouts:
+    category: category
+    tag: tag
+  permalinks:
+    tag: /tags/:name/
+    category: /categories/:name/
