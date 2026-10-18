@@ -112,7 +112,7 @@ order: 4
   <img src="{{ site.avatar | relative_url }}" alt="양경동 프로필 사진">
   <div>
     <h2>안녕하세요, 양경동입니다</h2>
-    <p>AI 모델링과 풀스택 개발을 공부하고 있습니다.</p>
+    <p>경량 AI 모델과 온디바이스 추론, 로봇 학습을 공부합니다.</p>
     <div class="about-links">
       <a href="https://mzui3.notion.site/AI-555b32aeb4c24c189c211ddb6d7ffc1c?source=copy_link" target="_blank" rel="noopener"><i class="fas fa-briefcase"></i> Portfolio</a>
       <a href="https://github.com/MZUI3" target="_blank" rel="noopener"><i class="fab fa-github"></i> GitHub</a>
@@ -141,6 +141,40 @@ order: 4
     <strong>웹 서비스 개발</strong>
     <span>Vue.js 프론트엔드와 Spring 백엔드</span>
   </div>
+  <div class="about-card">
+    <i class="fas fa-robot"></i>
+    <strong>강화학습 · 로봇 학습</strong>
+    <span>탐험, 모방학습, Offline RL, Diffusion 기반 정책</span>
+  </div>
+</div>
+
+## 프로젝트
+
+<div class="about-grid">
+  <a class="about-card" href="https://app.notion.com/p/1c7ccb42fc1c452281959d52db412a87" target="_blank" rel="noopener">
+    <i class="fas fa-microchip"></i>
+    <span class="about-count">2023</span>
+    <strong>TinyML Design Contest</strong>
+    <span>STM32(RAM 16KB)에서 동작하는 심실 부정맥 탐지 1D CNN · 세계 Top 11</span>
+  </a>
+  <a class="about-card" href="https://app.notion.com/p/3997f0db48dc80afad07d3046b15851d" target="_blank" rel="noopener">
+    <i class="fas fa-layer-group"></i>
+    <span class="about-count">2023</span>
+    <strong>ExMobileViT</strong>
+    <span>1저자 · 파라미터 +5%로 ImageNet Top-1 +0.68%p</span>
+  </a>
+  <a class="about-card" href="https://app.notion.com/p/3997f0db48dc80e6bb52ce1269641a7a" target="_blank" rel="noopener">
+    <i class="fas fa-cubes"></i>
+    <span class="about-count">2023</span>
+    <strong>ResidualViT</strong>
+    <span>Tiny 버전 0.89M으로 MobileViT-S 대비 CIFAR-100 +7.0%p</span>
+  </a>
+  <a class="about-card" href="https://app.notion.com/p/37c7f0db48dc803d8221c436ff755bbd" target="_blank" rel="noopener">
+    <i class="fas fa-pen-nib"></i>
+    <span class="about-count">2023</span>
+    <strong>캐리커처 로봇팔</strong>
+    <span>생성형 AI 결과를 G-Code로 바꿔 로봇팔이 그림 · 공학 페스티벌 최우수상</span>
+  </a>
 </div>
 
 ## 블로그에서 다루는 것
