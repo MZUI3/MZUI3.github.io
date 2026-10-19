@@ -7,7 +7,7 @@ tags: [GitHub Actions, GitHub Pages, CI/CD]
 mermaid: true
 ---
 
-정적 블로그는 소스 변경을 감지해 빌드하고 배포하는 과정을 자동화하기 좋습니다. 이 저장소는 GitHub Actions 워크플로를 통해 `main` 브랜치의 변경을 GitHub Pages에 배포합니다.
+정적 블로그는 소스 변경을 감지해 빌드하고 배포하는 과정을 자동화하기 좋습니다. 이 저장소는 GitHub Actions 워크플로로 `main` 브랜치의 변경을 GitHub Pages에 배포합니다.
 
 먼저 등장하는 용어를 정리합니다.
 
@@ -132,7 +132,7 @@ jobs:
 
 ### 실제로 겪은 실패 사례
 
-이 블로그도 처음 며칠 동안 배포가 네 번 실패했습니다. 네 번 모두 `Build site`는 성공하고 **`Test site`(htmlproofer) 단계**에서 `Process completed with exit code 1`로 멈췄고, 그 때문에 결과물 업로드와 배포가 건너뛰어졌습니다. 즉 사이트는 만들어졌지만 링크 검사에서 걸린 것입니다.
+이 블로그도 처음 며칠 동안 배포가 네 번 실패했습니다. 네 번 모두 `Build site`는 성공하고 **`Test site`(htmlproofer) 단계**에서 `Process completed with exit code 1`로 멈췄고, 그 때문에 결과물 업로드와 배포 단계가 생략됐습니다. 즉 사이트는 만들어졌지만 링크 검사에서 걸린 것입니다.
 
 | 언제 | 원인 | 고친 방법 |
 |---|---|---|

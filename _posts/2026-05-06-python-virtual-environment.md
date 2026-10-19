@@ -23,7 +23,7 @@ tags: [Python, venv, pip]
 python -m venv .venv
 ```
 
-Windows에서 `python` 명령이 없다고 나오면 Python 런처인 `py -m venv .venv`를 사용합니다.
+Windows에서 `python` 명령이 없다고 나오면 Python 런처를 써서 `py -m venv .venv`를 실행합니다.
 
 Windows PowerShell에서는 아래 명령으로 활성화합니다.
 

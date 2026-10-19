@@ -158,7 +158,7 @@ Atari 57개 게임에서 DQN, Double DQN, Dueling, Prioritized replay 등 다른
 <details markdown="1">
 <summary>더 알아보기: 분포 학습의 이득은 어디서 오나</summary>
 
-Lyle et al.(2019)은 테이블(tabular) 설정이나 선형 함수 근사에서는 분포를 학습해도 기대값 학습과 **같은 결과**가 나온다는 것을 보였습니다. 즉 이득은 "분포 Bellman 방정식 자체"보다, **딥러닝 함수 근사와 결합했을 때** 표현 학습이 좋아지는 데서 나온다는 해석입니다. 위의 "auxiliary task 효과"가 이와 같은 맥락입니다.
+Lyle et al.(2019)은 테이블(tabular) 설정이나 선형 함수 근사에서는 분포를 학습해도 기댓값 학습과 **같은 결과**가 나온다는 것을 보였습니다. 즉 이득은 "분포 Bellman 방정식 자체"보다, **딥러닝 함수 근사와 결합했을 때** 표현 학습이 좋아지는 데서 나온다는 해석입니다. 위의 "auxiliary task 효과"가 이와 같은 맥락입니다.
 </details>
 
 ## 5. 정리
