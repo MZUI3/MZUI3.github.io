@@ -211,7 +211,7 @@ $$
 **장점**
 - 초당 45 frame(Fast YOLO는 155 frame)으로 **실시간** 처리
 - 이미지 전체를 한 번에 보므로 맥락을 이해해 **배경을 물체로 착각하는 오류(false positive)가 적음**
-- 일반화가 잘 됨: 자연 이미지로 학습하고 **예술 작품**에서 테스트해도 다른 모델보다 성능이 덜 떨어짐
+- 일반화가 잘됨: 자연 이미지로 학습하고 **예술 작품**에서 테스트해도 다른 모델보다 성능이 덜 떨어짐
 
 **한계**
 - R-CNN 계열이 후보를 수천 개 제안하는 데 비해 YOLO는 **98개**뿐
@@ -300,7 +300,7 @@ $$p_t$$가 1에 가까운(잘 맞힌) 샘플은 $$(1-p_t)^\gamma$$가 0에 가�
 - **v5 (Ultralytics, 2020)**: 논문 없이 코드로 공개, **PyTorch** 기반. YOLO 원 저자(Redmon)의 작업은 아닙니다(v4부터 다른 연구자들이 이어 감). 이 저장소의 **v6.0 릴리스**(2021)에서 더 작은 **Nano** 모델(YOLOv5n)이 추가됐습니다.
 - **YOLOv6 (Meituan, 2022)**: 이름은 이어지지만 v5와는 **별개의 프로젝트**로, 논문(arXiv:2209.02976)과 함께 공개됐습니다. RepVGG식 재매개변수화 backbone과 anchor-free head를 씁니다.
 - **v7 (2022)**:
-  - **E-ELAN**: gradient 경로를 조절해 깊어도 학습이 잘 되는 구조
+  - **E-ELAN**: gradient 경로를 조절해 깊어도 학습이 잘되는 구조
   - **Model re-parameterization**: [RepVGG]({% post_url 2026-06-02-cnn-architectures %})처럼 학습 때 여러 갈래를 쓰고 추론 때 합침. 단 identity 연결이 있는 곳에서는 효과가 없어 identity 없는 **RepConvN** 제안
   - **Compound scaling**: depth와 width를 비율을 맞춰 함께 조절
   - **Auxiliary head**와 coarse-to-fine label assignment
