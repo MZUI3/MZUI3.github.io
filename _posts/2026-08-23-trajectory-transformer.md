@@ -51,8 +51,53 @@ $$
 
 ### 기존의 "Transformer를 쓴 RL"과 다른 점
 
-AlphaStar나 일부 멀티에이전트 알고리즘 등에서도 Transformer를 쓰지만, 이들은 **기존 RL 학습 알고리즘(Q-learning, policy gradient)을 그대로 두고** 신경망 구조만 Transformer로 바꾼 것입니다.
-지수 분포처럼 꼬리가 긴 차원을 uniform으로 나누면, 드문 큰 값 때문에 범위가 넓어져 **100개 중 20개 토큰에는 데이터가 하나도 없고**, 값이 몰린 앞쪽 구간은 토큰 하나에 858개가 들어가 해상도가 떨어집니다. Quantile은 모든 토큰이 정확히 같은 양의 데이터를 갖습니다.
+AlphaStar나 일부 멀티에이전트 알고리즘 등에서도 Transformer를 쓰지만, 이들은 **기존 RL 학습 알고리즘(Q-learning, policy gradient)을 그대로 두고** 신경망 구조만 Transformer로 바꾼 것입니다. Trajectory Transformer는 반대로 **RL 학습 알고리즘을 빼고**, 궤적의 분포를 모델링하는 시퀀스 모델 하나만 남깁니다.
+
+## 3. 궤적을 토큰으로: 이산화
+
+Transformer에 넣으려면 연속적인 상태·행동·보상을 **이산 토큰**으로 바꿔야 합니다. 상태가 $$N$$차원, 행동이 $$M$$차원이라면, 각 시점을 **차원 하나당 토큰 하나**로 펼쳐 이어 붙입니다.
+
+$$
+\tau = \big(\dots,\ s_t^1, s_t^2, \dots, s_t^N,\ a_t^1, a_t^2, \dots, a_t^M,\ r_t,\ \dots\big)
+$$
+
+한 시점이 $$N + M + 1$$개의 토큰이 되고, 궤적 길이가 $$T$$면 시퀀스 길이는 $$T(N + M + 1)$$입니다. (Offline RL 실험에서는 계획에 쓰기 위해 reward-to-go도 토큰으로 함께 넣습니다.)
+
+### 차원별로 따로 이산화
+
+상태 벡터 전체를 한 번에 이산화하면 가능한 토큰 수가 차원 수에 대해 지수적으로 늘어납니다. 그래서 **차원마다 독립적으로** $$V$$개(논문은 100개)의 구간으로 나눕니다. 차원 사이의 관계는 Transformer가 앞 차원의 토큰을 보고 다음 차원의 토큰을 예측하면서 학습합니다.
+
+구간을 나누는 방법은 두 가지입니다.
+
+- **Uniform**: 각 차원의 최솟값~최댓값을 **같은 폭**으로 나눔
+- **Quantile**: 각 구간에 **같은 개수의 데이터**가 들어가도록 나눔
+
+```python
+import numpy as np
+
+def discretize(x, n_bins=100, mode="uniform"):
+    """한 차원의 연속값 x를 0 ~ n_bins-1 토큰으로 바꿈"""
+    if mode == "uniform":                                    # 같은 폭으로 나누기
+        edges = np.linspace(x.min(), x.max(), n_bins + 1)
+    else:                                                    # quantile: 같은 개수로 나누기
+        edges = np.quantile(x, np.linspace(0, 1, n_bins + 1))
+    return np.clip(np.searchsorted(edges, x, side="right") - 1, 0, n_bins - 1)
+
+rng = np.random.default_rng(0)
+x = rng.exponential(1.0, 10_000)                             # 꼬리가 긴 차원 (예: 속도)
+for mode in ["uniform", "quantile"]:
+    counts = np.bincount(discretize(x, mode=mode), minlength=100)
+    print(f"{mode:8s} 빈 토큰 {(counts == 0).sum():2d}개, 토큰당 최대 {counts.max()}개, 최소 {counts.min()}개")
+```
+
+```text
+uniform  빈 토큰 15개, 토큰당 최대 792개, 최소 0개
+quantile 빈 토큰  0개, 토큰당 최대 100개, 최소 100개
+```
+
+(NumPy 2.5에서 실행)
+
+지수 분포처럼 꼬리가 긴 차원을 uniform으로 나누면, 드문 큰 값 때문에 범위가 넓어져 **100개 중 15개 토큰에는 데이터가 하나도 없고**, 값이 몰린 앞쪽 구간은 토큰 하나에 792개가 들어가 해상도가 떨어집니다. Quantile은 모든 토큰이 정확히 같은 양의 데이터를 갖습니다.
 
 ### 학습
 

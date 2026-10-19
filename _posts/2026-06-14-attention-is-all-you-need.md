@@ -223,7 +223,7 @@ Encoder와 Decoder는 각각 같은 블록을 $$N=6$$번 쌓은 구조입니다.
 | 하나의 관점만 학습 | Multi-Head Attention |
 | 깊은 네트워크 학습 | Residual Connection + LayerNorm |
 
-다음 글에서는 이 구조를 이미지에 그대로 적용한 **Vision Transformer(ViT)**를 다룹니다. 이미지를 16×16 패치로 잘라 "단어"처럼 다루는 방식과, ImageNet 규모에서는 ResNet보다 성능이 낮았던 이유(**inductive bias** 부족)를 살펴보겠습니다.
+Transformer 시리즈의 다음 글 [경량 Vision Transformer 동향]({% post_url 2026-06-20-lightweight-vision-transformer %})에서는 이 구조를 이미지에 적용한 **Vision Transformer(ViT)**를 다룹니다. 이미지를 16×16 패치로 잘라 "단어"처럼 다루는 방식과, ImageNet 규모에서는 ResNet보다 성능이 낮았던 이유(**inductive bias** 부족)를 살펴보겠습니다.
 
 ## References
 

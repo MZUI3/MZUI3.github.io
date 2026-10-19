@@ -71,15 +71,13 @@ def smote(X_minor, n_new, k=5, rng=None):
 import torch
 from torch.utils.data import WeightedRandomSampler
 
+labels = torch.tensor([0] * 900 + [1] * 90 + [2] * 10)    # 900 / 90 / 10개로 불균형한 레이블
+
 counts = torch.bincount(labels)
 weights = (1.0 / counts.float())[labels]             # 적은 클래스일수록 자주 뽑힘
 sampler = WeightedRandomSampler(weights, num_samples=len(labels), replacement=True)
 
-# 확인: 900 / 90 / 10개로 불균형한 레이블에서 한 epoch 동안 뽑힌 클래스 분포
-labels = torch.tensor([0] * 900 + [1] * 90 + [2] * 10)
-counts = torch.bincount(labels)
-weights = (1.0 / counts.float())[labels]
-sampler = WeightedRandomSampler(weights, num_samples=len(labels), replacement=True)
+# 확인: 한 epoch 동안 뽑힌 클래스 분포
 print(torch.bincount(labels[list(sampler)], minlength=3))   # 예: tensor([325, 355, 320]) 거의 1:1:1
 ```
 
