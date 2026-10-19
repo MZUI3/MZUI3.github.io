@@ -1,13 +1,13 @@
 ---
 title: "[AI 기초 8] CNN 아키텍처 계보: DenseNet, SENet, ShuffleNet, RepVGG"
-date: 2026-06-02 19:09:00 +0900
+date: 2026-06-02 20:48:00 +0900
 categories: [Neural Network, CNN]
 tags: [cnn, densenet, senet, squeeze-excitation, shufflenet, group-convolution, channel-shuffle, repvgg, re-parameterization]
 description: ResNet 이후 CNN이 발전한 네 방향을 DenseNet(concat), SENet(채널 attention), ShuffleNet(group conv와 channel shuffle), RepVGG(구조적 재매개변수화)로 정리하고 PyTorch로 직접 확인합니다.
 math: true
 ---
 
-> [ResNet]({% post_url 2026-05-23-resnet %})과 [MobileNet]({% post_url 2026-05-31-mobilenet %}) 이후 CNN 구조는 크게 네 방향으로 발전했습니다. 이 글에서는 각 방향의 대표 모델을 묶어 정리합니다.
+> [ResNet]({% post_url 2026-05-28-resnet %})과 [MobileNet]({% post_url 2026-05-30-mobilenet %}) 이후 CNN 구조는 크게 네 방향으로 발전했습니다. 이 글에서는 각 방향의 대표 모델을 묶어 정리합니다.
 >
 > - **연결을 더 촘촘하게** → DenseNet
 > - **채널마다 중요도를 다르게** → SENet
@@ -207,7 +207,7 @@ ResNet에 붙일 때는 residual branch의 출력에 SE를 적용한 뒤 shortcu
 - 적은 연산량 추가로 성능 향상
 - 채널 간 **비선형** 상호작용을 학습할 수 있어야 하고, **여러 채널을 동시에** 강조할 수 있어야 함 (그래서 ReLU와 Sigmoid를 사용)
 
-이 "입력에 따라 가중치를 동적으로 바꾼다"는 아이디어는 [Attention]({% post_url 2026-06-20-lightweight-vision-transformer %})과 같은 계열입니다.
+이 "입력에 따라 가중치를 동적으로 바꾼다"는 아이디어는 [Attention]({% post_url 2026-06-13-lightweight-vision-transformer %})과 같은 계열입니다.
 
 ---
 

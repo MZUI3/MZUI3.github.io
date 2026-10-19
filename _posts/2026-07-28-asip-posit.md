@@ -1,13 +1,13 @@
 ---
 title: "[Lightweight] Synopsys ASIP Designer로 Posit 연산기 직접 만들기"
-date: 2026-07-28 21:42:00 +0900
+date: 2026-07-28 20:25:00 +0900
 categories: [Neural Network, Lightweight]
 tags: [hardware, asip, posit, nml, pdg, processor-design, risc-v, lightweight, edge-ai]
 description: 범용 프로세서와 전용 회로의 중간인 ASIP의 개념과 Synopsys ASIP Designer의 설계 흐름(nML, PDG, Primitive·Chess header)을, Posit 덧셈기를 직접 넣어 보는 예제로 정리합니다.
 math: true
 ---
 
-> [Edge AI 하드웨어]({% post_url 2026-06-28-edge-ai-hardware %}) 글에서 부동소수점을 대체하는 **Posit** 숫자 체계와 RISC-V 커스텀 명령어를 정리했습니다. 이번 글은 그 후속으로, NN에 맞는 연산기를 **직접 프로세서에 넣는** 방법인 **ASIP(Application Specific Instruction-set Processor)**와 Synopsys **ASIP Designer**의 설계 흐름을, Posit 덧셈기 구현을 예로 정리합니다.
+> [Edge AI 하드웨어]({% post_url 2026-06-19-edge-ai-hardware %}) 글에서 부동소수점을 대체하는 **Posit** 숫자 체계와 RISC-V 커스텀 명령어를 정리했습니다. 이번 글은 그 후속으로, NN에 맞는 연산기를 **직접 프로세서에 넣는** 방법인 **ASIP(Application Specific Instruction-set Processor)**와 Synopsys **ASIP Designer**의 설계 흐름을, Posit 덧셈기 구현을 예로 정리합니다.
 
 ## 1. 배경: NN에 맞는 하드웨어
 
@@ -28,7 +28,7 @@ $$
 x = (-1)^s \times \text{useed}^{\,k} \times 2^{e} \times (1 + f)
 $$
 
-자세한 예시는 [Edge AI 글]({% post_url 2026-06-28-edge-ai-hardware %})에 있습니다.
+자세한 예시는 [Edge AI 글]({% post_url 2026-06-19-edge-ai-hardware %})에 있습니다.
 
 ## 2. ASIP란
 
