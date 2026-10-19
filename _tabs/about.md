@@ -180,7 +180,7 @@ order: 4
 ## 블로그에서 다루는 것
 
 <div class="about-grid">
-{%- assign about_categories = "Neural Network|fas fa-network-wired|CNN, 경량화, Object Detection, Audio;Reinforcement Learning|fas fa-chess-knight|탐험, 모방학습, Offline RL, 계층적 RL, 멀티에이전트;Transformer|fas fa-shapes|Attention, Vision Transformer, LLM;Generative AI|fas fa-wand-magic-sparkles|Diffusion, Image Synthesis;개발|fas fa-terminal|Web, Python, DB, CI/CD" | split: ";" -%}
+{%- assign about_categories = "Neural Network|fas fa-network-wired|CNN, 경량화, Object Detection, Audio;Reinforcement Learning|fas fa-chess-knight|탐험, 모방학습, Offline RL, 계층적 RL, 멀티에이전트;Transformer|fas fa-shapes|Attention, Vision Transformer, LLM;Generative AI|fas fa-wand-magic-sparkles|Diffusion, Image Synthesis;개발|fas fa-terminal|Web, Python, DB, CI/CD, Robotics" | split: ";" -%}
 {%- for item in about_categories -%}
   {%- assign parts = item | split: "|" -%}
   {%- assign cat_name = parts[0] -%}
