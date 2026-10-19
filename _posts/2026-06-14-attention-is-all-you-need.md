@@ -18,7 +18,7 @@ Transformer 이전의 번역 모델은 대부분 **seq2seq(Encoder–Decoder) + 
 
 이 구조에는 두 가지 문제가 있습니다.
 
-1. **병목(Bottleneck)**: 문장이 아무리 길어도 마지막 hidden state 하나에 모든 정보를 우겨 넣어야 합니다. 입력이 길어질수록 앞쪽 정보가 소실됩니다.
+1. **병목(Bottleneck)**: 문장이 아무리 길어도 마지막 hidden state 하나에 모든 정보를 욱여넣어야 합니다. 입력이 길어질수록 앞쪽 정보가 소실됩니다.
 2. **순차 연산**: RNN은 $$t$$번째 hidden state를 계산하려면 $$t-1$$번째가 끝나야 합니다. 한 번에 한 단어씩만 처리하므로 GPU 병렬화가 어렵고, 시퀀스가 길어질수록 먼 과거로 가는 기울기가 소실(Vanishing Gradient)되기 쉽습니다.
 
 ## 2. Attention: 중요한 단어에 집중하기

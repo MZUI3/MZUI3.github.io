@@ -32,7 +32,7 @@ CNN이 가진 두 가지 가정(inductive bias)이 핵심입니다.
 - **Locality (지역성)**: 의미 있는 패턴은 가까운 픽셀끼리 만든다.
 - **Weight sharing / Translation equivariance**: 같은 패턴은 이미지 어디에 있든 같은 필터로 찾을 수 있다. 입력이 옆으로 밀리면 출력 feature map도 똑같이 밀립니다(equivariance). "위치가 바뀌어도 출력이 아예 같다"는 불변성(invariance)과는 다른 말이고, 불변성은 뒤에서 볼 pooling이 어느 정도 더해 줍니다.
 
-덕분에 파라미터가 크게 줄고, 적은 데이터로도 잘 학습됩니다. **Inductive bias**란 데이터를 보기 전에 모델 구조에 미리 들어 있는 가정을 말합니다. 가정이 문제와 잘 맞으면 적은 데이터로도 빨리 배우고, 맞지 않으면 오히려 한계가 됩니다. 이미지에 [Transformer]({% post_url 2026-06-14-attention-is-all-you-need %})를 적용한 ViT가 CNN보다 많은 학습 데이터를 필요로 하는 주된 이유가 이 가정이 약하기 때문입니다.
+덕분에 파라미터가 크게 줄고, 적은 데이터로도 잘 학습됩니다. **Inductive bias**란 데이터를 보기 전에 모델 구조에 미리 들어 있는 가정을 말합니다. 가정이 문제와 잘 맞으면 적은 데이터로도 빨리 배우고, 맞지 않으면 오히려 한계가 됩니다. 이미지에 [Transformer]({% post_url 2026-06-14-attention-is-all-you-need %})를 적용한 ViT가 CNN보다 많은 학습 데이터를 필요로 하는 것도 주로 이 가정이 약하기 때문입니다.
 
 ## 3. Convolution
 
