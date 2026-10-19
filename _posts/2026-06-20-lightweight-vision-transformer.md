@@ -126,7 +126,7 @@ Transformer를 "convolution처럼 쓰는" 구조라, ViT보다 훨씬 적은 데
 
 ### 비슷한 시기의 CNN 쪽 연구: MobileOne (2022)
 
-같은 Apple 연구팀은 **재매개변수화**([RepVGG]({% post_url 2026-06-02-cnn-architectures %}))를 모바일에 맞게 적용한 MobileOne도 발표했습니다. 학습 때는 여러 갈래의 depthwise/pointwise 블록을 쓰고, 추론 때는 하나로 합쳐 iPhone에서 1ms 이하의 지연 시간을 냅니다. "실제 기기 latency 기준 설계"라는 관점은 EfficientFormer와 같습니다.
+MobileViT를 발표한 Apple은 **재매개변수화**([RepVGG]({% post_url 2026-06-02-cnn-architectures %}))를 모바일에 맞게 적용한 MobileOne도 발표했습니다. 학습 때는 여러 갈래의 depthwise/pointwise 블록을 쓰고, 추론 때는 하나로 합쳐 iPhone에서 1ms 이하의 지연 시간을 냅니다. "실제 기기 latency 기준 설계"라는 관점은 EfficientFormer와 같습니다.
 
 ## 5. 정리: 가벼운 Transformer를 위한 방향
 

@@ -132,7 +132,7 @@ jobs:
 
 ### 실제로 겪은 실패 사례
 
-이 블로그도 처음 며칠 동안 배포가 네 번 실패했습니다. 네 번 모두 `Build site`는 성공하고 **`Test site`(htmlproofer) 단계**에서 `Process completed with exit code 1`로 멈췄고, 그 때문에 결과물 업로드와 배포 단계가 생략됐습니다. 즉 사이트는 만들어졌지만 링크 검사에서 걸린 것입니다.
+이 블로그도 처음 며칠 동안 배포가 네 번 실패했고, 원인은 아래 두 가지였습니다. 네 번 모두 `Build site`는 성공하고 **`Test site`(htmlproofer) 단계**에서 `Process completed with exit code 1`로 멈췄고, 그 때문에 결과물 업로드와 배포 단계가 생략됐습니다. 즉 사이트는 만들어졌지만 링크 검사에서 걸린 것입니다.
 
 | 언제 | 원인 | 고친 방법 |
 |---|---|---|

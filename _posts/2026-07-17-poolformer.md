@@ -7,7 +7,7 @@ description: Self-attention을 학습 파라미터가 없는 평균 풀링으로
 math: true
 ---
 
-> Vision Transformer가 잘 되는 이유는 흔히 **Self-Attention** 덕분이라고 생각합니다. *MetaFormer Is Actually What You Need for Vision*(Yu et al., CVPR 2022)은 이 생각에 의문을 던집니다. Attention을 **아무 학습 파라미터도 없는 평균 풀링**으로 바꿔도 성능이 거의 유지된다면, 진짜 핵심은 attention이 아니라 **Transformer의 전체 구조(MetaFormer)**라는 주장입니다.
+> Vision Transformer가 잘되는 이유는 흔히 **Self-Attention** 덕분이라고 생각합니다. *MetaFormer Is Actually What You Need for Vision*(Yu et al., CVPR 2022)은 이 생각에 의문을 던집니다. Attention을 **아무 학습 파라미터도 없는 평균 풀링**으로 바꿔도 성능이 거의 유지된다면, 진짜 핵심은 attention이 아니라 **Transformer의 전체 구조(MetaFormer)**라는 주장입니다.
 
 ## 1. Transformer 블록 다시 보기
 
@@ -52,7 +52,7 @@ ViT 이후 많은 연구가 **attention을 더 잘 만드는** 데 집중했습�
 - **FNet**: Token Mixer 자리에 **푸리에 변환**을 넣어 토큰을 섞음. 학습 파라미터 없이 추론이 크게 빨라지고 정확도 손실은 작았습니다.
 - **MLP-Mixer**: 모든 층을 **MLP로만** 구성. 토큰 축으로 MLP를 적용해 토큰을 섞습니다. MetaFormer 구조를 그대로 지키면서 **Token Mixer만 바꾼** 예이고, ViT에 근접한 성능을 냈습니다.
 
-Token Mixer를 바꿔도 잘 된다면, **공통된 나머지 구조**가 중요한 것이 아닐까요?
+Token Mixer를 바꿔도 잘된다면, **공통된 나머지 구조**가 중요한 것이 아닐까요?
 
 ## 3. PoolFormer: 가장 단순한 Token Mixer
 

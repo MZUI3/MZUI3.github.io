@@ -87,7 +87,7 @@ Predictor가 학습하다가 target을 **모든 입력에서 완벽히 모방**�
 3. **모델 명세 오류(model misspecification)**: 모델이 정답 함수를 표현하기에 너무 제한적
 4. **학습 동역학(learning dynamics)**: 최적화가 정답 근사를 찾지 못함
 
-1번이 우리가 원하는 신호이고, 2·3번은 Noisy TV 같은 문제를 일으킵니다. RND는 target을 결정적 함수로 두어 **2번을 없애고**, predictor와 target을 **같은 구조**로 만들어 3번을 피합니다(같은 구조라면 이론적으로 완벽히 따라 할 수 있음).
+1번이 우리가 원하는 신호이고, 2·3번은 Noisy TV 같은 문제를 일으킵니다. RND는 target을 결정적 함수로 두어 **2번을 없애고**, predictor를 target을 충분히 표현할 수 있는 구조(같은 구조이거나 그보다 큰 구조)로 만들어 3번을 피합니다(target을 표현할 수 있다면 이론적으로 완벽히 따라 할 수 있음).
 
 ### 불확실성 추정과의 관계
 
@@ -97,7 +97,7 @@ Bayesian 관점에서 보면, 사전분포(prior)에서 뽑은 무작위 함수�
 
 ### Episodic vs Non-episodic
 
-새로운 상태는 **에피소드를 넘어서도** 생길 수 있습니다. 실험해 보니 intrinsic return은 **non-episodic**(에피소드가 끝나도 이어서 계산)으로 다루는 편이 탐험이 더 잘 됐습니다. 사람이 게임을 하다 죽어도 "다음엔 저 방에 가 봐야지"라는 호기심은 이어지는 것과 같습니다.
+새로운 상태는 **에피소드를 넘어서도** 생길 수 있습니다. 실험해 보니 intrinsic return은 **non-episodic**(에피소드가 끝나도 이어서 계산)으로 다루는 편이 탐험이 더 잘됐습니다. 사람이 게임을 하다 죽어도 "다음엔 저 방에 가 봐야지"라는 호기심은 이어지는 것과 같습니다.
 
 반면 extrinsic return까지 non-episodic으로 하면, 에이전트가 시작 지점의 쉬운 보상을 다시 얻으려고 **일부러 게임을 끝내는** 행동을 반복할 수 있습니다.
 
@@ -121,7 +121,7 @@ $$
 obs_n = ((obs - obs_rms.mean) / (obs_rms.var.sqrt() + 1e-8)).clamp(-5, 5)
 r_int, rnd_loss = rnd(obs_n)
 r_int = r_int / (int_return_rms.var.sqrt() + 1e-8)        # intrinsic reward 정규화
-adv = adv_ext + 1.0 * adv_int                               # 두 value head의 advantage 결합
+adv = 2.0 * adv_ext + 1.0 * adv_int                         # 두 value head의 advantage 결합 (논문 계수)
 ```
 
 ## 5. 실험

@@ -7,7 +7,7 @@ tags: [activation-function, sigmoid, tanh, relu, leaky-relu, prelu, elu, selu, s
 math: true
 ---
 
-> [이전 글]({% post_url 2026-05-09-neural-network-backpropagation %})에서 역전파를 할 때 **활성화 함수의 미분값이 계속 곱해진다**는 것을 확인했습니다. 그렇다면 어떤 활성화 함수를 쓰느냐가 학습이 잘 되느냐를 좌우하게 됩니다. 이번 글에서는 대표적인 활성화 함수들을 장단점과 쓰임새 중심으로 정리합니다.
+> [이전 글]({% post_url 2026-05-09-neural-network-backpropagation %})에서 역전파를 할 때 **활성화 함수의 미분값이 계속 곱해진다**는 것을 확인했습니다. 그렇다면 어떤 활성화 함수를 쓰느냐가 학습이 잘되느냐를 좌우하게 됩니다. 이번 글에서는 대표적인 활성화 함수들을 장단점과 쓰임새 중심으로 정리합니다.
 
 ## 1. 활성화 함수란
 
@@ -207,7 +207,95 @@ $$
 \phi(z) = \begin{cases} z & z > 0 \\ \alpha(e^z - 1) & z \le 0 \end{cases}
 $$
 
-음수 영역이 부드러운 곡선이라 출력 평균이 0에 가까워지고, 기본값 $$\alpha = 1$$이면 **0에서도 미분이 끊기지 않습니다**(왼쪽 미분 $$\alpha e^0 = \alpha$$, 오른쪽 미분 1).
+음수 영역이 부드러운 곡선이라 출력 평균이 0에 가까워지고, 기본값 $$\alpha = 1$$이면 **0에서도 미분이 끊기지 않습니다**(왼쪽 미분 $$\alpha e^0 = \alpha$$, 오른쪽 미분 1). 입력이 크게 음수이면 출력이 $$-\alpha$$로 포화되므로 음수 쪽 노이즈에도 덜 흔들립니다. 대신 음수 영역에서 `exp`를 계산해야 해서 ReLU보다 느립니다.
+
+### SELU (Scaled ELU)
+
+$$
+\phi(z) = \lambda\begin{cases} z & z > 0 \\ \alpha(e^z - 1) & z \le 0 \end{cases},\qquad \lambda \approx 1.0507,\ \alpha \approx 1.6733
+$$
+
+ELU에 정해진 배율 $$\lambda$$를 곱한 함수입니다. 두 상수는 "입력의 평균이 0, 분산이 1이면 출력도 평균 0, 분산 1이 되도록" 유도된 값이라, 층을 거듭 통과해도 활성값 분포가 저절로 평균 0, 분산 1 근처로 유지됩니다(**self-normalizing**). BatchNorm 없이도 깊은 MLP를 학습할 수 있다는 것이 SELU 논문의 주장입니다.
+
+```python
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+def stats_after(act, depth=20, width=256):
+    torch.manual_seed(0)
+    x = torch.randn(1024, width)
+    for _ in range(depth):
+        linear = nn.Linear(width, width, bias=False)
+        nn.init.normal_(linear.weight, std=width ** -0.5)     # LeCun normal 초기화
+        x = act(linear(x))
+    return x.mean().item(), x.std().item()
+
+for name, act in [("ReLU", F.relu), ("ELU", F.elu), ("SELU", F.selu)]:
+    m, s = stats_after(act)
+    print(f"{name:4s}  평균 {m:+.3f}  표준편차 {s:.3f}")
+```
+
+```text
+ReLU  평균 +0.001  표준편차 0.001
+ELU   평균 +0.008  표준편차 0.124
+SELU  평균 -0.007  표준편차 0.979
+```
+
+(PyTorch 2.13 CPU에서 실행)
+
+20층을 지난 뒤 ReLU와 ELU는 활성값이 0 근처로 쪼그라들지만, SELU는 표준편차가 1 가까이 유지됩니다. 단, 이 성질은 **LeCun normal 초기화**와 **fully connected 층**을 전제로 하고, Dropout도 분포를 유지하는 AlphaDropout을 써야 합니다. CNN이나 residual 구조에서는 이 보장이 그대로 성립하지 않아 널리 쓰이지는 않습니다.
+
+## 8. GELU와 STE
+
+### GELU (Gaussian Error Linear Unit)
+
+$$
+\text{GELU}(z) = z\,\Phi(z) \approx 0.5\,z\Big(1 + \tanh\Big[\sqrt{2/\pi}\,\big(z + 0.044715\,z^3\big)\Big]\Big)
+$$
+
+$$\Phi$$는 표준정규분포의 누적분포함수입니다. ReLU가 입력을 "0보다 크면 통과, 작으면 차단"으로 딱 자른다면, GELU는 **입력이 클수록 통과시킬 확률이 높아지는** 방식으로 부드럽게 거릅니다.
+
+```python
+z = torch.tensor([-3.0, -0.75, 0.0, 1.0, 3.0])
+print(F.gelu(z))                        # tensor([-0.0040, -0.1700,  0.0000,  0.8413,  2.9960])
+print(F.gelu(z, approximate="tanh"))    # tensor([-0.0036, -0.1700,  0.0000,  0.8412,  2.9964])
+```
+
+- 모든 곳에서 미분 가능하고, 큰 양수에서는 ReLU처럼 거의 $$z$$ 그대로입니다.
+- 음수 영역에서 0으로 바로 잘리지 않고 작은 음수 값(최솟값 약 -0.17, $$z \approx -0.75$$)을 냅니다.
+- BERT, GPT, ViT 등 **Transformer의 사실상 표준** 활성화 함수입니다. tanh 근사는 원래 식과 거의 같으면서 계산이 빠릅니다.
+
+### 미분할 수 없는 sign 함수와 STE
+
+[이진 신경망(BNN)]({% post_url 2026-06-25-binary-neural-networks %})은 가중치와 활성값을 ±1로 만들기 위해 **sign 함수**를 활성화 함수처럼 씁니다. 그런데 sign의 미분은 0을 제외한 모든 곳에서 0이라, 그대로 역전파하면 기울기가 전부 사라집니다(2절의 Step Function과 같은 문제).
+
+**STE(Straight-Through Estimator)**는 forward에서는 sign을 그대로 쓰고, backward에서는 **sign이 없었던 것처럼 기울기를 통과**시킵니다. 보통은 $$\lvert x\rvert \le 1$$에서만 통과시키는 Hard-tanh의 미분을 씁니다.
+
+$$
+\text{forward: } y = \text{sign}(x),\qquad \text{backward: } \frac{\partial y}{\partial x} \approx \mathbf{1}_{\lvert x\rvert \le 1}
+$$
+
+```python
+class SignSTE(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, x):
+        ctx.save_for_backward(x)
+        return torch.where(x >= 0, 1.0, -1.0)          # 0도 +1로 보내 ±1만 출력
+
+    @staticmethod
+    def backward(ctx, grad_out):
+        x, = ctx.saved_tensors
+        return grad_out * (x.abs() <= 1).float()       # Hard-tanh의 미분: |x| ≤ 1에서만 통과
+
+x = torch.tensor([-2.0, -0.5, 0.0, 0.5, 2.0], requires_grad=True)
+y = SignSTE.apply(x)
+y.sum().backward()
+print(y.detach(), x.grad)   # tensor([-1., -1.,  1.,  1.,  1.]) tensor([0., 1., 1., 1., 0.])
+```
+
+$$\lvert x\rvert$$가 1보다 큰 값은 이미 확실히 +1/-1이므로 기울기를 막아 더 밀지 않습니다.
+
 > `torch.sign`을 그대로 쓰면 입력이 정확히 0인 원소가 0으로 남아 "±1만 나온다"는 BNN의 전제가 깨집니다. 실제 BNN 구현에서 자주 나오는 실수입니다.
 {: .prompt-warning }
 
