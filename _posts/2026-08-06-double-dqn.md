@@ -104,7 +104,7 @@ $$
 
 ### Double Q-Learning (2010)
 
-원래 Double Q-Learning은 가중치 두 세트 $$\theta$$와 $$\theta'$$를 둡니다. 하나로 **행동을 선택**하고, 다른 하나로 그 행동을 **평가**합니다. 매 업데이트마다 두 세트의 역할을 무작위로 바꿉니다.
+원래 Double Q-Learning은 가중치 두 세트 $$\theta$$와 $$\theta'$$를 둡니다. 하나로 **행동을 선택**하고, 다른 하나로 그 행동을 **평가**합니다. 업데이트마다 두 세트의 역할을 무작위로 바꿉니다.
 
 $$
 Y_t^{DoubleQ} = r_t + \gamma\,Q\big(s_{t+1},\ \arg\max_a Q(s_{t+1}, a; \theta_t);\ \theta'_t\big)

@@ -57,7 +57,7 @@ x1 → [cell] → x2 → [cell] → x3 → [cell] → ...
 
 ## 3. BPTT와 Vanishing Gradient
 
-RNN은 펼친 네트워크에 역전파를 적용하는 **BPTT(Backpropagation Through Time)**로 학습합니다. 손실을 앞쪽 시점으로 전달하려면 매 시점마다
+RNN은 펼친 네트워크에 역전파를 적용하는 **BPTT(Backpropagation Through Time)**로 학습합니다. 손실을 앞쪽 시점으로 전달하려면 시점마다
 
 $$
 \frac{\partial h_t}{\partial h_{t-1}} = \text{diag}\big(1 - h_t^2\big)\,W_{hh}

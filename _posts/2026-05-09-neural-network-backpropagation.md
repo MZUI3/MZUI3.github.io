@@ -52,7 +52,7 @@ $$
 
 ### Backward (역전파)
 
-출력층부터 거꾸로 거슬러 가면서 **chain rule(연쇄 법칙)**로 각 가중치의 기울기를 구합니다.
+출력층부터 거슬러 올라가면서 **chain rule(연쇄 법칙)**로 각 가중치의 기울기를 구합니다.
 
 $$
 \frac{\partial E}{\partial w} = \frac{\partial E}{\partial y}\cdot\frac{\partial y}{\partial z}\cdot\frac{\partial z}{\partial w}

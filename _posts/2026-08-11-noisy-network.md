@@ -13,7 +13,7 @@ math: true
 
 DQN은 **ε-greedy**, A3C는 **entropy bonus**로 탐험합니다.
 
-- **ε-greedy**: 매 step마다 독립적으로 확률 $$\varepsilon$$만큼 무작위 행동. 상태와 무관하게 무작위성이 들어가고, 연속된 일관된 탐험(예: 한 방향으로 꾸준히 가 보기)을 하기 어렵습니다.
+- **ε-greedy**: step마다 독립적으로 확률 $$\varepsilon$$만큼 무작위 행동. 상태와 무관하게 무작위성이 들어가고, 연속된 일관된 탐험(예: 한 방향으로 꾸준히 가 보기)을 하기 어렵습니다.
 - **Entropy bonus**: 정책이 너무 빨리 확정되지 않게 막지만, 역시 행동 수준의 국소적인 무작위성입니다.
 
 두 방법 모두 **얼마나 탐험할지($$\varepsilon$$, 엔트로피 계수)를 사람이 정해야** 하고, 상태마다 다르게 조절하지 못합니다.
@@ -73,7 +73,7 @@ $$
 \nabla\bar{L}(\zeta) = \mathbb{E}_\varepsilon\big[\nabla_{\mu, \Sigma}L(\mu + \Sigma \odot \varepsilon)\big]
 $$
 
-실제로는 매 최적화 step마다 **노이즈 샘플 하나**로 Monte Carlo 근사합니다.
+실제로는 최적화 step마다 **노이즈 샘플 하나**로 Monte Carlo 근사합니다.
 
 ### 초기화
 

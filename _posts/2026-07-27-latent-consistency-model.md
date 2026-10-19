@@ -142,7 +142,7 @@ $$
 > 이 식은 LCM 논문의 표기입니다. `diffusers` 등에서 흔히 쓰는 $$\epsilon_\varnothing + s(\epsilon_c - \epsilon_\varnothing)$$ 형태로 바꾸면 $$s = 1 + \omega$$입니다. 그래서 라이브러리의 `guidance_scale` 값과 논문의 $$\omega$$는 1만큼 차이 날 수 있습니다.
 {: .prompt-info }
 
-문제는 CFG를 쓰면 매 step마다 **모델을 두 번** 돌려야 한다는 것입니다.
+문제는 CFG를 쓰면 step마다 **모델을 두 번** 돌려야 한다는 것입니다.
 
 ### One-Stage Guided Distillation
 
