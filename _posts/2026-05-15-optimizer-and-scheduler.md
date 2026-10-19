@@ -37,7 +37,7 @@ $$
 
 ### Batch Gradient Descent
 
-매 iteration마다 **전체 데이터**로 기울기를 구합니다. 방향은 정확하지만 한 번 업데이트하는 데 너무 오래 걸리고, 큰 데이터셋은 메모리에 올릴 수도 없습니다.
+iteration마다 **전체 데이터**로 기울기를 구합니다. 방향은 정확하지만 한 번 업데이트하는 데 너무 오래 걸리고, 큰 데이터셋은 메모리에 올릴 수도 없습니다.
 
 ### Stochastic Gradient Descent (SGD)
 
@@ -242,7 +242,7 @@ $$
 \eta(t) = \eta_0 \cdot 0.1^{t/s}
 $$
 
-$$s$$ step마다 학습률이 1/10이 됩니다. PyTorch의 `ExponentialLR`은 매 epoch마다 `gamma`를 곱합니다.
+$$s$$ step마다 학습률이 1/10이 됩니다. PyTorch의 `ExponentialLR`은 epoch마다 `gamma`를 곱합니다.
 
 ### Piecewise Constant (Step) Scheduling
 
