@@ -1,6 +1,6 @@
 ---
 title: "[AI 기초 4] Optimizer와 Learning Rate Scheduler: SGD부터 Adam, 1cycle까지"
-date: 2026-05-15 22:36:00 +0900
+date: 2026-05-15 20:05:00 +0900
 categories: [Neural Network, Basics]
 tags: [optimizer, sgd, momentum, nag, adagrad, rmsprop, adam, learning-rate, scheduler]
 description: SGD, Momentum, NAG, AdaGrad, RMSProp, Adam, AdamW가 '방향'과 '보폭'을 각각 어떻게 개선했는지와, Step·Plateau·Cosine·Warm-up·1cycle 같은 학습률 스케줄러를 PyTorch 실험과 함께 정리합니다.

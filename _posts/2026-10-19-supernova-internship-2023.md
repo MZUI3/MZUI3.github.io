@@ -1,6 +1,6 @@
 ---
 title: "[Experience] 2023 하계 현장실습: 슈퍼노바에서 HUENIT 로봇팔 다루고 조립하기"
-date: 2026-10-19 12:00:00 +0900
+date: 2026-10-19 17:24:00 +0900
 categories: [개발, Robotics]
 tags: [internship, robotics, manipulator, huenit, computer-vision, experience]
 description: 2023년 8월 단국대 산업체현장실습1로 로봇 제조사 슈퍼노바에서 한 달 동안 HUENIT 매니퓰레이터의 소프트웨어, AI 비전 모듈, 로봇팔 조립을 경험한 기록입니다.

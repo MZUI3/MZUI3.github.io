@@ -1,6 +1,6 @@
 ---
 title: "[Generative AI] Neural Style Transfer: CNN으로 Content와 Style 분리하기"
-date: 2026-08-08 18:17:00 +0900
+date: 2026-08-08 16:35:00 +0900
 categories: [Generative AI, Image Synthesis]
 tags: [style-transfer, gatys, vgg19, gram-matrix, content-loss, style-loss, image-synthesis]
 description: 사전학습된 VGG-19의 특징으로 이미지의 내용과 화풍을 분리하는 Neural Style Transfer의 content loss, Gram matrix 기반 style loss, 픽셀을 직접 최적화하는 과정을 PyTorch 코드와 함께 정리합니다.
@@ -154,7 +154,7 @@ def style_transfer(content, style, alpha=1.0, beta=1e3, steps=300):
 
 ### 한계와 후속 연구
 
-이미지 한 장마다 수백 번의 최적화가 필요해 **느립니다.** 이후 연구는 특정 화풍을 **한 번의 forward로** 입히는 feed-forward 네트워크(Johnson et al., Perceptual Loss), 아무 화풍이나 즉시 입히는 **AdaIN** 등으로 발전했습니다. AdaIN은 [Instance Normalization]({% post_url 2026-05-20-normalization %})의 평균·분산을 style 이미지의 것으로 바꿔 끼우는 방식입니다.
+이미지 한 장마다 수백 번의 최적화가 필요해 **느립니다.** 이후 연구는 특정 화풍을 **한 번의 forward로** 입히는 feed-forward 네트워크(Johnson et al., Perceptual Loss), 아무 화풍이나 즉시 입히는 **AdaIN** 등으로 발전했습니다. AdaIN은 [Instance Normalization]({% post_url 2026-05-23-normalization %})의 평균·분산을 style 이미지의 것으로 바꿔 끼우는 방식입니다.
 
 ## 8. 정리
 
@@ -165,7 +165,7 @@ def style_transfer(content, style, alpha=1.0, beta=1e3, steps=300):
 | 최적화 대상 | 네트워크가 아니라 **결과 이미지의 픽셀** | L-BFGS |
 | 조절 | $$\alpha / \beta$$ | content ↔ style 비중 |
 
-다음 Image Synthesis 글에서는 픽셀이 아니라 **벡터 그래픽(SVG)**을 생성하는 [DeepSVG]({% post_url 2026-08-17-deepsvg %})를 다룹니다.
+다음 Image Synthesis 글에서는 픽셀이 아니라 **벡터 그래픽(SVG)**을 생성하는 [DeepSVG]({% post_url 2026-08-15-deepsvg %})를 다룹니다.
 
 ## References
 

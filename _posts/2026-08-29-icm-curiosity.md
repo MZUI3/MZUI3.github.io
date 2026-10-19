@@ -1,13 +1,13 @@
 ---
 title: "[RL] ICM: 호기심(Curiosity)을 보상으로 쓰는 탐험"
-date: 2026-08-29 20:46:00 +0900
+date: 2026-08-29 14:42:00 +0900
 categories: [Reinforcement Learning, Exploration]
 tags: [reinforcement-learning, exploration, intrinsic-motivation, curiosity, icm, inverse-dynamics, forward-dynamics, noisy-tv]
 description: 행동의 결과를 예측하지 못하는 정도를 호기심 보상으로 쓰는 ICM의 inverse·forward dynamics 구조와, 행동과 무관한 노이즈를 특징 공간에서 걸러내는 원리, 실험 결과와 한계를 코드와 함께 정리합니다.
 math: true
 ---
 
-> [Count-Based Exploration]({% post_url 2026-08-28-count-based-exploration %})이 "얼마나 자주 봤는가"로 새로움을 쟀다면, **ICM(Intrinsic Curiosity Module)**(Pathak et al., ICML 2017)은 "**내 행동의 결과를 얼마나 잘 예측하지 못하는가**"를 호기심으로 삼습니다.
+> [Count-Based Exploration]({% post_url 2026-08-26-count-based-exploration %})이 "얼마나 자주 봤는가"로 새로움을 쟀다면, **ICM(Intrinsic Curiosity Module)**(Pathak et al., ICML 2017)은 "**내 행동의 결과를 얼마나 잘 예측하지 못하는가**"를 호기심으로 삼습니다.
 
 ## 1. Intrinsic Reward를 설계하는 두 방향
 
@@ -179,7 +179,7 @@ Mario 1단계에서 호기심만으로 학습한 정책을 다른 단계에 옮�
 | Forward model | 다음 특징 예측 |
 | Intrinsic reward | Forward model의 **예측 오차** |
 
-ICM은 픽셀 대신 학습된 특징 공간에서 예측해 Noisy TV 문제를 상당 부분 줄였습니다. 하지만 **예측 대상 자체가 확률적인** 경우(동전 던지기 결과처럼 행동과 관련 있지만 본질적으로 무작위인 것)에는 여전히 약합니다. 다음 글 [RND]({% post_url 2026-08-30-random-network-distillation %})는 이를 **결정적인 예측 문제**로 바꿔 해결합니다.
+ICM은 픽셀 대신 학습된 특징 공간에서 예측해 Noisy TV 문제를 상당 부분 줄였습니다. 하지만 **예측 대상 자체가 확률적인** 경우(동전 던지기 결과처럼 행동과 관련 있지만 본질적으로 무작위인 것)에는 여전히 약합니다. 다음 글 [RND]({% post_url 2026-09-02-random-network-distillation %})는 이를 **결정적인 예측 문제**로 바꿔 해결합니다.
 
 ## References
 
