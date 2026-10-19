@@ -242,7 +242,7 @@ Real-to-Binary(Martinez et al., ICLR 2020)는 구조보다 **학습 방법**에 
 
 ### (2) Progressive Teacher–Student + Attention Matching
 
-**Knowledge Distillation**(Hinton et al., 2015) 아이디어를 씁니다. 잘 학습된 큰 모델(teacher)의 지식을 작은 모델(student)에 전달합니다.
+**Knowledge Distillation**(Hinton et al., 2014) 아이디어를 씁니다. 잘 학습된 큰 모델(teacher)의 지식을 작은 모델(student)에 전달합니다.
 
 - **Hard target**: 원래 정답 label
 - **Soft target**: teacher의 softmax 확률값. "고양이 0.7, 호랑이 0.2"처럼 클래스 간 유사도 정보가 담겨 있음

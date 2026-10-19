@@ -313,7 +313,7 @@ for epoch in range(epochs):
 - Adam의 초기 불안정은 bias correction, RAdam, warm-up으로 다룹니다.
 - Scheduler는 "처음엔 크게, 나중엔 작게"를 구현하며, Step·Plateau·Cosine·1cycle이 대표적입니다.
 
-다음 글에서는 학습은 잘 되는데 **새로운 데이터에서는 성능이 떨어지는 과적합** 문제와 그 해결책을 다룹니다.
+다음 글에서는 학습은 잘되는데 **새로운 데이터에서는 성능이 떨어지는 과적합** 문제와 그 해결책을 다룹니다.
 
 ## References
 
