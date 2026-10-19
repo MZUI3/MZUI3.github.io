@@ -1,7 +1,7 @@
 ---
 title: REST API를 설계할 때 먼저 정할 것들
 description: 리소스 중심 URL, HTTP 메서드의 안전성·멱등성, 상태 코드, 오류 응답 형식까지 REST API 계약을 정할 때 먼저 결정해야 할 것들을 RFC 근거와 함께 정리합니다.
-date: 2026-05-11 22:57:00 +0900
+date: 2026-05-11 21:15:00 +0900
 categories: [개발, Web]
 tags: [REST, API, HTTP]
 ---

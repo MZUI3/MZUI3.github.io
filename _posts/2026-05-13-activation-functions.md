@@ -1,13 +1,13 @@
 ---
 title: "[AI 기초 3] 활성화 함수 총정리: Sigmoid부터 ReLU 가족, STE까지"
 description: 활성화 함수가 왜 비선형이어야 하는지, Sigmoid·tanh·ReLU 계열·GELU의 장단점과 쓰임새, 미분할 수 없는 sign 함수를 STE로 학습하는 방법을 PyTorch 실험과 함께 정리합니다.
-date: 2026-05-13 22:35:00 +0900
+date: 2026-05-13 20:44:00 +0900
 categories: [Neural Network, Basics]
 tags: [activation-function, sigmoid, tanh, relu, leaky-relu, prelu, elu, selu, softmax, ste]
 math: true
 ---
 
-> [이전 글]({% post_url 2026-05-09-neural-network-backpropagation %})에서 역전파를 할 때 **활성화 함수의 미분값이 계속 곱해진다**는 것을 확인했습니다. 그렇다면 어떤 활성화 함수를 쓰느냐가 학습이 잘되느냐를 좌우하게 됩니다. 이번 글에서는 대표적인 활성화 함수들을 장단점과 쓰임새 중심으로 정리합니다.
+> [이전 글]({% post_url 2026-05-08-neural-network-backpropagation %})에서 역전파를 할 때 **활성화 함수의 미분값이 계속 곱해진다**는 것을 확인했습니다. 그렇다면 어떤 활성화 함수를 쓰느냐가 학습이 잘되느냐를 좌우하게 됩니다. 이번 글에서는 대표적인 활성화 함수들을 장단점과 쓰임새 중심으로 정리합니다.
 
 ## 1. 활성화 함수란
 
@@ -29,7 +29,7 @@ $$
 
 ### 역전파에서의 역할
 
-[2편]({% post_url 2026-05-09-neural-network-backpropagation %})에서 본 것처럼, 은닉 뉴런 $$h$$의 오차 신호는
+[2편]({% post_url 2026-05-08-neural-network-backpropagation %})에서 본 것처럼, 은닉 뉴런 $$h$$의 오차 신호는
 
 $$
 \delta_h = \frac{\partial E}{\partial h}\cdot\phi'(z_h)
@@ -92,7 +92,7 @@ Sigmoid를 -1~1 범위로 늘린 모양입니다.
 
 **한계**: 입력 절댓값이 크면 여전히 미분이 0에 가까워져 **Gradient Vanishing이 남아 있습니다.**
 
-**쓰임새**: 은닉층에서 Sigmoid 같은 역할이 필요할 때, 그리고 **RNN의 기본 활성화 함수**입니다. RNN은 같은 가중치를 시간 방향으로 계속 곱하기 때문에, 출력이 -1~1로 제한되고 기울기가 비교적 오래 유지되는 tanh가 적합합니다([10편 RNN]({% post_url 2026-06-13-rnn-lstm-gru %}) 참고).
+**쓰임새**: 은닉층에서 Sigmoid 같은 역할이 필요할 때, 그리고 **RNN의 기본 활성화 함수**입니다. RNN은 같은 가중치를 시간 방향으로 계속 곱하기 때문에, 출력이 -1~1로 제한되고 기울기가 비교적 오래 유지되는 tanh가 적합합니다([10편 RNN]({% post_url 2026-06-08-rnn-lstm-gru %}) 참고).
 
 ## 5. Softmax
 
@@ -268,7 +268,7 @@ print(F.gelu(z, approximate="tanh"))    # tensor([-0.0036, -0.1700,  0.0000,  0.
 
 ### 미분할 수 없는 sign 함수와 STE
 
-[이진 신경망(BNN)]({% post_url 2026-06-25-binary-neural-networks %})은 가중치와 활성값을 ±1로 만들기 위해 **sign 함수**를 활성화 함수처럼 씁니다. 그런데 sign의 미분은 0을 제외한 모든 곳에서 0이라, 그대로 역전파하면 기울기가 전부 사라집니다(2절의 Step Function과 같은 문제).
+[이진 신경망(BNN)]({% post_url 2026-06-17-binary-neural-networks %})은 가중치와 활성값을 ±1로 만들기 위해 **sign 함수**를 활성화 함수처럼 씁니다. 그런데 sign의 미분은 0을 제외한 모든 곳에서 0이라, 그대로 역전파하면 기울기가 전부 사라집니다(2절의 Step Function과 같은 문제).
 
 **STE(Straight-Through Estimator)**는 forward에서는 sign을 그대로 쓰고, backward에서는 **sign이 없었던 것처럼 기울기를 통과**시킵니다. 보통은 $$\lvert x\rvert \le 1$$에서만 통과시키는 Hard-tanh의 미분을 씁니다.
 
