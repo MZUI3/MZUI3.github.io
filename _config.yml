@@ -89,7 +89,7 @@ toc: true
 actions:
   edit_post:
     enabled: true
-    url: "https://github.com/MZUI3/MZUI3.github.io/edit/main"
+    url: "https://github.com/MZUI3/MZUI3.github.io/edit/master"
     static_url: false
 
 comments:

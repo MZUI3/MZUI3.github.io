@@ -121,7 +121,7 @@ order: 4
   </div>
 </div>
 
-이 블로그에는 연구실 세미나에서 발표하며 읽은 AI 논문과 개발하면서 익힌 기초를 정리합니다. 논문 리뷰에는 원 논문 링크를 함께 남기고, 코드는 직접 돌려 본 결과까지 적으려고 합니다.
+이 블로그에는 연구실 세미나에서 발표하며 읽은 AI 논문과 개발하면서 익힌 기초를 정리합니다. 논문 리뷰에는 원 논문 링크를 함께 남기고, 코드는 직접 돌려 본 결과까지 적으려고 합니다. 알고리즘 문제 풀이(백준·SWEA·프로그래머스)는 [GitHub Algorithm 레포](https://github.com/MZUI3/Algorithm)에 따로 모읍니다.
 
 ## 관심 분야
 
@@ -139,7 +139,7 @@ order: 4
   <div class="about-card">
     <i class="fas fa-code"></i>
     <strong>웹 서비스 개발</strong>
-    <span>Vue.js 프론트엔드와 Spring 백엔드</span>
+    <span>React·Vue.js 프론트엔드와 Spring 백엔드</span>
   </div>
   <div class="about-card">
     <i class="fas fa-robot"></i>
@@ -161,7 +161,7 @@ order: 4
     <i class="fas fa-layer-group"></i>
     <span class="about-count">2023</span>
     <strong>ExMobileViT</strong>
-    <span>1저자 · 파라미터 +5%로 ImageNet Top-1 +0.68%p</span>
+    <span>1저자 · 파라미터 +5%로 ImageNet Top-1 최대 +0.68%p</span>
   </a>
   <a class="about-card" href="https://app.notion.com/p/3997f0db48dc80e6bb52ce1269641a7a" target="_blank" rel="noopener">
     <i class="fas fa-cubes"></i>
