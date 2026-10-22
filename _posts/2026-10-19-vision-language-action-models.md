@@ -14,21 +14,23 @@ mermaid: true
 
 | 시기 | 모델 | 기관 | 핵심 키워드 |
 |---|---|---|---|
-| 2022.05 | Gato | DeepMind | 단일 Transformer로 다양한 작업을 수행하는 generalist agent |
-| 2022.12 | RT-1 | Google | 대규모 실로봇 데이터 기반 Robotics Transformer |
-| 2023.04 | ACT | Stanford (ALOHA) | Action Chunking과 저비용 양팔 조작 |
-| 2023.07 | RT-2 | Google DeepMind | VLM을 로봇 제어에 직접 연결한 Vision-Language-Action 모델 |
-| 2024.06 | OpenVLA | Stanford 외 | 오픈소스 7B VLA, Open X-Embodiment 데이터 활용 |
-| 2024.10 | π0 (Pi-0) | Physical Intelligence | Flow Matching 기반 연속 액션 생성 |
+| 2022.05 | [Gato]({% post_url 2026-10-20-gato %}) | DeepMind | 단일 Transformer로 다양한 작업을 수행하는 generalist agent |
+| 2022.12 | [RT-1]({% post_url 2026-10-20-rt-1 %}) | Google | 대규모 실로봇 데이터 기반 Robotics Transformer |
+| 2023.04 | [ACT]({% post_url 2026-10-20-act-aloha %}) | Stanford (ALOHA) | Action Chunking과 저비용 양팔 조작 |
+| 2023.07 | [RT-2]({% post_url 2026-10-20-rt-2 %}) | Google DeepMind | VLM을 로봇 제어에 직접 연결한 Vision-Language-Action 모델 |
+| 2024.06 | [OpenVLA]({% post_url 2026-10-21-openvla %}) | Stanford 외 | 오픈소스 7B VLA, Open X-Embodiment 데이터 활용 |
+| 2024.10 | [π0 (Pi-0)]({% post_url 2026-10-21-pi0 %}) | Physical Intelligence | Flow Matching 기반 연속 액션 생성 |
 | 2025.02 | Helix | Figure AI | 휴머노이드를 위한 이중 시스템(System 1/2) 구조 |
-| 2025.03 | GR00T N1 | NVIDIA | 휴머노이드 파운데이션 모델, 이중 시스템 구조 |
-| 2025.03 | Gemini Robotics 1.0 | Google DeepMind | Gemini 2.0 기반 VLA와 Embodied Reasoning |
-| 2025.04 | π0.5 | Physical Intelligence | 이종 데이터 co-training으로 open-world 일반화 |
-| 2025.05 | GR00T N1.5 | NVIDIA | 합성 데이터 확장과 일반화 성능 개선 |
-| 2025.06 | SmolVLA | Hugging Face | 소형(450M) 오픈소스 VLA, 커뮤니티 데이터 학습 |
-| 2025.09 | WALL-OSS | X Square Robot | 오픈소스 VLA, embodied reasoning과 액션의 통합 |
-| 2025.09 | Gemini Robotics 1.5 | Google DeepMind | 사고(thinking) 능력과 cross-embodiment 학습 |
-| 2025.11 | π0.6 (π\*0.6) | Physical Intelligence | 실사용 경험을 이용한 강화학습(RL)으로 성능 개선 |
+| 2025.03 | [GR00T N1]({% post_url 2026-10-21-gr00t-n1 %}) | NVIDIA | 휴머노이드 파운데이션 모델, 이중 시스템 구조 |
+| 2025.03 | [Gemini Robotics 1.0]({% post_url 2026-10-21-gemini-robotics %}) | Google DeepMind | Gemini 2.0 기반 VLA와 Embodied Reasoning |
+| 2025.04 | [π0.5]({% post_url 2026-10-22-pi05 %}) | Physical Intelligence | 이종 데이터 co-training으로 open-world 일반화 |
+| 2025.05 | [GR00T N1.5]({% post_url 2026-10-21-gr00t-n1 %}) | NVIDIA | 합성 데이터 확장과 일반화 성능 개선 |
+| 2025.06 | [SmolVLA]({% post_url 2026-10-22-smolvla %}) | Hugging Face | 소형(450M) 오픈소스 VLA, 커뮤니티 데이터 학습 |
+| 2025.09 | [WALL-OSS]({% post_url 2026-10-22-wall-oss %}) | X Square Robot | 오픈소스 VLA, embodied reasoning과 액션의 통합 |
+| 2025.09 | [Gemini Robotics 1.5]({% post_url 2026-10-22-gemini-robotics-1-5 %}) | Google DeepMind | 사고(thinking) 능력과 cross-embodiment 학습 |
+| 2025.11 | [π0.6 (π\*0.6)]({% post_url 2026-10-23-pi-star-0-6 %}) | Physical Intelligence | 실사용 경험을 이용한 강화학습(RL)으로 성능 개선 |
+
+모델 이름을 누르면 그 논문을 자세히 분석한 글로 이동합니다. Helix는 공개된 논문이 없어 이 글에서만 다루고, GR00T N1.5는 GR00T N1 글에서 함께 다룹니다.
 
 순서는 시간을 따르되, 같은 문제를 푼 모델끼리 묶었습니다.
 
