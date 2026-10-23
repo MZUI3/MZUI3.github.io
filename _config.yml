@@ -22,6 +22,9 @@ description: >- # SEO 메타 설명 및 RSS 피드에 사용
 # 블로그 주소 (끝에 / 붙이지 않기)
 url: "https://MZUI3.github.io"
 
+webmaster_verifications:
+  google: oANTsCu7Ez9ZC6L5f-cxhish3Z75VizNVwCiw7f00DE
+
 github:
   username: MZUI3
 
