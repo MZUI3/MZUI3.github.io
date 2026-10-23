@@ -121,7 +121,7 @@ order: 4
   </div>
 </div>
 
-이 블로그에는 연구실 세미나에서 발표하며 읽은 AI 논문과 개발하면서 익힌 기초를 정리합니다. 논문 리뷰에는 원 논문 링크를 함께 남기고, 코드는 직접 돌려 본 결과까지 적으려고 합니다.
+이 블로그에는 연구실 세미나에서 발표하며 읽은 AI 논문과 개발하면서 익힌 기초를 정리합니다. 논문 리뷰에는 원 논문 링크를 함께 남기고, 코드는 직접 돌려 본 결과까지 적으려고 합니다. 알고리즘 문제 풀이(백준·SWEA·프로그래머스)는 [GitHub Algorithm 레포](https://github.com/MZUI3/Algorithm)에 따로 모읍니다.
 
 ## 관심 분야
 
@@ -139,7 +139,7 @@ order: 4
   <div class="about-card">
     <i class="fas fa-code"></i>
     <strong>웹 서비스 개발</strong>
-    <span>Vue.js 프론트엔드와 Spring 백엔드</span>
+    <span>React·Vue.js 프론트엔드와 Spring 백엔드</span>
   </div>
   <div class="about-card">
     <i class="fas fa-robot"></i>
@@ -151,25 +151,25 @@ order: 4
 ## 프로젝트
 
 <div class="about-grid">
-  <a class="about-card" href="https://app.notion.com/p/1c7ccb42fc1c452281959d52db412a87" target="_blank" rel="noopener">
+  <a class="about-card" href="https://mzui3.notion.site/TinyML-Design-Contest-ICCAD-2023-1c7ccb42fc1c452281959d52db412a87" target="_blank" rel="noopener">
     <i class="fas fa-microchip"></i>
     <span class="about-count">2023</span>
     <strong>TinyML Design Contest</strong>
     <span>STM32(RAM 16KB)에서 동작하는 심실 부정맥 탐지 1D CNN · 세계 Top 11</span>
   </a>
-  <a class="about-card" href="https://app.notion.com/p/3997f0db48dc80afad07d3046b15851d" target="_blank" rel="noopener">
+  <a class="about-card" href="https://mzui3.notion.site/ExMobileViT-Lightweight-Classifier-Extension-for-Mobile-Vision-Transformer-3997f0db48dc80afad07d3046b15851d" target="_blank" rel="noopener">
     <i class="fas fa-layer-group"></i>
     <span class="about-count">2023</span>
     <strong>ExMobileViT</strong>
-    <span>1저자 · 파라미터 +5%로 ImageNet Top-1 +0.68%p</span>
+    <span>1저자 · 파라미터 +5%로 ImageNet Top-1 최대 +0.68%p</span>
   </a>
-  <a class="about-card" href="https://app.notion.com/p/3997f0db48dc80e6bb52ce1269641a7a" target="_blank" rel="noopener">
+  <a class="about-card" href="https://mzui3.notion.site/ResidualViT-Better-general-purpose-Vision-Transformer-combined-with-CNN-3997f0db48dc80e6bb52ce1269641a7a" target="_blank" rel="noopener">
     <i class="fas fa-cubes"></i>
     <span class="about-count">2023</span>
     <strong>ResidualViT</strong>
     <span>Tiny 버전 0.89M으로 MobileViT-S 대비 CIFAR-100 +7.0%p</span>
   </a>
-  <a class="about-card" href="https://app.notion.com/p/37c7f0db48dc803d8221c436ff755bbd" target="_blank" rel="noopener">
+  <a class="about-card" href="https://mzui3.notion.site/AI-37c7f0db48dc803d8221c436ff755bbd" target="_blank" rel="noopener">
     <i class="fas fa-pen-nib"></i>
     <span class="about-count">2023</span>
     <strong>캐리커처 로봇팔</strong>
