@@ -13,8 +13,8 @@ AI 모델링, 알고리즘, 웹 개발 과정을 기록하는 기술 블로그�
 ## Topics
 
 - **AI**: 논문 리뷰, 모델 학습 및 실험 기록
-- **Algorithm**: 문제 풀이와 접근 방식 정리
-- **Web**: Vue.js, Spring 등 개발 기록
+- **Algorithm**: 문제 풀이와 접근 방식 정리 (풀이 코드: [MZUI3/Algorithm](https://github.com/MZUI3/Algorithm) · 백준·SWEA·프로그래머스)
+- **Web**: React, Vue.js, Spring 등 개발 기록
 - **Dev**: 개발 환경 세팅과 트러블슈팅
 
 ## Built With
