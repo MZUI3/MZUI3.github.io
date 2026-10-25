@@ -24,7 +24,7 @@ Offline RL은 정책 최적화에 **고정된 데이터셋**을 씁니다. 불�
 
 - 환경과 상호작용 없이 고정된 데이터로 학습하므로, 테스트 시 상태–행동 분포가 학습 데이터와 크게 다르면 **데이터에 없는 상태–행동 쌍에 비현실적인 가치를 추정**하는 **extrapolation error**가 생깁니다.
 - **OOD(Out-Of-Distribution) 행동**이 주된 원인입니다.
-- Online이라면 직접 해 보고 Q를 보정할 수 있지만, offline에서는 **누적된 extrapolation error가 가치 함수를 발산**시키고 보정할 수 없습니다.
+- Online이라면 직접 해 보고 Q를 보정할 수 있지만, offline에서는 **누적된 extrapolation error가 가치 함수를 발산**시키는데, 이를 보정할 수 없습니다.
 
 그래서 최근 연구들은 학습된 정책이 **데이터셋 안쪽에 머물도록** 제한합니다. ([IQL]({% post_url 2026-09-26-implicit-q-learning %})은 아예 OOD 행동을 묻지 않는 방법이었습니다.)
 
@@ -62,13 +62,13 @@ $$
 
 최근의 많은 offline RL 연구는 **behavior policy를 기준으로 정책을 규제**해서 데이터 분포에서 크게 벗어나지 않게 합니다(behavior-regularized offline RL). Behavior policy와 학습된 정책의 차이에 페널티를 주는 방식입니다.
 
-논문은 Anti-exploration도 **policy regularization과 연결**된다는 것을 보입니다. 보너스로 상태별 행동 분포를 모델링할 수 있으므로, 보너스가 정의하는 정책 $$\pi_b(a \mid s) \propto \exp(-b(s, a))$$와의 **KL divergence**로 규제하는 것과 같습니다.
+논문은 Anti-exploration도 **policy regularization과 연결**된다는 것을 보입니다. 보너스로 상태별 행동 분포를 모델링할 수 있으므로, 보너스가 정의하는 정책 $$\pi_b(a \mid s) \propto \exp(-b(s, a))$$와의 **KL divergence**로 규제하는 방식에서 온도(temperature)를 0으로 보낸 극한에 해당합니다.
 
 $$
 \max_\pi\ \mathbb{E}\big[Q(s, a)\big] - \lambda\,D_{KL}\big(\pi(\cdot \mid s)\ \|\ \pi_b(\cdot \mid s)\big)
 $$
 
-이는 **KL-regularized value iteration** 틀로 정리되며, 특정 보너스를 쓰면 기존의 behavior regularization 방법들을 특수한 경우로 포함합니다.
+즉 anti-exploration은 **KL-regularized value iteration**의 극한으로 정리되며, 이를 통해 policy regularization 계열 방법들과 연결됩니다.
 
 ## 5. 실용적인 방법: TD3 + CVAE
 
@@ -170,11 +170,11 @@ Walker2d-medium에서 데이터셋의 $$(s, a)$$로부터 세 종류의 OOD 행�
 - **Random**: 무작위 행동
 - **Dataset + noise**: 데이터의 행동에 가우시안 노이즈를 더함
 
-**CVAE**는 세 경우 모두에서 데이터 행동과 OOD 행동을 잘 구분했지만, **RND**는 특히 shuffled처럼 상태와 행동의 **조합**이 어긋난 경우를 잘 잡지 못했습니다. 상태에 **조건부인** 행동 분포를 모델링하는 것이 중요하다는 뜻입니다.
+**CVAE**는 세 경우 모두에서 데이터 행동과 OOD 행동을 잘 구분했지만, **RND**는 데이터 행동과 OOD 행동의 보너스 차이가 크지 않아 OOD 행동을 잘 잡지 못했습니다. 상태에 **조건부인** 행동 분포를 모델링하는 것이 중요하다는 뜻입니다.
 
 ### 2. D4RL 성능
 
-Locomotion과 hand manipulation의 각 데이터셋에서 model-free offline RL 알고리즘들(BC, BCQ, BEAR, CQL 등)과 비교했습니다. TD3-CVAE는 단순한 구조로 대부분의 데이터셋에서 **최고 성능과 비슷한 수준**(1σ 이내)을 기록했습니다.
+Locomotion과 hand manipulation의 각 데이터셋에서 model-free offline RL 알고리즘들(BC, BCQ, BEAR, BRAC, AWR, CQL)과 비교했습니다. TD3-CVAE는 단순한 구조로 locomotion에서 평균적으로 **CQL과 비슷하고** 나머지 방법보다 좋았으며, hand manipulation에서는 **평균 성능이 가장 높았습니다**.
 
 ## 7. 정리
 

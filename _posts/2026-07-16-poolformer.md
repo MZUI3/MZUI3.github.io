@@ -7,7 +7,7 @@ description: Self-attention을 학습 파라미터가 없는 평균 풀링으로
 math: true
 ---
 
-> Vision Transformer가 잘되는 이유는 흔히 **Self-Attention** 덕분이라고 생각합니다. *MetaFormer Is Actually What You Need for Vision*(Yu et al., CVPR 2022)은 이 생각에 의문을 던집니다. Attention을 **아무 학습 파라미터도 없는 평균 풀링**으로 바꿔도 성능이 거의 유지된다면, 진짜 핵심은 attention이 아니라 **Transformer의 전체 구조(MetaFormer)**라는 주장입니다.
+> Vision Transformer가 잘되는 것은 흔히 **Self-Attention** 덕분이라고 생각합니다. *MetaFormer Is Actually What You Need for Vision*(Yu et al., CVPR 2022)은 이 생각에 의문을 던집니다. Attention을 **아무 학습 파라미터도 없는 평균 풀링**으로 바꿔도 성능이 거의 유지된다면, 진짜 핵심은 attention이 아니라 **Transformer의 전체 구조(MetaFormer)**라는 주장입니다.
 
 ## 1. Transformer 블록 다시 보기
 

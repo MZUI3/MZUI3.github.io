@@ -11,7 +11,7 @@ math: true
 
 ## 1. 문제: Diffusion은 글자에 약하다
 
-Diffusion 모델은 사진 같은 이미지 생성에서는 뛰어난 성능을 보이지만, **글자(text rendering)**에서는 효율이 낮습니다.
+Diffusion 모델은 사진 같은 이미지 생성에서는 뛰어난 성능을 보이지만, **글자(text rendering)**에서는 성능이 떨어집니다.
 
 - 글자 모양이 뭉개지거나, 존재하지 않는 글자가 생김
 - 철자가 틀리거나 글자가 반복됨
@@ -36,7 +36,7 @@ TextDiffuser는 "**어디에 어떤 글자를 쓸지 먼저 정하고(Layout), �
 ### Stage 1. Layout Generation
 
 1. 프롬프트를 CLIP 텍스트 인코더로 임베딩하고, 따옴표로 표시된 **키워드**(`Hello`, `World`)를 찾습니다.
-2. **Transformer**가 키워드마다 **bounding box**(위치와 크기)를 **autoregressive**하게 하나씩 생성합니다. 키워드 길이(글자 수) 정보를 함께 넣어 박스 너비가 글자 수와 맞게 합니다.
+2. **Transformer**가 키워드마다 **bounding box**(위치와 크기)를 **autoregressive**하게 하나씩 생성합니다. 키워드 너비(Arial 폰트로 렌더링했을 때의 폭) 정보를 함께 넣어 박스 너비가 키워드 길이와 맞게 합니다.
 3. 생성된 박스 안에 키워드를 폰트로 렌더링해서, **글자 단위 segmentation mask**를 만듭니다. 마스크의 각 픽셀은 "배경" 또는 "어떤 글자(a~z, 0~9 등)"의 클래스 값을 가집니다.
 
 이 마스크가 다음 단계에서 "**이 위치에 이 글자를 이런 모양으로**"라는 정밀한 설계도 역할을 합니다.
@@ -102,7 +102,7 @@ $$
 
 ### 결과
 
-- Stable Diffusion, ControlNet, DeepFloyd IF 등과 비교해 **OCR 지표가 크게 높았고**, FID·CLIP score는 비슷한 수준을 유지했습니다. 이미지 품질을 해치지 않고 글자 정확도를 올린 것입니다.
+- Stable Diffusion, ControlNet, DeepFloyd IF 등과 비교해 **OCR 지표가 크게 높았고**, FID·CLIP score는 비슷하거나 더 나은 수준이었습니다. 이미지 품질을 해치지 않고 글자 정확도를 올린 것입니다.
 - 사람 평가(user study)에서도 글자 품질과 이미지–텍스트 일치도에서 선호도가 높았습니다.
 
 ### 활용 방식
@@ -132,7 +132,7 @@ $$
 ## References
 
 - Chen et al., "TextDiffuser: Diffusion Models as Text Painters," NeurIPS 2023. [arXiv:2305.10855](https://arxiv.org/abs/2305.10855)
-- Chen et al., "TextDiffuser-2: Unleashing the Power of Language Models for Text Rendering," 2023.
+- Chen et al., "TextDiffuser-2: Unleashing the Power of Language Models for Text Rendering," ECCV 2024.
 - Rombach et al., "High-Resolution Image Synthesis with Latent Diffusion Models," CVPR 2022.
 - Zhang et al., "Adding Conditional Control to Text-to-Image Diffusion Models (ControlNet)," ICCV 2023.
 - Liu et al., "Character-Aware Models Improve Visual Text Rendering," ACL 2023. [arXiv:2212.10562](https://arxiv.org/abs/2212.10562)

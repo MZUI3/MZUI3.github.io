@@ -136,7 +136,7 @@ MuJoCo처럼 **연속적인 보상 함수**가 있는 과제는, 보상을 최�
 | **KUKA Robot** | 블록 쌓기에서 **집어서 옮기기(pick-and-place)**로 과제 변경 |
 
 - **기존 과제**: 자기 진화 과정을 거치며 Maze2D와 MuJoCo에서 Diffuser보다 성능이 올랐습니다. 합성 데이터가 원래 데이터의 빈 곳을 메워 준 효과입니다.
-- **처음 보는 과제**: 금화 줍기 미로, KUKA pick-and-place처럼 학습 데이터에 없던 과제에서 Diffuser보다 크게 좋았습니다. Diffuser는 guidance만으로는 금화 쪽으로 돌아가는 경로를 잘 만들지 못했습니다.
+- **처음 보는 과제**: 금화 줍기 미로, KUKA pick-and-place처럼 학습 데이터에 없던 과제에서 Diffuser보다 크게 좋았습니다. Diffuser도 guidance로 금화를 지나는 경로를 만들었지만 벽과 충돌했고, AdaptDiffuser는 충돌 없는 경로를 만들었습니다.
 - 논문은 부록 G에서 **ChatGPT로 더 다양한 미로 레이아웃을 만드는 방법**도 제시하고, 향후 과제로 프롬프트만으로 미로 설정을 생성해 합성 데이터 생성을 돕는 방향을 언급합니다.
 
 <details markdown="1">
