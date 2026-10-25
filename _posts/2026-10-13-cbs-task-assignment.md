@@ -7,7 +7,7 @@ description: 다중 에이전트 경로 계획(MAPF)의 대표 알고리즘 CBS�
 math: true
 ---
 
-> 이 글은 강화학습이 아니라 **탐색(search) 기반 계획 알고리즘**입니다. 하지만 [PRIMAL]({% post_url 2026-10-06-primal %}) 같은 학습 기반 MAPF가 비교 대상으로 삼는 대표적인 최적 계획기라서 Multi-Agent 카테고리에 함께 정리합니다. *Conflict-Based Search with Optimal Task Assignment*(Hönig et al., AAMAS 2018)는 "**누가 어느 목표로 갈지**"와 "**각자 어떤 경로로 갈지**"를 동시에 최적화합니다.
+> 이 글에서 다루는 것은 강화학습이 아니라 **탐색(search) 기반 계획 알고리즘**입니다. 하지만 [PRIMAL]({% post_url 2026-10-06-primal %}) 같은 학습 기반 MAPF가 비교 대상으로 삼는 대표적인 최적 계획기라서 Multi-Agent 카테고리에 함께 정리합니다. *Conflict-Based Search with Optimal Task Assignment*(Hönig et al., AAMAS 2018)는 "**누가 어느 목표로 갈지**"와 "**각자 어떤 경로로 갈지**"를 동시에 최적화합니다.
 
 ## 1. 문제 정의
 

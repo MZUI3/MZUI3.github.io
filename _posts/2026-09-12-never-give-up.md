@@ -147,7 +147,7 @@ print(ngu_reward(0.5, rnd_err=0.2, mu=1.0, sigma=0.5))   # α<1 → 1로 잘림 
 R2D2를 baseline(당시 Atari 전체 SOTA)으로, 각 게임의 SOTA 알고리즘과 비교했습니다.
 
 - **Pitfall!**에서 시연 데이터나 사람이 만든 특징 없이 **처음으로 양수 점수**를 얻었고, Montezuma's Revenge 등 어려운 탐험 게임에서 큰 향상을 보였습니다.
-- Pong, Breakout 같은 **dense reward 게임에서도 성능을 거의 잃지 않았습니다.** 탐험 보너스가 쉬운 게임을 방해하지 않았다는 뜻입니다.
+- Pong, QBert 같은 **dense reward 게임에서도 성능을 거의 잃지 않았습니다.** 다만 Breakout, Beam Rider에서는 R2D2에 못 미쳐, 탐험 신호가 활용 정책의 학습을 약간 방해하는 것으로 보입니다.
 
 ### Atari 57개 게임
 

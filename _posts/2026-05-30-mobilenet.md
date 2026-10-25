@@ -109,7 +109,7 @@ def depthwise_separable(in_ch, out_ch, stride=1):
     )
 ```
 
-PyTorch에서는 `groups=in_ch` 한 줄이 depthwise conv를 만듭니다. (원 논문은 ReLU 대신 저정밀도 연산에 유리하도록 출력을 6에서 자르는 **ReLU6**를 썼습니다.)
+PyTorch에서는 `groups=in_ch` 한 줄이 depthwise conv를 만듭니다. (원 논문은 ReLU라고만 적었지만, 공식 TensorFlow 구현과 MobileNetV2는 저정밀도 연산에 유리하도록 출력을 6에서 자르는 **ReLU6**를 썼습니다.)
 
 ### 직접 비교: 파라미터는 1/9, 속도는?
 

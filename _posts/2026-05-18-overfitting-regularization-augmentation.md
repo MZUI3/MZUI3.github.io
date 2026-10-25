@@ -167,7 +167,7 @@ optimizer = torch.optim.SGD(model.parameters(), lr=0.01, weight_decay=1e-4)
 
 ### 추론할 때는?
 
-추론 시에는 모든 뉴런을 켭니다. 대신 학습 때보다 활성 뉴런이 많아지므로 출력 크기를 맞춰야 합니다. PyTorch는 **학습 때 남은 뉴런을 $$1/(1-p)$$배** 키우는 inverted dropout을 써서, 추론 때는 아무것도 하지 않아도 됩니다. 그래서 `model.eval()`을 꼭 호출해야 합니다.
+추론 시에는 모든 뉴런을 켭니다. 대신 학습 때보다 활성 뉴런이 많아지므로 출력 크기를 맞춰야 합니다. PyTorch는 **학습 때 남은 뉴런을 $$1/(1-p)$$배** 키우는 inverted dropout을 써서, 추론 때는 아무것도 하지 않아도 됩니다. 단, 추론 때 dropout이 꺼지도록 `model.eval()`을 꼭 호출해야 합니다.
 
 ```python
 import torch.nn as nn
@@ -226,7 +226,7 @@ model.load_state_dict(torch.load("best.pt"))
 
 숫자 `6`을 180도 회전하면 `9`가 되므로, MNIST에 큰 회전은 쓰면 안 됩니다. 반대로 사진 속 고양이는 좌우로 뒤집어도 고양이입니다.
 
-목표는 노이즈나 변형이 들어와도 잘 인식하는 **Robust한 모델**입니다. 특정 데이터만 잘 설명하는 것(Overfitting)이 아니라 이상치에 덜 민감해지는 것이므로, augmentation 자체가 일종의 정규화입니다.
+목표는 노이즈나 변형이 들어와도 잘 인식하는 **Robust한 모델**입니다. 특정 데이터만 잘 설명하는 것(Overfitting)이 아니라 이상치에 덜 민감해지는 것이므로, augmentation 자체가 일종의 규제입니다.
 
 ## 9. 기본 기법
 
@@ -335,7 +335,7 @@ print(y_a, y_b, round(float(lam), 3))   # tensor([0, 1, 2, 3]) tensor([0, 1, 3, 
 3. 하위 n% 모델의 augmentation 정책을 상위 n%의 정책으로 교체
 4. 교체한 정책에 약간의 변화를 주고 반복
 
-AutoAugment와 비슷한 정확도를 **1000배 이상 빠르게** 찾습니다. 이후에는 탐색 공간을 대폭 줄인 **RandAugment**(변형 개수 N과 강도 M만 정함)가 널리 쓰입니다.
+AutoAugment와 비슷한 정확도를 **약 1000배 빠르게** 찾습니다. 이후에는 탐색 공간을 대폭 줄인 **RandAugment**(변형 개수 N과 강도 M만 정함)가 널리 쓰입니다.
 
 ## 12. PyTorch에서 사용하기
 

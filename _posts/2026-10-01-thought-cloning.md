@@ -25,13 +25,13 @@ math: true
 2. 잘못된 생각을 **수정**할 수 있음
 3. 위험하거나 잘못된 행동을 **실행 전에 막을** 수 있음
 
-또 생각이 탐험을 이끌어 시행착오 범위가 줄어들어 **샘플 효율**도 좋아집니다.
+또 생각이 탐험을 이끌면 시행착오 범위가 줄어들어 **샘플 효율**도 좋아집니다.
 
 ## 2. 방법: 두 단계로 된 에이전트
 
 ### 데이터
 
-각 시점마다 **관측 $$o_t$$, 생각 $$th_t$$(자연어), 행동 $$a_t$$**가 기록된 궤적과, 전체 **임무(mission)** $$m$$이 주어집니다.
+시점마다 **관측 $$o_t$$, 생각 $$th_t$$(자연어), 행동 $$a_t$$**가 기록된 궤적과, 전체 **임무(mission)** $$m$$이 주어집니다.
 
 $$
 \mathcal{D} = \big\{(m,\ \{(o_t, th_t, a_t)\}_{t=1}^{T})\big\}
@@ -40,14 +40,14 @@ $$
 ### 구조
 
 - **Thought Generator (상위)**: 임무, 지금까지의 관측 이력, **이전 생각들**을 받아 현재 생각 $$th_t$$를 **자연어 문장**으로 생성
-- **Action Generator (하위)**: 관측 이력과 **현재 생각** $$th_t$$를 조건으로 행동 $$a_t$$를 선택
+- **Action Generator (하위)**: 임무, 관측 이력과 **현재 생각** $$th_t$$를 조건으로 행동 $$a_t$$를 선택
 
 상위가 "무엇을 할지" 언어로 계획하고, 하위가 그 계획에 맞춰 행동하는 계층적 구조입니다.
 
 ### 학습 목적
 
 $$
-\mathcal{L} = \underbrace{-\sum_t\log\pi_{action}\big(a_t \mid o_{\le t},\ th_t\big)}_{\text{Behavior Cloning}} + \alpha\cdot\underbrace{\Big(-\sum_t\log\pi_{thought}\big(th_t \mid m,\ o_{\le t},\ th_{<t}\big)\Big)}_{\text{Thought Cloning}}
+\mathcal{L} = \underbrace{-\sum_t\log\pi_{action}\big(a_t \mid m,\ o_{\le t},\ th_t\big)}_{\text{Behavior Cloning}} + \alpha\cdot\underbrace{\Big(-\sum_t\log\pi_{thought}\big(th_t \mid m,\ o_{\le t},\ th_{<t}\big)\Big)}_{\text{Thought Cloning}}
 $$
 
 - **BC loss**: 전문가의 행동을 따라 하도록 학습합니다.
@@ -107,7 +107,7 @@ def thought_cloning_loss(thought_gen, action_gen, batch, alpha=2.0, teacher_forc
 <details markdown="1">
 <summary>더 알아보기: 생각이 보이면 정말 안전한가</summary>
 
-이 구조는 LLM의 **chain-of-thought**(답하기 전에 추론 과정을 문장으로 쓰게 하는 방식)와 닮았습니다. 그리고 같은 질문이 따라옵니다. 모델이 쓴 생각이 **실제로 행동을 결정한 이유**인가(faithfulness)? Thought Cloning에서는 action generator가 생각을 입력으로 받으므로 생각과 행동이 구조적으로 연결되어 있지만, 행동이 생각을 무시하고 관측만으로 결정될 가능성도 있습니다. 논문의 precrime intervention이 잘 동작한 것은 합성 데이터에서 생각과 행동이 강하게 대응하도록 만들어졌기 때문이기도 합니다. 실제 사람 데이터에서는 말과 행동이 어긋나는 경우가 많아, 안전 장치로 쓰려면 생각과 행동의 일치도를 따로 검증해야 합니다.
+이 구조는 LLM의 **chain-of-thought**(답하기 전에 추론 과정을 문장으로 쓰게 하는 방식)와 닮았습니다. 그리고 같은 질문이 따라옵니다. 모델이 쓴 생각이 **실제로 행동을 결정한 이유**인가(faithfulness)? Thought Cloning에서는 action generator가 생각을 입력으로 받으므로 생각과 행동이 구조적으로 연결되어 있지만, 행동이 생각을 무시하고 관측만으로 결정될 가능성도 있습니다. 논문의 precrime intervention이 잘 동작한 것은 합성 데이터에서 생각과 행동이 강하게 대응하도록 만들어졌기 때문이기도 합니다. 실제 사람 데이터에서는 말과 행동이 어긋나는 경우가 많아, 안전장치로 쓰려면 생각과 행동의 일치도를 따로 검증해야 합니다.
 </details>
 
 ## References

@@ -7,7 +7,7 @@ tags: [GitHub Actions, GitHub Pages, CI/CD]
 mermaid: true
 ---
 
-정적 블로그는 소스 변경을 감지해 빌드하고 배포하는 과정을 자동화하기 좋습니다. 이 저장소는 GitHub Actions 워크플로로 `main` 브랜치의 변경을 GitHub Pages에 배포합니다.
+정적 블로그는 소스 변경을 감지해 빌드하고 배포하는 과정을 자동화하기 좋습니다. 이 저장소는 GitHub Actions 워크플로로 `main`(또는 `master`) 브랜치의 변경을 GitHub Pages에 배포합니다.
 
 먼저 등장하는 용어를 정리합니다.
 

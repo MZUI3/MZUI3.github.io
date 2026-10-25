@@ -135,7 +135,7 @@ def iql_update(batch, q1, q2, q_target1, q_target2, v, policy, tau=0.7, beta=3.0
 
 ### 간단한 미로
 
-미로 예제에서, 같은 데이터로 학습해도 IQL은 SARSA보다 데이터 속 좋은 경로를 찾아내고, 다른 offline 방법보다 **noise가 적은** 가치 추정을 보였습니다.
+미로 예제에서, 같은 데이터로 학습해도 IQL은 single-step 방법(Onestep RL)보다 데이터 속 좋은 경로를 찾아내고, **noise가 적은** 가치 추정을 보였습니다.
 
 ### D4RL
 

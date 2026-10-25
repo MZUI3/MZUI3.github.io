@@ -133,7 +133,7 @@ Denoising step $$N$$을 늘리면 표현력은 좋아지지만 학습·추론 �
 | Adroit | 사람 시연 기반, 고차원 손 조작 |
 | Kitchen | 여러 하위 과제를 순서대로 |
 
-Diffusion-QL은 **네 영역 모두에서** 기존 방법(BC, BCQ, CQL, IQL 등)보다 좋거나 비슷한 성능을 기록했고, 특히 AntMaze와 Adroit처럼 행동 분포가 복잡한 과제에서 차이가 컸습니다.
+Diffusion-QL은 **네 영역 모두에서** 기존 방법(BC, BCQ, CQL, IQL 등)보다 높은 평균 점수를 기록했고, 특히 여러 하위 과제를 순서대로 풀어야 하는 Kitchen에서 차이가 가장 컸습니다.
 
 ## 6. 정리
 

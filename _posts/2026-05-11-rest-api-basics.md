@@ -50,7 +50,7 @@ URL을 동사로 늘리기보다 리소스와 표준 HTTP 메서드 조합으로
 <details markdown="1">
 <summary>더 알아보기: POST를 안전하게 재시도하려면</summary>
 
-결제나 주문 생성처럼 `POST`인데 중복 실행되면 안 되는 요청은, 클라이언트가 요청마다 고유한 키를 헤더(관례적으로 `Idempotency-Key`)에 담아 보내고 서버가 같은 키의 요청을 한 번만 처리하는 방식을 많이 씁니다. Stripe 같은 결제 API가 대표적입니다. 이 헤더는 IETF HTTPAPI 워킹그룹에서 표준화 초안(draft-ietf-httpapi-idempotency-key-header)으로 논의됐지만, 2025년 10월의 07판을 마지막으로 2026년 4월에 만료되었고 RFC로 발행되지는 않았습니다(2026년 10월 확인). 표준은 아니지만 관례로 널리 쓰이는 헤더라고 보면 됩니다.
+결제나 주문 생성처럼 `POST`인데 중복 실행되면 안 되는 요청은, 클라이언트가 요청마다 고유한 키를 헤더(관례적으로 `Idempotency-Key`)에 담아 보내고 서버가 같은 키의 요청을 한 번만 처리하는 방식을 많이 씁니다. Stripe 같은 결제 API가 대표적입니다. 이 헤더는 IETF HTTPAPI 워킹그룹에서 표준화 초안(draft-ietf-httpapi-idempotency-key-header)으로 논의됐지만, 2025년 10월의 07판이 2026년 4월에 만료된 뒤 2026년 10월 22일에 08판이 새로 올라왔고, 아직 RFC로 발행되지는 않았습니다(2026년 10월 확인). 표준은 아니지만 관례로 널리 쓰이는 헤더라고 보면 됩니다.
 
 - 근거: [RFC 9110 §9.2 Common Method Properties](https://www.rfc-editor.org/rfc/rfc9110#section-9.2)
 </details>

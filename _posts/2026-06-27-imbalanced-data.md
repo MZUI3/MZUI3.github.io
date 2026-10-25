@@ -153,7 +153,7 @@ print(criterion.m)                     # tensor([0.1623, 0.2887, 0.5000]) 적은
 
 ### LFME (Learning From Multiple Experts)
 
-앙상블 학습의 한 방법입니다. 데이터를 **불균형이 덜한 여러 부분집합**(예: head, medium, tail 그룹)으로 나눠 각각 **expert 모델**을 학습시킨 뒤, 이 expert들의 지식을 하나의 **통합 모델**에 증류합니다. 통합 모델과 expert 사이의 성능 차이가 일정 임계값 안으로 들어올 때까지, 쉬운 것부터 단계적으로(curriculum) 반복 학습합니다.
+앙상블 학습의 한 방법입니다. 데이터를 **불균형이 덜한 여러 부분집합**(예: head, medium, tail 그룹)으로 나눠 각각 **expert 모델**을 학습시킨 뒤, 이 expert들의 지식을 하나의 **통합 모델**에 증류합니다. 통합 모델의 성능이 expert에 일정 임계값 이상 가까워지면 그 expert의 증류 비중을 점점 줄이고, 학습 샘플은 쉬운 것부터 단계적으로(curriculum) 늘려 갑니다.
 
 ### BKD (Balanced Knowledge Distillation)
 
@@ -162,7 +162,7 @@ print(criterion.m)                     # tensor([0.1623, 0.2887, 0.5000]) 적은
 - Instance-balanced CE로 일반적인 분류 학습을 하고
 - Teacher로부터의 증류 loss에는 **클래스별 가중치**를 줘서 tail 클래스의 지식이 묻히지 않게 함
 
-증류의 temperature 등도 클래스 특성에 맞게 조절해, 중요한 클래스의 정보 손실을 줄이는 방향으로 학습합니다.
+증류의 temperature는 모든 클래스에 같은 값($$T = 2$$)을 쓰고, 클래스별 가중치로 중요한 클래스의 정보 손실을 줄이는 방향으로 학습합니다.
 
 ## 6. 정리
 
