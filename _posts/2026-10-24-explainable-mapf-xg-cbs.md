@@ -3,11 +3,11 @@ title: "[MAPF] XG-CBS: 사람이 그림 몇 장으로 검증할 수 있는 다�
 date: 2026-10-24 10:00:00 +0900
 categories: [Multi-Agent, Path Finding]
 tags: [mapf, cbs, explainable-ai, conflict-based-search, segmentation, a-star, trust, aaai]
-description: Kottinger, Almagor, Lahijanian(AAAI 2022)이 다중 에이전트 경로 계획의 결과를 "경로가 서로 겹치지 않는 시간 구간 몇 개"로 나눠 보여 주는 설명 가능 MAPF 문제를 CBS로 푸는 XG-CBS를 정리합니다. 분할 충돌 제약, 설명 지향 저수준 탐색 XG-A*·WXG-A*·SR-A*의 완전성과 속도 트레이드오프, 벤치마크 결과를 다루고, 작은 실험으로 최단 계획과 설명 가능한 계획의 차이를 확인합니다.
+description: Kottinger, Almagor, Lahijanian(ICAPS 2022)이 다중 에이전트 경로 계획의 결과를 "경로가 서로 겹치지 않는 시간 구간 몇 개"로 나눠 보여 주는 설명 가능 MAPF 문제를 CBS로 푸는 XG-CBS를 정리합니다. 분할 충돌 제약, 설명 지향 저수준 탐색 XG-A*·WXG-A*·SR-A*의 완전성과 속도 트레이드오프, 벤치마크 결과를 다루고, 작은 실험으로 최단 계획과 설명 가능한 계획의 차이를 확인합니다.
 math: true
 ---
 
-> [CBS-TA]({% post_url 2026-10-13-cbs-task-assignment %})에서 본 Conflict-Based Search(CBS)는 다중 에이전트 경로 계획(MAPF)의 대표 알고리즘입니다. 그런데 항공 관제나 위험물 창고처럼 규제가 강한 현장에서는 계획이 옳다는 것을 **사람 감독자가 확인하고 승인**해야 합니다. 수십 개의 경로가 시간에 따라 얽힌 그림을 보고 충돌이 없다고 확신하기는 어렵습니다. 선행 연구(Almagor & Lahijanian, 2020)는 계획을 **시간 구간으로 잘라 각 구간 안에서는 경로들이 서로 겹치지 않게** 그려 주는 설명 방식을 제안했는데, 그림 수(index)가 적은 계획을 찾는 문제는 에이전트 2명만 있어도 NP-hard이고 중앙집중 알고리즘은 확장되지 않았습니다. **XG-CBS**(Explanation-Guided CBS, Kottinger, Almagor, Lahijanian, CU Boulder·Technion, AAAI 2022)는 CBS의 제약 트리에 "분할 충돌"을 추가하고, 그림 수를 줄이도록 유도하는 저수준 탐색을 설계해 이 문제를 분산적으로 풉니다.
+> [CBS-TA]({% post_url 2026-10-13-cbs-task-assignment %})에서 본 Conflict-Based Search(CBS)는 다중 에이전트 경로 계획(MAPF)의 대표 알고리즘입니다. 그런데 항공 관제나 위험물 창고처럼 규제가 강한 현장에서는 계획이 옳다는 것을 **사람 감독자가 확인하고 승인**해야 합니다. 수십 개의 경로가 시간에 따라 얽힌 그림을 보고 충돌이 없다고 확신하기는 어렵습니다. 선행 연구(Almagor & Lahijanian, 2020)는 계획을 **시간 구간으로 잘라 각 구간 안에서는 경로들이 서로 겹치지 않게** 그려 주는 설명 방식을 제안했는데, 그림 수(index)가 적은 계획을 찾는 문제는 에이전트 2명만 있어도 NP-hard이고 중앙집중 알고리즘은 확장되지 않았습니다. **XG-CBS**(Explanation-Guided CBS, Kottinger, Almagor, Lahijanian, CU Boulder·Technion, ICAPS 2022)는 CBS의 제약 트리에 "분할 충돌"을 추가하고, 그림 수를 줄이도록 유도하는 저수준 탐색을 설계해 이 문제를 분산적으로 풉니다.
 
 ## 1. 문제: 설명 가능 MAPF via Segmentation
 
@@ -25,9 +25,9 @@ CBS는 각 에이전트를 독립적으로 A*로 계획하고(루트), 충돌이
 
 표준 A*는 최단 경로를 찾으므로 분할 충돌을 **아주 국소적으로** 피합니다. 교차 지점을 비켜도 같은 경로를 근처에서 다시 만나 새 분할 충돌이 생기고, 트리가 많이 커집니다. 대신 매우 빠릅니다.
 
-- **XG-A\*.** 노드를 $$(v, t, H, i)$$로 확장합니다. $$H$$는 마지막 분할 이후의 방문 정점 이력, $$i$$는 다른 에이전트의 경로 $$P_{-1}$$과 합친 현재 index입니다. 1차 휴리스틱은 index, 2차는 목표까지의 거리입니다. index 1인 경로를 모두 뒤진 뒤에야 index 2로 넘어가므로 **최소 index 경로로 강하게 유도**되지만, 목표로 가는 휴리스틱이 아니라 그래프 크기에 대해 느립니다(Remark 2). 또 다른 에이전트의 교차가 만든 분할 시점에 맞춰 자신의 교차를 **동기화**해 새 구간을 만들지 않는 행동이 나옵니다(Remark 1). 완전합니다(정리 2).
+- **XG-A\*.** 노드를 $$(v, t, H, i)$$로 확장합니다. $$H$$는 마지막 분할 이후의 방문 정점 이력, $$i$$는 다른 에이전트의 경로 $$P_{-i}$$와 합친 현재 index입니다. 1차 휴리스틱은 index, 2차는 목표까지의 거리입니다. index 1인 경로를 모두 뒤진 뒤에야 index 2로 넘어가므로 **최소 index 경로로 강하게 유도**되지만, 목표로 가는 휴리스틱이 아니어서 그래프 크기에 대해 느립니다(Remark 2). 또 다른 에이전트의 교차가 만든 분할 시점에 맞춰 자신의 교차를 **동기화**해 새 구간을 만들지 않는 행동이 나옵니다(Remark 1). 완전합니다(정리 2).
 - **WXG-A\*.** $$f_w = w f_x + (1 - w) f_a$$로 두 비용을 섞습니다. 경로 길이가 index보다 훨씬 크므로 $$w$$가 매우 크지 않으면 길이가 지배합니다. 최적 $$w$$는 인스턴스마다 달라 미리 정하기 어렵고, 이력 $$H$$를 유지하므로 여전히 느립니다.
-- **SR-A\*(Segmentation-Respecting).** 이력을 버리는 대신, 다른 에이전트의 경로를 **구간별 시간 제한 장애물**로 봅니다. $$P_{-1}$$의 어떤 경로가 구간 $$[t_i, t_{i+1}]$$ 안에 정점 $$v$$를 지나면, $$v$$는 그 구간 내내 장애물입니다. 이 장애물을 피하면 새 구간이 생기지 않으므로 기존 분할을 "존중"합니다. 탐색 공간이 줄어 **완전성은 잃지만** 속도가 A* 수준입니다.
+- **SR-A\*(Segmentation-Respecting).** 이력을 버리는 대신, 다른 에이전트의 경로를 **구간별 시간 제한 장애물**로 봅니다. $$P_{-i}$$의 어떤 경로가 구간 $$[t_i, t_{i+1}]$$ 안에 정점 $$v$$를 지나면, $$v$$는 그 구간 내내 장애물입니다. 이 장애물을 피하면 새 구간이 생기지 않으므로 기존 분할을 "존중"합니다. 탐색 공간이 줄어 **완전성은 잃지만** 속도가 A* 수준입니다.
 
 ## 3. 코드로 보기: 최단 계획과 설명 가능한 계획
 
@@ -173,7 +173,7 @@ groups: {east, west} then {south, north}
 
 ## References
 
-- Kottinger, Almagor, Lahijanian, "Conflict-Based Search for Explainable Multi-Agent Path Finding," ICAPS/AAAI 2022. [arXiv:2202.09930](https://arxiv.org/abs/2202.09930)
+- Kottinger, Almagor, Lahijanian, "Conflict-Based Search for Explainable Multi-Agent Path Finding," ICAPS 2022. [arXiv:2202.09930](https://arxiv.org/abs/2202.09930)
 - Almagor, Lahijanian, "Explainable Multi Agent Path Finding," AAMAS 2020.
 - Sharon, Stern, Felner, Sturtevant, "Conflict-based search for optimal multi-agent pathfinding," Artificial Intelligence 2015.
 - Boyarski et al., "ICBS: Improved Conflict-Based Search Algorithm for Multi-Agent Pathfinding," IJCAI 2015.

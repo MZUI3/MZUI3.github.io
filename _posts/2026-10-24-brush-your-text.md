@@ -3,7 +3,7 @@ title: "[Generative] Brush Your Text(Diff-Text): 학습 없이 어떤 언어의 
 date: 2026-10-24 09:00:00 +0900
 categories: [Generative, Diffusion]
 tags: [diffusion, stable-diffusion, controlnet, scene-text, training-free, cross-attention, classifier-free-guidance, multilingual, text-rendering]
-description: Diff-Text(Zhang et al., AAAI 2024)가 렌더링한 텍스트 스케치의 에지를 ControlNet 조건으로 쓰고, 'sign'·'billboard' 같은 토큰의 cross-attention을 텍스트 상자 안으로 제한하는 localized attention constraint와 양·음의 이미지 수준 프롬프트로 가이던스를 확장해, 추가 학습 없이 아랍어·태국어·러시아어 장면 텍스트의 OCR 정확도를 30%p 이상 올린 방법을 정리합니다. 작은 실험으로 attention 제한과 가이던스 식의 구조를 확인합니다.
+description: Diff-Text(Zhang et al., AAAI 2024)가 렌더링한 텍스트 스케치의 에지를 ControlNet 조건으로 쓰고, 'sign'·'billboard' 같은 토큰의 cross-attention을 텍스트 상자 안으로 제한하는 localized attention constraint와 양·음의 이미지 수준 프롬프트로 가이던스를 확장해, 추가 학습 없이 아랍어·태국어·러시아어 장면 텍스트의 OCR 정확도를 약 30%p 올린 방법을 정리합니다. 작은 실험으로 attention 제한과 가이던스 식의 구조를 확인합니다.
 math: true
 ---
 
@@ -45,7 +45,7 @@ attention 제한은 **글자를 받칠 물체가 생성될 때만** 작동합니
 
 $$
 \begin{aligned}
-\tilde\epsilon &= \epsilon(z_t, \varnothing, \varnothing) + s_{cfg}\left[\epsilon(z_t, \varnothing, I_{prompt}) - \epsilon(z_t, \varnothing, \varnothing)\right] + s_{neg}\left[\epsilon'(z_t, I_e, I_{prompt}) - \epsilon(z_t, \varnothing, I_{prompt})\right] \
+\tilde\epsilon &= \epsilon(z_t, \varnothing, \varnothing) + s_{cfg}\left[\epsilon(z_t, \varnothing, I_{prompt}) - \epsilon(z_t, \varnothing, \varnothing)\right] + s_{neg}\left[\epsilon'(z_t, I_e, I_{prompt}) - \epsilon(z_t, \varnothing, I_{prompt})\right] \\
 \epsilon' &= \epsilon(z_t, I_e, I_{prompt}) + s_{pos}\left[\epsilon(z_t, I'_e, I_{prompt}) - \epsilon(z_t, I_e, I_{prompt})\right]
 \end{aligned}
 $$
@@ -132,11 +132,11 @@ weights sum to 1.0 -> the estimate stays on the noise scale
 
 **2. 문제를 "모양"이 아니라 "해석"으로 재정의했습니다.** ControlNet은 이미 모양을 정확히 따라옵니다. 부족한 것은 그 모양이 글자이고 표지판 위에 있어야 한다는 **의미적 해석**이고, 이것을 cross-attention이 담당한다는 Prompt-to-Prompt 계열의 발견을 생성 제어에 활용했습니다. 위 실험의 attention 질량 변화가 그 조작의 전부입니다.
 
-**3. 가이던스 식의 확장은 CFG의 자연스러운 일반화입니다.** 텍스트 조건에 대한 CFG처럼 이미지 조건에도 "없음"과 "있음"의 차이 방향을 더하고, 거기에 "상자 힌트" 방향을 하나 더 얹었습니다. [디퓨전 가속]({% post_url 2026-10-23-adversarial-diffusion-distillation %}) 논문들이 CFG 호출을 줄이려 애쓰는 반면 여기서는 호출을 4배로 늘려 품질을 사는 반대 방향의 선택입니다.
+**3. 가이던스 식의 확장은 CFG의 자연스러운 일반화입니다.** 텍스트 조건에 대한 CFG처럼 이미지 조건에도 "없음"과 "있음"의 차이 방향을 더하고, 거기에 "상자 힌트" 방향을 하나 더 얹었습니다. [디퓨전 가속]({% post_url 2026-10-23-adversarial-diffusion-distillation %}) 논문들이 CFG 호출을 줄이려 애쓰는 반면 여기서는 호출을 단계당 4회(CFG의 2배)로 늘려 품질을 사는 반대 방향의 선택입니다.
 
 **4. 한계는 조건의 출처에 있습니다.** 글자 위치와 폰트가 스케치에서 정해지므로 디퓨전 모델이 장면에 맞는 폰트·원근·조명을 스스로 고르지 못합니다. GlyphDraw의 마스크 예측이 원근을 반영한 것과 대비됩니다. 긴 문장, 곡면 위의 글자, 여러 줄 배치도 다루지 않습니다.
 
-**5. 평가를 읽을 때 주의할 점.** 테스트 프롬프트는 ChatGPT로 생성했고 "sign" 류 단어가 포함되기 쉬워 방법에 유리할 수 있습니다. OCR 정확도는 easy-OCR의 언어별 성능에 의존하며, 단어 수준 완전 일치라 편집 거리 지표와 차이가 큽니다. 비교 대상 중 TextDiffuser는 템플릿 모드로, DeepFloyd는 1024 해상도로 돌려 조건이 완전히 같지는 않습니다. 위 toy의 attention 맵은 무작위라 실제 모델에서 "sign" 토큰이 처음부터 얼마나 집중되어 있는지는 보여 주지 못합니다.
+**5. 평가를 읽을 때 주의할 점.** 테스트 프롬프트는 ChatGPT로 생성했고 "sign"류 단어가 포함되기 쉬워 방법에 유리할 수 있습니다. OCR 정확도는 easy-OCR의 언어별 성능에 의존하며, 단어 수준 완전 일치라 편집 거리 지표와 차이가 큽니다. 비교 대상 중 TextDiffuser는 템플릿 모드로, DeepFloyd는 1024 해상도로 돌려 조건이 완전히 같지는 않습니다. 위 toy의 attention 맵은 무작위라 실제 모델에서 "sign" 토큰이 처음부터 얼마나 집중되어 있는지는 보여 주지 못합니다.
 
 ## 6. 정리
 
@@ -144,7 +144,7 @@ weights sum to 1.0 -> the estimate stays on the noise scale
 |---|---|
 | 문제 | 소수 언어 장면 텍스트는 학습 데이터가 없고, ControlNet 에지는 글자로 해석되지 않음 |
 | 입력 | 텍스트 → 스케치(무작위 폰트, 상자 위치) → Canny 에지 → ControlNet; 장면 프롬프트 → UNet |
-| Attention 제한 | "sign" 류 토큰의 cross-attention을 $$\lambda = 6$$배 하고 글자 상자 밖은 0 |
+| Attention 제한 | "sign"류 토큰의 cross-attention을 $$\lambda = 6$$배 하고 글자 상자 밖은 0 |
 | 대조 프롬프트 | PIP(에지 + 상자 테두리, $$s_{pos} = 0.1$$), NIP(흰 스케치 기준, $$s_{neg} = 2.0$$), CFG $$s_{cfg} = 7.5$$ |
 | 비용 | 학습 0, 추론 때 단계당 UNet 호출 4회 |
 | 결과 | 아랍어·태국어·러시아어 정확도 33~39%(ControlNet 3~10%), 영어 61.0%(TextDiffuser 43.9%) |

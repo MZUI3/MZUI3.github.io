@@ -32,7 +32,7 @@ V2의 기본 블록은 입력 $$k$$채널, 확장 비율 $$t$$에 대해 세 층
 
 곱셈-덧셈 수는 $$h \cdot w \cdot k \cdot t \,(k + d^2 + k')$$입니다. 확장 때문에 1×1 항이 하나 더 붙지만, depthwise 층이 저렴해서 전체는 V1보다 작은 입력·출력 채널로 같은 표현력을 냅니다. 논문은 $$t = 6$$을 기본으로 쓰고, 5~10 사이에서는 성능이 비슷하며 작은 네트워크일수록 작은 $$t$$가 약간 낫다고 보고합니다.
 
-잔차 연결은 **bottleneck 끼리**, 즉 얇은 $$k$$채널 텐서 사이에 겁니다. 기존 [ResNet]({% post_url 2026-05-28-resnet %}) bottleneck은 넓은 층을 입출력으로 두고 가운데를 좁히는 반면, 여기서는 얇은 층이 입출력이고 가운데가 넓습니다. 그래서 "inverted"입니다. 이렇게 하면 다음 블록으로 넘어가는 텐서가 얇아서 **메모리**가 줄고, 블록 내부의 넓은 텐서는 블록 안에서만 살다가 사라집니다.
+잔차 연결은 **bottleneck끼리**, 즉 얇은 $$k$$채널 텐서 사이에 겁니다. 기존 [ResNet]({% post_url 2026-05-28-resnet %}) bottleneck은 넓은 층을 입출력으로 두고 가운데를 좁히는 반면, 여기서는 얇은 층이 입출력이고 가운데가 넓습니다. 그래서 "inverted"입니다. 이렇게 하면 다음 블록으로 넘어가는 텐서가 얇아서 **메모리**가 줄고, 블록 내부의 넓은 텐서는 블록 안에서만 살다가 사라집니다.
 
 비선형성으로는 ReLU6($$\min(\max(x, 0), 6)$$)을 씁니다. 저정밀 연산에서 값의 범위를 고정해 주기 때문입니다.
 
@@ -114,11 +114,11 @@ memory-efficient inference: split the expanded 384x56x56 tensor into t=6 slices
 
 ## 4. 실험
 
-**ImageNet 분류.** 기본 MobileNetV2는 top-1 72.0%, 300M MAdds, 3.4M 파라미터, Pixel 1 단일 코어에서 75ms입니다. MobileNetV1(70.6%, 569M, 113ms), ShuffleNet 1.5(71.5%, 292M), NASNet-A(74.0%, 564M, 183ms)와 비교해 정확도-연산량-지연 모두에서 앞섭니다. 1.4 배율 모델은 74.7%, 585M, 143ms로 NASNet-A보다 정확하면서 빠릅니다.
+**ImageNet 분류.** 기본 MobileNetV2는 top-1 72.0%, 300M MAdds, 3.4M 파라미터, Pixel 1 단일 코어에서 75ms입니다. MobileNetV1(70.6%, 569M, 113ms), ShuffleNet 1.5(71.5%, 292M), NASNet-A(74.0%, 564M, 183ms)와 비교하면 V1·ShuffleNet보다는 정확하고, NASNet-A보다는 정확도가 2%p 낮지만 연산량은 절반 수준이고 지연은 2.4배 짧습니다. 1.4 배율 모델은 74.7%, 585M, 143ms로 NASNet-A보다 정확하면서 빠릅니다.
 
 **COCO 검출.** SSD의 예측 층을 depthwise separable로 바꾼 **SSDLite**를 붙이면 MobileNetV2 + SSDLite는 22.1 mAP, 4.3M 파라미터, 0.8B MAdds, Pixel 1에서 200ms입니다. YOLOv2(21.6 mAP, 50.7M, 17.5B)보다 20배 적은 연산과 10배 적은 파라미터로 더 높은 mAP를 냅니다.
 
-**VOC 분할.** DeepLabv3 헤드를 마지막 층(1280채널) 대신 **마지막에서 두 번째 feature map(320채널)** 위에 올리고, ASPP를 제거하고, output stride 16을 쓰면 75.32% mIOU에 2.75B MAdds입니다. ResNet-101 기반(mIOU 82.70, 4870.6B MAdds와 같은 다중 스케일 추론 설정)과 비교하면 수백 배 가벼운 온디바이스 후보입니다.
+**VOC 분할.** DeepLabv3 헤드를 마지막 층(1280채널) 대신 **마지막에서 두 번째 feature map(320채널)** 위에 올리고, ASPP를 제거하고, output stride 16을 쓰면 75.32% mIOU에 2.75B MAdds입니다. ResNet-101 기반(output stride 8에 다중 스케일·좌우 반전 추론까지 쓴 설정에서 mIOU 82.70, 4870.6B MAdds)과 비교하면 천 배 넘게 가벼운 온디바이스 후보입니다.
 
 **Ablation.** bottleneck에 ReLU6를 넣은 모델보다 **선형 bottleneck**이 더 정확합니다. 선형 층은 표현력이 엄밀히는 더 작은데도 성능이 좋다는 것이 "비선형성이 저차원에서 정보를 파괴한다"는 가설의 근거입니다. 잔차 연결은 확장 층 사이보다 **bottleneck 사이**에 거는 쪽이 낫습니다.
 
@@ -126,7 +126,7 @@ memory-efficient inference: split the expanded 384x56x56 tensor into t=6 slices
 
 **1. 가설이 구조를 결정했습니다.** "활성값은 저차원 매니폴드에 있다"는 가설에서 "저차원에서는 ReLU를 빼라"와 "비선형성은 확장된 곳에 두라"가 바로 나옵니다. 위 나선 실험처럼 가설을 그림 하나로 보여 준 뒤, ablation(Figure 6a)으로 실제 네트워크에서 확인한 구성이 설득력 있습니다.
 
-**2. inverted residual은 메모리 설계입니다.** 연산량만 보면 V1 블록과 큰 차이가 없습니다. 차이는 블록 사이를 지나는 텐서가 얇다는 점이고, 이것이 모바일에서 중요한 메모리와 캐시 효율로 이어집니다. [Edge AI 하드웨어]({% post_url 2026-06-19-edge-ai-hardware %})에서 보듯 임베디드 추론은 SRAM 용량에 묶여 있어서, 이 설계가 이후 MobileNetV3, EfficientNet, [MobileViT]({% post_url 2026-06-13-lightweight-vision-transformer %}) 등 거의 모든 경량 모델의 기본 블록이 된 이유입니다.
+**2. inverted residual은 메모리 설계입니다.** 연산량만 보면 V1 블록과 큰 차이가 없습니다. 차이는 블록 사이를 지나는 텐서가 얇다는 점이고, 이것이 모바일에서 중요한 메모리와 캐시 효율로 이어집니다. [Edge AI 하드웨어]({% post_url 2026-06-19-edge-ai-hardware %})에서 보듯 임베디드 추론은 SRAM 용량에 묶여 있고, 이것이 이 설계가 이후 MobileNetV3, EfficientNet, [MobileViT]({% post_url 2026-06-13-lightweight-vision-transformer %}) 등 거의 모든 경량 모델의 기본 블록이 된 이유입니다.
 
 **3. 표현력과 용량을 분리했습니다.** 논문은 bottleneck 입출력을 "용량(capacity)", 내부 확장을 "표현력(expressiveness)"으로 해석합니다. 두 축을 따로 조절할 수 있다는 관점이 이후 NAS 탐색 공간(MnasNet, [MobileNetV3]({% post_url 2026-10-24-mobilenetv3 %}))에서 확장 비율과 채널 수를 독립 변수로 두는 근거가 됩니다.
 

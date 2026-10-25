@@ -19,9 +19,9 @@ math: true
 
 **DF 구조**는 DeepFakes와 같습니다. src와 dst가 **공유하는 Encoder + Inter**, 그리고 **신원별 Decoder** 둘. 각 디코더는 자기 신원만 재구성하도록 학습되므로 표정이 짝지어질 필요가 없습니다. 추론 때 dst 얼굴을 src 디코더에 넣으면 "왜곡된 src"로 착각해 src 신원에 dst 포즈·표정의 얼굴을 냅니다([SimSwap]({% post_url 2026-10-24-simswap %})이 분석하듯 신원 정보가 디코더 가중치에 들어 있어 일반화는 안 됩니다). 약점은 dst의 **조명** 같은 정보를 충분히 물려받지 못한다는 것입니다.
 
-**LIAE 구조**는 Encoder와 Decoder를 공유하고 **Inter를 둘**(InterAB, InterB) 둡니다. InterAB는 src·dst 모두의 잠재를, InterB는 dst의 잠재만 만들고, src는 $$F^{AB}_{src} \Vert F^{AB}_{src}$$, dst는 $$F^{AB}_{dst} \Vert F^{B}_{dst}$$를 채널 연결해 디코더에 넣습니다. $$F^B_{dst}$$를 붙이는 것은 잠재의 방향을 필요한 클래스 쪽으로 옮기기 위한 것이고, InterAB가 두 신원의 **정렬된 공통 표현**을 갖게 됩니다. Ablation(Figure 6)에서 LIAE가 dst의 얼굴 형태와 조명을 더 잘 물려받습니다.
+**LIAE 구조**는 Encoder와 Decoder를 공유하고 **Inter를 두 개**(InterAB, InterB) 둡니다. InterAB는 src·dst 모두의 잠재를, InterB는 dst의 잠재만 만들고, src는 $$F^{AB}_{src} \Vert F^{AB}_{src}$$, dst는 $$F^{AB}_{dst} \Vert F^{B}_{dst}$$를 채널 연결해 디코더에 넣습니다. $$F^B_{dst}$$를 붙이는 것은 잠재의 방향을 필요한 클래스 쪽으로 옮기기 위한 것이고, InterAB가 두 신원의 **정렬된 공통 표현**을 갖게 됩니다. Ablation(Figure 6)에서 LIAE가 dst의 얼굴 형태와 조명을 더 잘 물려받습니다.
 
-**손실과 기법**: DSSIM + MSE 혼합(DSSIM은 얼굴을 빨리 일반화하고 MSE는 선명도), 눈 영역에 가중치를 둔 마스크 SSIM, GAN 옵션(세부·주름·점이 살아남), **TrueFace**(LIAE에서 $$F^{AB}_{src} \approx F^{AB}_{dst}$$, DF에서 $$F_{src} \approx F_{dst}$$가 되도록 강제해 변환 결과가 dst에 더 닮게 함), 합성곱 인식 초기화, 학습률 드롭아웃. 다중 GPU, 반정밀도, 2GB VRAM에서도 동작합니다.
+**손실과 기법**: DSSIM + MSE 혼합(DSSIM은 얼굴을 빨리 일반화하고 MSE는 선명도), 눈 영역에 가중치를 둔 마스크 SSIM, GAN 옵션(세부·주름·점이 살아남), **TrueFace**(LIAE에서 $$F^{AB}_{src} \approx F^{AB}_{dst}$$, DF에서 $$F_{src} \approx F_{dst}$$가 되도록 강제해 변환 결과가 dst를 더 닮게 함), 합성곱 인식 초기화, 학습률 드롭아웃. 다중 GPU, 반정밀도, 2GB VRAM에서도 동작합니다.
 
 ## 3. 변환
 

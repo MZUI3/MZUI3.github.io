@@ -103,7 +103,7 @@ receptive field: 8 plain 3x3 convs 17 | 4 convs with dilation 1,2,4,8 31 | 4 con
 
 **PASCAL VOC 테스트 mIoU.** FCN 62.2 → DeepLab-CRF 79.7 → PSPNet 85.4 → DeepLabv3 85.7 → DeepLabv3+ 87.8 → DeepLabv3+(사전학습) 89.0 → EfficientNet+NAS-FPN 90.5. 5년 사이 28%p 올랐습니다.
 
-**Cityscapes 테스트 mIoU.** FCN-8s 65.3 → DeepLabv2 70.4 → PSPNet 78.4(서베이 표에는 85.4로 적혀 있으나 원 논문은 78.4) → DANet 81.5 → OCR 82.4 → GS-CNN 82.8 → HRNetV2+OCR 83.7 → Hierarchical MSA 85.1. FCN 대비 약 23% 상대 개선입니다.
+**Cityscapes 테스트 mIoU.** FCN-8s 65.3 → DeepLabv2 70.4 → PSPNet 78.4(서베이 표에는 85.4로 적혀 있으나 원 논문은 78.4) → DANet 81.5 → OCR 82.4 → GS-CNN 82.8 → HRNetV2+OCR 83.7 → Hierarchical MSA 85.1. 서베이는 FCN 대비 약 23% 상대 개선이라고 적었지만, FCN-8s 65.3을 기준으로 계산하면 약 30%(19.8%p)입니다.
 
 **COCO stuff**(mIoU 최고 약 40, OCR/HRNetV2-W48 40.5)와 **ADE20k**(AC-Net 45.9)는 훨씬 어렵습니다. **인스턴스 분할**(COCO test-dev AP)은 Mask R-CNN 37.9, CenterMask 38.3이고 YOLACT-550은 29.8 AP에 33.5 FPS로 실시간입니다. **파놉틱**(COCO val PQ)은 UPSNet 42.5, OCFusion(ResNeXt-101) 45.7입니다. RGB-D(NYUD-v2, SUN-RGBD)도 표로 정리됩니다.
 
@@ -117,7 +117,7 @@ receptive field: 8 plain 3x3 convs 17 | 4 convs with dilation 1,2,4,8 31 | 4 con
 
 **2. 인코더-디코더와 U-Net의 영향이 분할을 넘어섭니다.** 대칭 스킵 연결은 [잠재 디퓨전]({% post_url 2026-07-03-latent-diffusion-models %})의 디노이저 백본으로, [MWCNN]({% post_url 2026-10-24-mwcnn %})처럼 웨이블릿을 풀링 대신 쓰는 변형으로, 의료 영상의 거의 모든 구조로 퍼졌습니다. 서베이가 의료 인코더-디코더를 별도 절로 둔 이유입니다.
 
-**3. 지표 선택이 결과를 바꿉니다.** PA 대 mIoU의 차이는 클래스 불균형의 문제이고, Dice와 F1의 동일성은 의료와 일반 비전이 같은 것을 다른 이름으로 부른다는 뜻입니다. 속도와 메모리를 보고하지 않는 관행에 대한 서베이의 지적은 [EdgeViTs]({% post_url 2026-10-24-edgevits %}) 류의 실측 지연 시간 보고가 왜 필요한지와 같은 맥락입니다.
+**3. 지표 선택이 결과를 바꿉니다.** PA 대 mIoU의 차이는 클래스 불균형의 문제이고, Dice와 F1의 동일성은 의료와 일반 비전이 같은 것을 다른 이름으로 부른다는 뜻입니다. 속도와 메모리를 보고하지 않는 관행에 대한 서베이의 지적은 [EdgeViTs]({% post_url 2026-10-24-edgevits %})류의 실측 지연 시간 보고가 왜 필요한지와 같은 맥락입니다.
 
 **4. 성능표의 수치는 조건을 봐야 합니다.** 사전학습 데이터(COCO, JFT-300M), 백본 크기, 테스트 시 증강(다중 스케일·뒤집기)이 mIoU를 수 %p 바꿉니다. 서베이도 "표준 데이터셋과 지표를 쓰지 않는 논문이 있어 비교가 어렵다"고 적습니다.
 

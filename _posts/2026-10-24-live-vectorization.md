@@ -150,7 +150,7 @@ Xing loss  convex control polygon: 0.000   twisted (self-intersecting) polygon: 
 
 **4. 디퓨전 시대의 벡터 그래픽과 이어집니다.** [TextDiffuser]({% post_url 2026-08-01-textdiffuser %}), [GlyphDraw]({% post_url 2026-10-24-glyphdraw %})처럼 래스터로 글자를 그리는 모델의 출력을 LIVE로 벡터화하면 편집 가능한 로고·아이콘이 됩니다. 래스터 생성과 벡터 최적화의 분업입니다.
 
-**5. 평가를 읽을 때 주의할 점.** 벤치마크 두 개는 저자들이 만든 것이고 비교 대상도 세 가지(DiffVG, Im2Vec, Neural Painting)뿐입니다. 사진에 대한 결과는 정성적이며, 처리 시간은 논문에 명시되지 않았습니다. 위 toy는 원과 디스크만 다뤄 베지어 최적화의 동역학은 재현하지 않습니다.
+**5. 평가를 읽을 때 주의할 점.** 벤치마크 두 개는 저자들이 만든 것이고 비교 대상도 세 가지(DiffVG, Im2Vec, Neural Painting)뿐입니다. 사진에 대한 결과는 정성적이며, 처리 시간은 논문에 명시되지 않았습니다. 위 toy는 원판 모양의 목표와 경로만 고정해 다뤄 베지어 최적화의 동역학은 재현하지 않습니다.
 
 ## 6. 정리
 
