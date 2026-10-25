@@ -26,7 +26,7 @@ FastSVC(Liu et al., 2021)의 end-to-end 구조를 기반으로 합니다. **업�
 
 ### 계층적 화자 표현
 
-세 번째 다운샘플링 스트림은 오디오 샘플을 다운샘플링 블록과 **인스턴스 정규화(IN)**를 번갈아 거쳐 언어 특징까지 되돌립니다. 각 블록 뒤의 IN은 시간 축에 대해 샘플별 정규화를 하는데, 이때 계산되는 **시간 통계**가 그 해상도에서의 화자 특성입니다(Chou et al.의 원샷 VC와 같은 직관). 블록이 4개이므로 통계도 4벌이 나오고, 이것이 계층적 화자 표현입니다. 각 통계는 대응하는 업샘플링 블록의 **AdaIN**에 들어가 은닉 특징의 화자 특성을 제거하고 새 화자 특성으로 바꿉니다.
+세 번째 다운샘플링 스트림은 오디오 샘플을 다운샘플링 블록과 **인스턴스 정규화(IN)**를 번갈아 거쳐 언어 특징까지 되돌립니다. 각 블록 뒤의 IN은 시간 축에 대해 샘플별 정규화를 하는데, 이때 계산되는 **시간 통계**가 그 해상도에서의 화자 특성입니다(Chou et al.의 원샷 VC와 같은 직관). 업샘플링 블록 5개에 맞춰 IN도 5개이므로 통계도 5벌이 나오고, 이것이 계층적 화자 표현입니다. 각 통계는 대응하는 업샘플링 블록의 **AdaIN**에 들어가 은닉 특징의 화자 특성을 제거하고 새 화자 특성으로 바꿉니다.
 
 변환 때는 다운샘플링 스트림에 **목표 가수의 참조 오디오**를 넣어 통계를 뽑고 업샘플링 스트림에 섞습니다. 참조가 몇 초면 되므로 원샷 변환입니다.
 
@@ -119,7 +119,7 @@ mean+var  AdaIN: relative error to the true B rendition = 0.040
 | out-set | 제안 | **3.35 ± 0.11** | **3.29 ± 0.17** |
 | out-set | 녹음 | 4.77 | 4.64 |
 
-in-set에서는 LUT가 임베딩보다 낫습니다. LUT는 같은 가수에 항상 같은 벡터를 주지만 ECAPA 임베딩은 참조마다 흔들리기 때문입니다. 제안 방법은 둘 다 넘고, LUT가 아예 못 하는 out-set에서도 임베딩 기반보다 좋습니다. 유사도 점수의 신뢰구간이 자연성보다 넓은데, 사람의 유사도 판단이 음높이에 크게 좌우되기 때문으로 봅니다.
+in-set에서는 LUT가 임베딩보다 낫습니다. LUT는 같은 가수에게 항상 같은 벡터를 주지만 ECAPA 임베딩은 참조마다 흔들리기 때문입니다. 제안 방법은 둘 다 넘고, LUT가 아예 못 하는 out-set에서도 임베딩 기반보다 좋습니다. 유사도 점수의 신뢰구간이 자연성보다 넓은데, 사람의 유사도 판단이 음높이에 크게 좌우되기 때문으로 봅니다.
 
 **스펙트로그램.** LUT와 임베딩 시스템의 변환 결과는 일부 구간이 흐릿한 반면, 제안 시스템은 하모닉 질감이 또렷합니다. 화자 정보가 부족하면 재합성이 뭉개진다는 해석입니다.
 
@@ -127,7 +127,7 @@ in-set에서는 LUT가 임베딩보다 낫습니다. LUT는 같은 가수에 항
 
 **1. "화자 = 벡터 하나"라는 가정을 노래가 깨뜨립니다.** 대화 음성 VC에서 통하던 전역 임베딩이 노래에서는 평균에 불과하다는 문제 제기가 이 논문의 가치입니다. 위 실험처럼 해상도마다 화자 정보의 성격이 다르다면, 어느 한 층의 통계만 쓰는 것은 정보를 버리는 일입니다.
 
-**2. IN 통계를 화자 표현으로 쓰는 계보에 있습니다.** [AdaIN]({% post_url 2026-10-24-adain %})이 이미지의 스타일을 채널 통계로 정의했고, Chou et al.(2019)이 음성의 화자를 IN 통계로 정의했습니다. 이 논문은 그 통계를 **여러 깊이에서** 뽑고, [U-Net]({% post_url 2026-10-24-mwcnn %}) 식 대칭 구조로 같은 해상도의 블록끼리 연결합니다. Unet-TTS와의 차이(음높이·세기를 명시적으로 분리, 샘플 직접 생성)가 노래라는 도메인에 맞춘 조정입니다.
+**2. IN 통계를 화자 표현으로 쓰는 계보에 있습니다.** [AdaIN]({% post_url 2026-10-24-adain %})이 이미지의 스타일을 채널 통계로 정의했고, Chou et al.(2019)이 음성의 화자를 IN 통계로 정의했습니다. 이 논문은 그 통계를 **여러 깊이에서** 뽑고, [U-Net]({% post_url 2026-10-24-mwcnn %})식 대칭 구조로 같은 해상도의 블록끼리 연결합니다. Unet-TTS와의 차이(음높이·세기를 명시적으로 분리, 샘플 직접 생성)가 노래라는 도메인에 맞춘 조정입니다.
 
 **3. 평균만 쓰는 결정은 분리(disentanglement)의 실용적 타협입니다.** 분산에 내용이 섞인다는 관찰은 통계가 "순수한 화자"가 아님을 인정하는 것입니다. 언어 특징 복원 MSE로 다운샘플링 스트림을 화자 불변으로 밀어 주는 것도 같은 맥락이며, 완전한 분리는 보장되지 않습니다.
 
@@ -140,7 +140,7 @@ in-set에서는 LUT가 임베딩보다 낫습니다. LUT는 같은 가수에 항
 | 항목 | 내용 |
 |---|---|
 | 문제 | LUT는 미지 가수 불가, 임베딩 하나는 시간에 따라 변하는 노래의 화자 특성을 평균으로 뭉갬 |
-| 핵심 | 다운샘플링 스트림의 블록마다 IN 시간 평균을 뽑아 4벌의 계층적 화자 표현 → 대응 업샘플링 블록에 AdaIN |
+| 핵심 | 다운샘플링 스트림의 블록마다 IN 시간 평균을 뽑아 5벌의 계층적 화자 표현 → 대응 업샘플링 블록에 AdaIN |
 | 조건 주입 | 음높이(8하모닉 사인 여기)·세기(A-가중)는 FiLM, 화자 통계는 AdaIN, 평균만 사용 |
 | 손실 | LSGAN + 다중 스케일 STFT + 언어 특징 복원 MSE($$\alpha = \beta = 2.5$$) |
 | 결과 | in-set 자연성 3.53 / 유사도 3.36(LUT 3.43 / 3.22), out-set 3.35 / 3.29(ECAPA 3.24 / 3.20), 몇 초 참조로 원샷 |
@@ -151,5 +151,5 @@ in-set에서는 LUT가 임베딩보다 낫습니다. LUT는 같은 가수에 항
 - Li, Liu, Shan, "A Hierarchical Speaker Representation Framework for One-shot Singing Voice Conversion," Interspeech 2022. [arXiv:2206.13762](https://arxiv.org/abs/2206.13762)
 - Liu, Cao, Hu, Su, Meng, "FastSVC: Fast Cross-Domain Singing Voice Conversion with Feature-wise Linear Modulation," ICME 2021. [arXiv:2011.05731](https://arxiv.org/abs/2011.05731)
 - Chou, Yeh, Lee, "One-shot Voice Conversion by Separating Speaker and Content Representations with Instance Normalization," Interspeech 2019. [arXiv:1904.05742](https://arxiv.org/abs/1904.05742)
-- Li, Pu, Huang, Huang, "UNet-TTS: Improving Unseen Speaker and Style Transfer in One-shot Voice Cloning," ICASSP 2022. [arXiv:2109.11115](https://arxiv.org/abs/2109.11115)
+- Li, Pu, Huang, Huang, "Unet-TTS: Improving Unseen Speaker and Style Transfer in One-shot Voice Cloning," ICASSP 2022. [arXiv:2109.11115](https://arxiv.org/abs/2109.11115)
 - Desplanques, Thienpondt, Demuynck, "ECAPA-TDNN," Interspeech 2020. [arXiv:2005.07143](https://arxiv.org/abs/2005.07143)
