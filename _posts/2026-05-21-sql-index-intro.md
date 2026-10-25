@@ -138,7 +138,7 @@ for row in cur.execute("EXPLAIN QUERY PLAN SELECT * FROM orders WHERE created_at
 <details markdown="1">
 <summary>더 알아보기: 선두 컬럼이 빠져도 인덱스를 쓰는 경우</summary>
 
-Oracle, MySQL 8.0 이상, SQLite 등은 선두 컬럼의 값 종류가 아주 적을 때 각 값마다 인덱스를 건너뛰며 찾는 **skip scan**을 쓰기도 합니다. 다만 옵티마이저가 통계를 보고 판단하는 것이라 항상 일어나지는 않습니다. 위 실험에서도 user_id 종류가 1만 개라 SQLite는 풀 스캔을 골랐습니다.
+Oracle, MySQL 8.0 이상, SQLite 등은 선두 컬럼의 값 종류가 아주 적을 때 각 값마다 인덱스를 건너뛰며 찾는 **skip scan**을 쓰기도 합니다. 다만 옵티마이저가 통계를 보고 판단하는 것이라 항상 일어나지는 않습니다. 위 실험에서는 `ANALYZE`를 실행하지 않아 SQLite가 선두 컬럼의 중복 정도를 알 수 없으므로 풀 스캔을 골랐습니다(SQLite는 `ANALYZE` 통계가 없으면 skip scan을 쓰지 않습니다).
 
 또 SELECT하는 컬럼이 모두 인덱스 안에 있으면 테이블 본문을 읽지 않고 인덱스만으로 답할 수 있는데, 이런 인덱스를 **커버링 인덱스(covering index)**라고 합니다. 위 예제에서 `total`까지 인덱스에 넣으면 커버링 인덱스가 되지만, 그만큼 인덱스가 커집니다.
 </details>

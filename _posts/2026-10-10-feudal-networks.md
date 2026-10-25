@@ -67,7 +67,7 @@ $$
 h^W_t, U_t = f^{Wrnn}(z_t, h^W_{t-1}),\qquad \pi_t = \text{SoftMax}(U_t\,w_t)
 $$
 
-목표 $$g$$가 정책에 **곱셈으로** 들어가므로, 같은 Worker가 목표에 따라 다른 행동을 하게 됩니다. $$\phi$$는 bias가 없어서 목표가 0이면 정책에 영향을 주지 않습니다.
+목표 $$g$$가 정책에 **곱셈으로** 들어가므로, 같은 Worker가 목표에 따라 다른 행동을 하게 됩니다. $$\phi$$는 bias가 없어서 목표와 무관한 상수 벡터를 만들 수 없으므로, Manager의 목표는 항상 정책에 영향을 줍니다.
 
 환경은 행동을 받아 다음 관측 $$x_{t+1}$$과 보상 $$r_t$$를 주고, 종료 상태까지 반복합니다.
 
@@ -183,12 +183,12 @@ print(worker_intrinsic(s_hist, goal_hist).shape)   # torch.Size([2]) 배치마�
 Atari와 DeepMind Lab(3D 미로 Labyrinth)에서 LSTM baseline(A3C)과 비교했습니다.
 
 - **Montezuma's Revenge**: 보상이 매우 드문 게임에서 LSTM baseline보다 훨씬 빠르게 점수를 얻었습니다.
-- **Ms. Pac-Man, Seaquest, Enduro 등**: 장기 계획이 필요한 게임에서 크게 앞섰고, 일반 게임에서도 성능을 잃지 않았습니다.
+- **Ms. Pac-Man, Amidar, Gravitar, Enduro 등**: 장기 계획이 필요한 게임에서 크게 앞섰습니다. 장기 계획이 덜 중요한 Seaquest, Breakout에서는 LSTM baseline이 더 좋았습니다.
 - **Labyrinth의 기억 과제**: 긴 기억이 필요한 과제에서 dilated LSTM을 쓴 Manager가 효과적이었습니다.
 
 ### 하위 정책의 해석
 
-**Seaquest**에서 Manager가 내는 목표를 몇 개의 군집으로 나눠, 각 목표를 받았을 때 Worker가 어디로 가는지 시각화했습니다.
+**Seaquest**에서 Manager가 낸 목표 하나를 골라 Worker에 고정 입력으로 주고, 그때 Worker가 어디로 가는지 시각화했습니다.
 
 - LSTM baseline의 정책은 화면 여러 곳을 뒤섞어 돌아다녔습니다.
 - FuN의 하위 정책들은 각자 **화면의 특정 영역**에 집중했습니다. 그중 한 하위 정책은 **산소를 보충하러 수면으로 헤엄쳐 올라가는** 행동에 쓰였습니다.

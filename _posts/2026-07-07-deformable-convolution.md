@@ -68,7 +68,7 @@ $$
 
 ### Bilinear Interpolation
 
-Offset은 **소수**라서 $$p_0 + p_n + \Delta p_n$$이 픽셀 사이에 떨어질 수 있습니다. 그래서 주변 4개 픽셀 값을 **선형 보간(bilinear interpolation)**해서 값을 얻습니다.
+Offset은 **소수**라서 $$p_0 + p_n + \Delta p_n$$이 픽셀 사이에 떨어질 수 있습니다. 그래서 주변 4개 픽셀을 **선형 보간(bilinear interpolation)**해서 값을 얻습니다.
 
 $$
 x(p) = \sum_q G(q, p)\cdot x(q),\qquad G(q, p) = g(q_x, p_x)\cdot g(q_y, p_y),\quad g(a, b) = \max(0, 1 - \lvert a - b\rvert)
@@ -131,9 +131,9 @@ $$
 ## 5. 결과
 
 - 기존 네트워크의 일부 conv 층과 RoI pooling만 바꾸면 되므로, **새 구조를 설계하지 않고 간단한 수정**으로 적용할 수 있습니다.
-- ResNet-101 기준 파라미터는 **약 0.75%**만 늘었고, COCO test-dev에서 ResNet-101 기반 Faster R-CNN의 mAP@[0.5:0.95]가 **29.4 → 33.1**(상대적으로 약 13%), R-FCN은 **30.8 → 34.5**로 올랐습니다(논문 Table 5).
+- ResNet-101 기준 파라미터 증가는 **작았고**(DeepLab 46.0M → 46.1M, 논문 Table 4), COCO test-dev에서 ResNet-101 기반 Faster R-CNN의 mAP@[0.5:0.95]가 **29.4 → 33.1**(상대적으로 약 13%), R-FCN은 **30.8 → 34.5**로 올랐습니다(논문 Table 5).
 - Semantic segmentation(DeepLab), 객체 검출(Faster R-CNN, R-FCN)에서 일관되게 성능이 올랐습니다.
-- 학습된 offset을 시각화하면, 큰 물체에서는 샘플링 위치가 넓게 퍼지고 작은 물체나 배경에서는 좁게 모이는 등 **물체의 크기와 모양에 맞춰** 적응했습니다.
+- 학습된 offset을 시각화하면, 큰 물체에서는 샘플링 위치가 넓게 퍼지고 작은 물체에서는 좁게 모이며 배경에서는 비교적 넓게 퍼지는 등 **물체의 크기와 모양에 맞춰** 적응했습니다.
 
 후속 **DCNv2**는 각 샘플링 위치에 **변조(modulation) 가중치**까지 학습해, 어느 위치를 얼마나 반영할지도 조절합니다.
 

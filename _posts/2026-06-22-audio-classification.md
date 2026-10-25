@@ -303,5 +303,5 @@ print(sum(p.numel() for p in model.parameters()))  # 108098
 - Li, Yin, Ma, Zhang & Liu, "Lightweight End-to-End Neural Network Model for Automatic Heart Sound Classification," Information 12(2), 54, 2021. [doi:10.3390/info12020054](https://doi.org/10.3390/info12020054)
 - Deng et al., "Heart sound classification based on improved MFCC features and convolutional recurrent neural networks," Neural Networks 2020.
 - Haytham Fayek, "Speech Processing for Machine Learning: Filter banks, MFCCs and What's In-Between" — <https://haythamfayek.com/2016/04/21/speech-processing-for-machine-learning.html>
-- [librosa – `mel_frequencies` (htk 옵션)](https://librosa.org/doc/latest/generated/librosa.mel_frequencies.html)
+- [librosa – `mel_frequencies` (htk 옵션)](https://librosa.org/doc/latest/api/generated/librosa.mel_frequencies.html)
 - <https://ratsgo.github.io/speechbook/docs/neuralfe>

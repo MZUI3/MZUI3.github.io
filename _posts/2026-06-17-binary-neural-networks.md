@@ -75,7 +75,7 @@ $$
 
 ### 문제: sign은 미분할 수 없다
 
-sign의 미분은 0을 제외한 모든 곳에서 0이고(0에서는 임펄스 형태) 역전파하면 기울기가 전부 사라집니다. 그래서 [STE(Straight-Through Estimator)]({% post_url 2026-05-13-activation-functions %})를 씁니다. Forward는 sign, backward는 **Hard-tanh(clip)**의 미분을 씁니다.
+sign의 미분은 0을 제외한 모든 곳에서 0이고(0에서는 임펄스 형태), 역전파하면 기울기가 전부 사라집니다. 그래서 [STE(Straight-Through Estimator)]({% post_url 2026-05-13-activation-functions %})를 씁니다. Forward는 sign, backward는 **Hard-tanh(clip)**의 미분을 씁니다.
 
 $$
 \frac{\partial x^b}{\partial x} \approx \mathbf{1}_{\lvert x\rvert \le 1}
@@ -119,7 +119,7 @@ class BinaryConv2d(nn.Conv2d):
 > `torch.sign(0)`은 0을 돌려주므로, 입력이 정확히 0인 원소는 ±1이 아니라 0이 됩니다. ReActNet 공식 구현도 `torch.sign`을 쓰는데, 실수 입력이 정확히 0이 될 확률은 매우 낮아 실제로 큰 문제가 되지는 않습니다. 엄밀하게 ±1만 원한다면 `torch.where(x >= 0, 1., -1.)`을 씁니다.
 {: .prompt-info }
 
-`detach()`는 연산 기록 없이 값만 가져와 **상수로 취급**합니다. `a.detach() - b.detach() + b`는 값은 `a`, 기울기는 `b`의 것이 되는 흔한 STE 구현 방식입니다. 이렇게 하면 `backward`를 직접 쓰지 않고 forward만으로 STE를 만들 수 있습니다. 반대로 XNOR-Net 원본 구현처럼 `torch.autograd.Function`으로 backward를 직접 지정하기도 합니다.
+`detach()`는 연산 기록 없이 값만 가져와 **상수로 취급**합니다. `a.detach() - b.detach() + b`는 값은 `a`, 기울기는 `b`의 것이 되는 흔한 STE 구현 방식입니다. 이렇게 하면 `backward`를 직접 쓰지 않고 forward만으로 STE를 만들 수 있습니다. 반대로 XNOR-Net의 PyTorch 재구현(XNOR-Net-PyTorch)처럼 `torch.autograd.Function`으로 backward를 직접 지정하기도 합니다.
 
 ---
 
@@ -184,10 +184,10 @@ $$\Gamma$$의 모양을 네 가지로 실험했습니다. 출력 채널 $$o = 10
 |---|---|---|
 | 1 | $$\alpha \in \mathbb{R}^{o}$$ (채널별) | 100 |
 | 2 | $$\Gamma \in \mathbb{R}^{o \times h \times w}$$ (전체) | 6,400 |
-| 3 | $$\alpha \otimes \beta \otimes \gamma$$, $$\alpha \in \mathbb{R}^o, \beta \in \mathbb{R}^h, \gamma \in \mathbb{R}^w$$ | 116 |
-| 4 | $$\alpha \otimes \beta$$, $$\alpha \in \mathbb{R}^o, \beta \in \mathbb{R}^{h \times w}$$ | 164 |
+| 3 | $$\alpha \otimes \beta$$, $$\alpha \in \mathbb{R}^o, \beta \in \mathbb{R}^{h \times w}$$ | 164 |
+| 4 | $$\alpha \otimes \beta \otimes \gamma$$, $$\alpha \in \mathbb{R}^o, \beta \in \mathbb{R}^h, \gamma \in \mathbb{R}^w$$ | 116 |
 
-**가장 많은 값을 가질 수 있는 Case 2가 오히려 정확도가 가장 낮았습니다.** 값이 너무 많으면 과적합되거나 학습이 어려워지므로, 적절히 분해된(factorized) 형태가 더 좋다는 것이 핵심입니다. 같은 조건에서 XNOR-Net보다 학습이 빠르고 정확도가 높으며, ResNet-18로 ImageNet top-1 약 57%를 달성했습니다.
+**가장 많은 값을 가질 수 있는 Case 2(56.1%)보다, 이를 분해한 Case 3(56.7%)과 Case 4(57.1%)가 더 정확했습니다.** 값이 너무 많으면 과적합되거나 학습이 어려워지므로, 적절히 분해된(factorized) 형태가 더 좋다는 것이 핵심입니다. 같은 조건에서 XNOR-Net보다 학습이 빠르고 정확도가 높으며, ResNet-18로 ImageNet top-1 약 57%를 달성했습니다.
 
 ---
 
@@ -345,7 +345,7 @@ MobileNetV1을 이진화에 맞게 수정합니다.
 
 SA-BNN(Liu et al., AAAI 2021)은 가중치는 학습 가능한 파라미터이므로 그대로 두고, **활성값**에 초점을 맞춥니다. 입력의 부호(상태)에 따라 **서로 다른 학습 가능한 계수** $$\tau^+, \tau^-$$를 기울기에 곱합니다.
 
-- 초기값 실험에서 두 계수를 **서로 다른 값**(예: 0.4와 1)으로 두고 독립적으로 학습할 때 가장 좋았습니다(ResNet-18에서 59.2% vs 53.4%).
+- 초기값 실험에서 두 계수를 **서로 다른 값**(예: 0.4와 1)으로 두고 독립적으로 학습할 때 가장 좋았습니다(ResNet-18에서 60.8%. 0.4와 1로 고정하기만 해도 SA가 없을 때의 53.4%보다 높은 59.2%).
 - 학습이 진행될수록 weight flip 비율이 줄어 **학습이 안정화**됩니다.
 - 삼각형 모양의 도함수를 쓸 때 기울기가 잘려 나가는(clip) 비율이 크게 줄었습니다.
 - Bi-Real Net baseline에 SA, 이진화 전 BN, 추가 shortcut을 더할수록 정확도가 계속 올랐고, ResNet-18/34/50 모두에서 당시 최고 성능을 기록했습니다.
@@ -422,7 +422,7 @@ ReActNet("활성값 분포가 BNN 표현력에 민감하다")과 Real-to-Binary(
 ### 구현과 결과
 
 - 정확도와 메모리 모두에서 유리했고, **배치 크기가 커져도 메모리 증가가 작았습니다.**
-- Naive C++ 라이브러리와 **CBLAS 가속** 버전을 구현했습니다. CBLAS(선형대수 저수준 루틴 모음)를 쓰면 일반 구현보다 **27.66~58.34배 빠르고 학습 시간이 약 10배 감소**하며, 메모리 트래픽이 줄어 전력 소비도 줄었습니다. 대신 1.59~2.08배의 추가 메모리가 필요해, 배치 크기에 따라서는 구현이 불가능한 경우도 있습니다.
+- Naive C++ 라이브러리와 **CBLAS 가속** 버전을 구현했습니다. CBLAS(선형대수 저수준 루틴 모음)를 쓰면 일반 구현보다 **8.60~29.76배 빠르고 MLP 학습 시간이 약 10배 감소**하며, Keras보다 메모리를 27.66~58.34배 적게 썼습니다. 메모리 트래픽이 줄어 전력 소비도 줄었습니다. 대신 일반 구현보다 1.59~2.08배의 메모리가 더 필요합니다. 반면 같은 가속을 적용한 기존 방식은 배치 크기가 40을 넘으면 실행되지 않았습니다.
 
 ---
 

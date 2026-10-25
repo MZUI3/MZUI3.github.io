@@ -29,7 +29,7 @@ ViT, DeiT 같은 Vision Transformer는 큰 모델에서 CNN을 넘어섰습니�
 
 Mobile-Former는 두 갈래를 **동시에** 돌립니다.
 
-- **Mobile**: 이미지 feature map $$X \in \mathbb{R}^{HW \times C}$$를 처리. MobileNetV3 기반 inverted residual block으로 **local feature** 추출
+- **Mobile**: 이미지 feature map $$X \in \mathbb{R}^{HW \times C}$$를 처리. MobileNetV2 기반 inverted residual block으로 **local feature** 추출
 - **Former**: 소수의 **global token** $$Z \in \mathbb{R}^{M \times d}$$를 처리. Multi-Head Attention과 FFN으로 **global** 연산
 
 핵심은 Former가 이미지 패치 전체가 아니라 **학습 가능한 토큰 6개**($$M = 6$$, $$d = 192$$)만 다룬다는 점입니다. 토큰은 처음에 무작위로 초기화되어 학습됩니다. 토큰 수가 적으니 self-attention 비용이 거의 들지 않습니다.
@@ -80,7 +80,7 @@ $$
 y_c = \max_{k}\big(a_c^k(\cdot)\,x_c + b_c^k(\cdot)\big)
 $$
 
-Mobile-Former에서는 이 계수 $$a, b$$를 **Former가 출력한 global token**(첫 번째 토큰 또는 토큰 평균)으로부터 만듭니다. 이미지 전체 맥락을 본 토큰이 "이 입력에서는 활성 함수를 어떤 모양으로 할지"를 정해 주는 셈입니다. [SENet]({% post_url 2026-06-02-cnn-architectures %})이 채널 가중치를 입력에 따라 바꾸는 것과 비슷한 발상입니다.
+Mobile-Former에서는 이 계수 $$a, b$$를 **Former가 출력한 global token**(첫 번째 토큰)으로부터 만듭니다. 이미지 전체 맥락을 본 토큰이 "이 입력에서는 활성 함수를 어떤 모양으로 할지"를 정해 주는 셈입니다. [SENet]({% post_url 2026-06-02-cnn-architectures %})이 채널 가중치를 입력에 따라 바꾸는 것과 비슷한 발상입니다.
 
 ### (4) Former → Mobile: 전역 정보를 이미지로 돌려주기
 
@@ -149,7 +149,7 @@ ImageNet 분류용 **Mobile-Former-294M**(294M FLOPs) 기준입니다.
 - Stem: 3×3 conv + 가벼운 bottleneck
 - **Mobile-Former Block 11개**, 모든 블록이 **192차원 global token 6개**를 공유하며 전달
 - 이미지 크기에 따라 여러 stage로 구성되고, stage마다 해상도를 절반으로 줄이며 채널을 늘림. 해상도를 줄이는 블록은 Mobile 쪽에 stride 2 depthwise conv를 둔 downsampling 버전
-- **Head**: 마지막 local feature를 pooling·flatten한 뒤 **global token과 concat**하고, FC 두 개를 거쳐 분류
+- **Head**: 마지막 local feature를 pooling·flatten한 뒤 **첫 번째 global token과 concat**하고, FC 두 개를 거쳐 분류
 
 연산량 예산에 맞춰 채널 수와 블록 구성을 바꾼 26M ~ 508M FLOPs의 여러 버전이 있습니다.
 

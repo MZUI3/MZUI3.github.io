@@ -176,12 +176,12 @@ D4RL 벤치마크의 MuJoCo 3개 환경, 3가지 데이터셋에서 비교했습
 
 | 비교 대상 | 분류 |
 |---|---|
-| CQL (Conservative Q-Learning) | Model-free SOTA |
-| MOPO | Model-based SOTA |
+| CQL (Conservative Q-Learning), BRAC | Model-free SOTA |
 | MBOP | Single-step dynamics 기반 planning |
+| Decision Transformer | Return-conditioning 시퀀스 모델 |
 | BC | Behavior cloning |
 
-대부분의 데이터셋에서 기존 방법과 **비슷하거나 더 좋은 성능**을 냈습니다. 다만 HalfCheetah med-expert에서는 expert 데이터의 속도가 매우 빨라 **이산화가 세밀하지 못해** 성능이 낮았던 것으로 추정됩니다.
+대부분의 데이터셋에서 기존 방법과 **비슷하거나 더 좋은 성능**을 냈습니다. 다만 HalfCheetah med-expert에서는 expert 데이터의 속도 범위가 매우 넓어 **uniform 이산화가 세밀하지 못해** 성능이 낮았고, quantile 이산화는 그 두 배가 넘는 return을 냈습니다.
 
 ### Goal-Reaching
 

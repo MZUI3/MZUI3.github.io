@@ -305,7 +305,7 @@ $$\lvert x\rvert$$가 1보다 큰 값은 이미 확실히 +1/-1이므로 기울�
 
 | 위치 | 함수 | 이유 |
 |---|---|---|
-| 은닉층 (CNN, MLP) | **ReLU** | 빠르고 기울기 소실이 없음 |
+| 은닉층 (CNN, MLP) | **ReLU** | 빠르고 기울기 소실이 적음 |
 | 은닉층 (Dying ReLU가 문제일 때) | Leaky ReLU, PReLU, ELU | 음수 영역에도 기울기 |
 | 은닉층 (Transformer) | GELU | 사실상 표준 |
 | 은닉층 (RNN) | tanh | 출력 범위 제한, 기울기 유지 |
