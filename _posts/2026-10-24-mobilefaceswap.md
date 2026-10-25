@@ -7,7 +7,7 @@ description: MobileFaceSwap(Xu, Hong, Ding, Zhu, Han, Liu, Ding, AAAI 2022)이 F
 math: true
 ---
 
-> 고화질 교체기는 무겁습니다. [FaceShifter]({% post_url 2026-10-24-faceshifter %})는 1단계만 421M 파라미터·97.4 GFLOPs, [FSGAN]({% post_url 2026-10-24-fsgan %})은 226M·2440 GFLOPs, "효율적"이라는 [SimSwap]({% post_url 2026-10-24-simswap %})도 107M·55.7 GFLOPs라 엣지 기기는커녕 영상 처리에도 시간이 오래 걸립니다. **MobileFaceSwap**(Xu, Hong, Ding, Zhu, Han, Liu, Ding, Baidu·화남이공대·UIUC, AAAI 2022)의 출발점은 두 관찰입니다. SimSwap·FaceShifter를 **채널 가지치기**로 줄이면 아티팩트가 생기거나 신원이 약해지는데, 용량이 작은 네트워크로는 신원을 주입하기 어렵기 때문입니다. 반면 [DeepFaceLab]({% post_url 2026-10-24-deepfacelab %})처럼 **소스를 고정하고 한 신원용 경량 모델**을 학습하면 결과가 좋습니다. 그렇다면 주체 비의존이면서 실시간이 되려면 **신원에 따라 네트워크 파라미터를 바꾸면** 됩니다. 동적 네트워크입니다.
+> 고화질 교체기는 무겁습니다. 신원 네트워크까지 센 이미지 단위 기준으로 [FaceShifter]({% post_url 2026-10-24-faceshifter %})는 1단계만 421M 파라미터·97.4 GFLOPs, [FSGAN]({% post_url 2026-10-24-fsgan %})은 226M·2440 GFLOPs, "효율적"이라는 [SimSwap]({% post_url 2026-10-24-simswap %})도 107M·55.7 GFLOPs라 엣지 기기는커녕 영상 처리에도 시간이 오래 걸립니다. **MobileFaceSwap**(Xu, Hong, Ding, Zhu, Han, Liu, Ding, Baidu·화남이공대·UIUC, AAAI 2022)의 출발점은 두 관찰입니다. SimSwap·FaceShifter를 **채널 가지치기**로 줄이면 아티팩트가 생기거나 신원이 약해지는데, 용량이 작은 네트워크로는 신원을 주입하기 어렵기 때문입니다. 반면 [DeepFaceLab]({% post_url 2026-10-24-deepfacelab %})처럼 **소스를 고정하고 한 신원용 경량 모델**을 학습하면 결과가 좋습니다. 그렇다면 주체 비의존이면서 실시간이 되려면 **신원에 따라 네트워크 파라미터를 바꾸면** 됩니다. 동적 네트워크입니다.
 
 ## 1. IIN과 IDN
 
@@ -92,6 +92,7 @@ teacher sample: id cosine 0.3, quality 0.3 -> distillation weight alpha = 0.03
 | SimSwap | 45.6 | 48.2 | 0.64 | 92.83 | 1.53 |
 | FaceShifter | 350 | 91.1 | - | 97.38 | 2.96 |
 | 교사(SimSwap, 공개 모델) | 45.6 | 48.2 | 0.64 | 95.94 | 1.39 |
+| 교사(FaceShifter, 자체 구현) | 350 | 91.1 | - | 97.15 | 1.76 |
 | Ours(SimSwap) | **0.50** | **0.33** | **25.6** | 95.98 | 1.32 |
 | Ours(FaceShifter) | 0.50 | 0.44 | 19.7 | 96.10 | 1.70 |
 
@@ -101,7 +102,7 @@ teacher sample: id cosine 0.3, quality 0.3 -> distillation weight alpha = 0.03
 
 ## 5. 해석
 
-**1. "압축 대신 동적"이라는 선택이 핵심입니다.** 가지치기·증류만으로 SimSwap을 100배 줄이면 신원 주입 용량이 부족하다는 관찰과, 고정 신원 소형 모델은 잘 된다는 DFL의 경험을 잇는 다리가 **신원 조건 파라미터**입니다. 추론 네트워크는 사실상 "그 신원 전용 소형 모델"이고, 그것을 매번 학습하는 대신 예측합니다. [HyperNetworks]({% post_url 2026-10-24-hypernetworks %})의 발상이 얼굴 교체에서 실용화된 사례입니다.
+**1. "압축 대신 동적"이라는 선택이 핵심입니다.** 가지치기·증류만으로 SimSwap을 100배 줄이면 신원 주입 용량이 부족하다는 관찰과, 고정 신원 소형 모델은 잘된다는 DFL의 경험을 잇는 다리가 **신원 조건 파라미터**입니다. 추론 네트워크는 사실상 "그 신원 전용 소형 모델"이고, 그것을 매번 학습하는 대신 예측합니다. [HyperNetworks]({% post_url 2026-10-24-hypernetworks %})의 발상이 얼굴 교체에서 실용화된 사례입니다.
 
 **2. 두 동적 기법의 분업이 정확합니다.** 예측은 출력이 작은 깊이별 커널에, 변조는 출력이 큰 점별 커널에. 위 toy의 29만 대 210만 파라미터가 그 경계이고, StyleGAN2의 변조·복조를 생성기 밖의 경량 네트워크에 가져온 것입니다.
 
@@ -119,7 +120,7 @@ teacher sample: id cosine 0.3, quality 0.3 -> distillation weight alpha = 0.03
 | IDN | 깊이별+점별 U-Net, 0.413M + 융합 마스크 0.083M = 0.50M, 0.33 GFLOPs, 폰 26 FPS |
 | IIM | 신원 벡터 → 깊이별 커널 **예측**, 점별 커널 **변조·복조** |
 | 학습 | 교사(SimSwap/FaceShifter) 증류(L1 + VGG) × 재가중 $$\alpha = \cos^2 \cdot Q$$ + ID 3 + 배경만 마스크 손실 10 + 적대 |
-| 결과 | FF++ ID 95.98/96.10, 포즈 1.32/1.70, FID 6.79(교사 10.26), 영상 연산 146~207배 절감 |
+| 결과 | FF++ ID 95.98/96.10, 포즈 1.32/1.70, FID 6.79(교사 10.26), 영상 프레임당 연산 146~207배 절감 |
 | 한계 | 교사 상한, 이미지 단위에서는 ArcFace 비용 지배, 가림 미처리 |
 
 ## References
