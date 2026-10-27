@@ -173,7 +173,7 @@ order: 4
     <i class="fas fa-pen-nib"></i>
     <span class="about-count">2023</span>
     <strong>캐리커처 로봇팔</strong>
-    <span>생성형 AI 결과를 G-Code로 바꿔 로봇팔이 그림 · 공학 페스티벌 최우수상</span>
+    <span>생성형 AI 결과를 G-Code로 바꿔 Manipulator가 그림 · ECHO+ 경진대회 최우수상</span>
   </a>
 </div>
 
