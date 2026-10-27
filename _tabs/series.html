@@ -4,29 +4,95 @@ icon: fas fa-layer-group
 order: 0
 ---
 
-{% comment %} 시리즈 정의는 _data/series.yml. 각 시리즈 글을 오래된 순(읽는 순서)으로 나열 {% endcomment %}
+{% comment %}
+  시리즈 정의는 _data/series.yml.
+  시리즈 > 하위 카테고리 두 단계로 접고 펼치며, 글은 오래된 순(읽는 순서)으로 나열
+{% endcomment %}
 
 {% assign oldest_first = site.posts | reverse %}
 
 <div id="series-page">
+  <div class="series-toolbar">
+    <button type="button" id="series-toggle">모두 펼치기</button>
+  </div>
+
   {% for s in site.data.series %}
-    <section class="series-block" id="{{ s.id }}">
-      <h2>
+    {% assign s_posts = '' | split: '' %}
+    {% for post in oldest_first %}
+      {% include post-series.html post=post %}
+      {% if post_series.id == s.id %}
+        {% assign s_posts = s_posts | push: post %}
+      {% endif %}
+    {% endfor %}
+
+    <!-- groups: sub-category (or the top category when there is none), in order of first appearance -->
+    {% assign groups = '' | split: '' %}
+    {% for post in s_posts %}
+      {% assign g = post.categories[1] | default: post.categories[0] %}
+      {% assign groups = groups | push: g %}
+    {% endfor %}
+    {% assign groups = groups | uniq %}
+
+    <details class="series-block" id="{{ s.id }}">
+      <summary>
         <span class="series-no">{{ forloop.index | prepend: '0' | slice: -2, 2 }}</span>
-        {{ s.title }}
-      </h2>
-      <p class="series-desc">{{ s.desc }}</p>
-      <ol>
-        {% for post in oldest_first %}
-          {% include post-series.html post=post %}
-          {% if post_series.id == s.id %}
-            <li>
-              <time datetime="{{ post.date | date_to_xmlschema }}">{{ post.date | date: '%Y-%m-%d' }}</time>
-              <a href="{{ post.url | relative_url }}">{{ post.title }}</a>
-            </li>
+        <span class="series-head">
+          <span class="series-name">{{ s.title }}</span>
+          <span class="series-desc">{{ s.desc }}</span>
+        </span>
+        <span class="series-count">{{ s_posts.size }}편</span>
+      </summary>
+
+      {% for g in groups %}
+        {% assign g_posts = '' | split: '' %}
+        {% for post in s_posts %}
+          {% assign pg = post.categories[1] | default: post.categories[0] %}
+          {% if pg == g %}
+            {% assign g_posts = g_posts | push: post %}
           {% endif %}
         {% endfor %}
-      </ol>
-    </section>
+
+        <details class="series-group">
+          <summary>
+            <span>{{ g }}</span>
+            <span class="series-count">{{ g_posts.size }}</span>
+          </summary>
+          <ol>
+            {% for post in g_posts %}
+              <li>
+                <time datetime="{{ post.date | date_to_xmlschema }}">{{ post.date | date: '%Y-%m-%d' }}</time>
+                <a href="{{ post.url | relative_url }}">{{ post.title }}</a>
+              </li>
+            {% endfor %}
+          </ol>
+        </details>
+      {% endfor %}
+    </details>
   {% endfor %}
 </div>
+
+<script>
+  (function () {
+    var page = document.getElementById('series-page');
+    var toggle = document.getElementById('series-toggle');
+    var all = page.querySelectorAll('details');
+
+    function openFromHash() {
+      var id = decodeURIComponent(location.hash.slice(1));
+      var el = id && document.getElementById(id);
+      if (el && el.tagName === 'DETAILS') {
+        el.open = true;
+        el.scrollIntoView();
+      }
+    }
+
+    toggle.addEventListener('click', function () {
+      var expand = toggle.textContent.trim() === '모두 펼치기';
+      all.forEach(function (d) { d.open = expand; });
+      toggle.textContent = expand ? '모두 접기' : '모두 펼치기';
+    });
+
+    window.addEventListener('hashchange', openFromHash);
+    openFromHash();
+  })();
+</script>
