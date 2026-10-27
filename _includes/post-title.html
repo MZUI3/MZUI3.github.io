@@ -1,0 +1,16 @@
+{%- comment -%}
+  Print a post title without its leading "[...]" label, e.g. "[RL] PPO" -> "PPO".
+
+  Arguments:
+    post: the post whose title to print
+{%- endcomment -%}
+
+{%- assign _title = include.post.title -%}
+{%- assign _first = _title | slice: 0 -%}
+
+{%- if _first == '[' and _title contains '] ' -%}
+  {%- assign _label = _title | split: '] ' | first -%}
+  {%- assign _title = _title | remove_first: _label | remove_first: '] ' -%}
+{%- endif -%}
+
+{{- _title -}}
