@@ -1,0 +1,45 @@
+# 홈 화면 "시리즈"와 /series/ 페이지에 쓰이는 묶음 정의
+# match: 글의 categories와 비교. "상위" 또는 "상위/하위" 형식
+#   예) "Reinforcement Learning" → 그 아래 모든 글, "Neural Network/Basics" → 그 하위만
+
+- id: ai-basics
+  title: AI 기초
+  desc: 머신러닝의 큰 그림부터 역전파, CNN, Object Detection까지
+  match:
+    - Neural Network/Basics
+    - Neural Network/CNN
+    - Neural Network/Object Detection
+    - Neural Network/Audio
+    - Neural Network/Architecture
+    - Neural Network/Optimization
+    - Neural Network/Segmentation
+    - Deep Learning/Fundamentals
+    - Computer Vision
+
+- id: lightweight
+  title: 경량화 · 온디바이스
+  desc: Pruning, Quantization, BNN, Knowledge Distillation
+  match:
+    - Neural Network/Lightweight
+    - Deep Learning/Model Compression
+
+- id: rl
+  title: 강화학습
+  desc: DQN, PPO, 탐험, Offline RL, 멀티에이전트
+  match:
+    - Reinforcement Learning
+    - Multi-Agent
+
+- id: transformer-vla
+  title: Transformer · VLA
+  desc: LLM, Vision Transformer, RT-2·OpenVLA·π0 계열 로봇 모델
+  match:
+    - Transformer
+    - Robotics
+
+- id: generative
+  title: 생성 AI
+  desc: Diffusion, 스타일 전이, Face Swapping
+  match:
+    - Generative AI
+    - Generative

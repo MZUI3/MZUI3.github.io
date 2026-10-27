@@ -1,0 +1,32 @@
+---
+title: 시리즈
+icon: fas fa-layer-group
+order: 0
+---
+
+{% comment %} 시리즈 정의는 _data/series.yml. 각 시리즈 글을 오래된 순(읽는 순서)으로 나열 {% endcomment %}
+
+{% assign oldest_first = site.posts | reverse %}
+
+<div id="series-page">
+  {% for s in site.data.series %}
+    <section class="series-block" id="{{ s.id }}">
+      <h2>
+        <span class="series-no">{{ forloop.index | prepend: '0' | slice: -2, 2 }}</span>
+        {{ s.title }}
+      </h2>
+      <p class="series-desc">{{ s.desc }}</p>
+      <ol>
+        {% for post in oldest_first %}
+          {% include post-series.html post=post %}
+          {% if post_series.id == s.id %}
+            <li>
+              <time datetime="{{ post.date | date_to_xmlschema }}">{{ post.date | date: '%Y-%m-%d' }}</time>
+              <a href="{{ post.url | relative_url }}">{{ post.title }}</a>
+            </li>
+          {% endif %}
+        {% endfor %}
+      </ol>
+    </section>
+  {% endfor %}
+</div>
