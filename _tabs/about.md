@@ -172,7 +172,7 @@ order: 4
   <a class="about-card" href="https://mzui3.notion.site/AI-37c7f0db48dc803d8221c436ff755bbd" target="_blank" rel="noopener">
     <i class="fas fa-pen-nib"></i>
     <span class="about-count">2023</span>
-    <strong>캐리커처 로봇팔</strong>
+    <strong>캐리커처 Manipulator</strong>
     <span>생성형 AI 결과를 G-Code로 바꿔 Manipulator가 그림 · ECHO+ 경진대회 최우수상</span>
   </a>
 </div>
