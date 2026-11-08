@@ -1,13 +1,18 @@
 ---
-title: "[RL] AdaptDiffuser: 스스로 만든 데이터로 진화하는 Diffusion Planner"
+title: "[RL] AdaptDiffuser(Diffusion Models as Adaptive Self-evolving Planners): 스스로 만든 데이터로 진화하는 Diffusion Planner"
 date: 2026-09-21 19:29:00 +0900
 categories: [Reinforcement Learning, Model-Based]
 tags: [reinforcement-learning, model-based, diffusion, planning, self-evolving, synthetic-data, inverse-dynamics, maze2d]
-description: Diffuser가 학습 데이터에서 벗어난 과제에서 약한 이유와, 보상으로 유도해 스스로 만든 궤적 중 물리적으로 일관된 것만 골라 다시 학습하는 AdaptDiffuser의 자기 진화 방식을 정리합니다.
+description: "AdaptDiffuser: Diffusion Models as Adaptive Self-evolving Planners(ICML 2023) 논문 리뷰. Diffuser가 학습 데이터에서 벗어난 과제에서 약한 이유와, 보상으로 유도해 스스로 만든 궤적 중 물리적으로 일관된 것만 골라 다시 학습하는 자기 진화 방식을 Maze2D·MuJoCo·KUKA 수치, ablation, 구현 디테일과 함께 그림으로 정리합니다."
 math: true
 ---
 
-> [Diffuser]({% post_url 2026-09-19-diffuser %})는 guide 함수만 바꾸면 새 과제도 풀 수 있다고 했지만, 실제로는 **학습 데이터에서 많이 벗어난 과제**에서 품질이 크게 떨어졌습니다. **AdaptDiffuser**(Liang et al., ICML 2023)는 보상으로 유도해 **스스로 전문가 궤적을 생성**하고, 그중 좋은 것만 골라 다시 학습하는 방식으로 planner를 **자기 진화(self-evolving)**시킵니다.
+> - **논문**: AdaptDiffuser: Diffusion Models as Adaptive Self-evolving Planners
+> - **저자**: Zhixuan Liang, Yao Mu, Mingyu Ding, Fei Ni, Masayoshi Tomizuka, Ping Luo (The University of Hong Kong, UC Berkeley, Tianjin University, Shanghai AI Laboratory)
+> - **학회**: ICML 2023 · [arXiv:2302.01877](https://arxiv.org/abs/2302.01877)
+{: .prompt-tip }
+
+> [Diffuser]({% post_url 2026-09-19-diffuser %})는 guide 함수만 바꾸면 새 과제도 풀 수 있다고 했지만, 실제로는 **학습 데이터에서 많이 벗어난 과제**에서 품질이 크게 떨어졌습니다. **AdaptDiffuser**는 보상으로 유도해 **스스로 전문가 궤적을 생성**하고, 그중 좋은 것만 골라 다시 학습하는 방식으로 planner를 **자기 진화(self-evolving)**시킵니다.
 
 ## 1. Contribution
 
@@ -63,11 +68,22 @@ $$\epsilon_\theta$$에서 reverse 과정의 평균 $$\mu_\theta$$로 가는 변�
 
 해결책은 간단합니다. **모델이 부족한 데이터를 스스로 만들게** 합니다.
 
+![AdaptDiffuser 전체 구조](/assets/img/posts/adaptdiffuser/fig2.webp)
+_Figure 2. 여러 목표(Goal 1~3)의 보상 함수로 guidance를 주며 사전학습된 denoising U-Net으로 궤적을 생성하고, discriminator가 기준을 통과한 궤적만 data pool에 넣어 diffusion 모델을 다시 학습합니다. (출처: Liang et al., 2023)_
+
 1. 사전학습된 Diffuser로, 목표 과제의 보상으로 유도해 **다양한 궤적을 생성**
 2. **Discriminator**로 품질이 좋고 물리적으로 일관된 궤적만 골라냄
 3. 골라낸 궤적을 **합성 전문가 데이터**로 데이터셋에 추가
 4. 이 데이터로 diffusion 모델을 **fine-tuning**
 5. 1~4를 반복 → 모델이 점점 목표 과제에 맞게 진화
+
+$$k$$번째 반복을 식으로 쓰면 다음과 같습니다. $$\mathcal{G}$$는 보상 guidance를 준 샘플링, $$\mathcal{D}$$는 discriminator이고 $$\hat\tau^0$$는 원래 데이터셋입니다.
+
+$$
+\theta^*_k = \arg\min_\theta -\mathbb{E}_{\hat\tau^k}\big[\log p_\theta(\hat\tau^k \mid y(\hat\tau^k))\big], \quad
+\tau^{k+1} = \mathcal{G}\big(\mu_{\theta^*_k}, \Sigma, \nabla_\tau \mathcal{J}(\mu_{\theta^*_k})\big), \quad
+\hat\tau^{k+1} = \big[\hat\tau^k, \mathcal{D}(\tilde R(\tau^{k+1}))\big]
+$$
 
 ### Dynamics Consistency 문제와 Discriminator
 
@@ -79,7 +95,7 @@ $$
 \tilde{a}_t = I(s_t, s_{t+1})
 $$
 
-그리고 이 행동으로 시뮬레이션(또는 학습된 동역학)했을 때의 상태가 생성된 상태와 **크게 다르지 않은** 궤적만 남깁니다. 동시에 보상이 기준을 넘는 궤적만 통과시킵니다.
+그리고 이 행동으로 시뮬레이션(또는 학습된 동역학)했을 때의 상태가 생성된 상태와 **크게 다르지 않은**(MSE가 작은) 궤적만 남깁니다. 동시에 새 행동으로 다시 계산한 보상이 기준을 넘는 궤적만 통과시킵니다. 학습하는 네트워크가 아니라 **규칙 기반** discriminator입니다. inverse dynamics는 전통적 제어기여도, 신경망이어도 됩니다. MuJoCo에서는 생성된 행동으로 굴린 상태가 생성 상태와 거의 같아서 생성된 보상을 그대로 썼습니다.
 
 ```python
 def select_expert_trajectories(trajs, inverse_dyn, step_fn, reward_fn, max_dev=0.1, min_reward=None):
@@ -124,7 +140,13 @@ MuJoCo처럼 **연속적인 보상 함수**가 있는 과제는, 보상을 최�
 
 ### 복합 보상
 
-현실적인 과제에는 여러 보상이 섞여 있습니다. 예를 들어 "미로를 탈출(주 과제)하면서 **금화를 줍기**(부 과제)". Sparse 보상으로는 부 과제 지점을 **몇 번째 시점에 지나야 하는지** 정하기 어렵습니다. 그래서 목표 지점과 금화 위치를 조건으로 넣어 궤적을 생성하고, 과제 보상을 만족한 궤적만 합성 전문가 데이터로 **데이터 기록에 보관**합니다.
+현실적인 과제에는 여러 보상이 섞여 있습니다. 예를 들어 "미로를 탈출(주 과제)하면서 **금화를 줍기**(부 과제)". Sparse 보상으로는 부 과제 지점을 **몇 번째 시점에 지나야 하는지** 정하기 어렵습니다. 그래서 금화 위치 $$s_c$$까지의 거리로 보조 guide 함수를 만들어 연속 보상처럼 기울기 guidance에 넣고, 끝 상태 조건은 inpainting으로 고정합니다.
+
+$$
+\mathcal{J}(\tau) = \sum_{t=0}^{T} \lVert s_t - s_c \rVert_p
+$$
+
+논문은 $$p = 2$$를 씁니다. 이렇게 생성한 궤적 중 discriminator 기준을 통과한 것만 합성 전문가 데이터로 **데이터 기록에 보관**합니다.
 
 ## 6. 실험
 
@@ -132,17 +154,92 @@ MuJoCo처럼 **연속적인 보상 함수**가 있는 과제는, 보상을 최�
 |---|---|
 | **Maze2D** | 미로에서 목표까지 이동 (기존 과제) |
 | **Maze2D + Gold Coin** | 금화를 주워 가며 목표까지 (학습 때 보지 못한 과제) |
-| **MuJoCo** | Hopper, Walker, HalfCheetah 등 locomotion (D4RL) |
-| **KUKA Robot** | 블록 쌓기에서 **집어서 옮기기(pick-and-place)**로 과제 변경 |
+| **MuJoCo** | Hopper, Walker2d, HalfCheetah locomotion (D4RL) |
+| **KUKA Robot** | 블록 쌓기 데이터만으로 **집어서 옮기기(pick-and-place)** 과제에 적응 |
 
-- **기존 과제**: 자기 진화 과정을 거치며 Maze2D와 MuJoCo에서 Diffuser보다 성능이 올랐습니다. 합성 데이터가 원래 데이터의 빈 곳을 메워 준 효과입니다.
-- **처음 보는 과제**: 금화 줍기 미로, KUKA pick-and-place처럼 학습 데이터에 없던 과제에서 Diffuser보다 크게 좋았습니다. Diffuser도 guidance로 금화를 지나는 경로를 만들었지만 벽과 충돌했고, AdaptDiffuser는 충돌 없는 경로를 만들었습니다.
-- 논문은 부록 G에서 **ChatGPT로 더 다양한 미로 레이아웃을 만드는 방법**도 제시하고, 향후 과제로 프롬프트만으로 미로 설정을 생성해 합성 데이터 생성을 돕는 방향을 언급합니다.
+### 기존 과제: Maze2D (Table 1)
+
+| 환경 | MPPI | CQL | IQL | Diffuser | AdaptDiffuser |
+|---|---|---|---|---|---|
+| U-Maze | 33.2 | 5.7 | 47.4 | 113.9 | **135.1** ±5.8 |
+| Medium | 10.2 | 5.0 | 34.9 | 121.5 | **129.9** ±4.6 |
+| Large | 5.1 | 12.5 | 58.6 | 123.0 | **167.9** ±5.0 |
+| 평균 | 16.2 | 7.7 | 47.0 | 119.5 | **144.3** |
+
+평균 119.5에서 144.3으로 오릅니다(논문 표현으로 20.8% 향상). 가장 긴 경로를 계획해야 하는 Maze2D-Large에서 차이가 가장 크고, 논문은 Diffuser가 아예 경로를 못 만드는 어려운 사례에서 AdaptDiffuser가 가능한 경로를 만드는 예(Figure 3)도 보여 줍니다.
+
+### 기존 과제: MuJoCo (Table 2, 3 seed 평균)
+
+| 데이터 | 환경 | IQL | DT | TT | Diffuser | AdaptDiffuser |
+|---|---|---|---|---|---|---|
+| Med-Expert | HalfCheetah | 86.7 | 86.8 | 95.0 | 88.9 | 89.6 |
+| Med-Expert | Hopper | 91.5 | 107.6 | 110.0 | 103.3 | 111.6 |
+| Med-Expert | Walker2d | 109.6 | 108.1 | 101.9 | 106.9 | 108.2 |
+| Medium | HalfCheetah | 47.4 | 42.6 | 46.9 | 42.8 | 44.2 |
+| Medium | Hopper | 66.3 | 67.6 | 61.1 | 74.3 | **96.6** |
+| Medium | Walker2d | 78.3 | 74.0 | 79.0 | 79.6 | **84.4** |
+| Med-Replay | HalfCheetah | 44.2 | 36.6 | 41.9 | 37.7 | 38.3 |
+| Med-Replay | Hopper | 94.7 | 82.7 | 91.5 | 93.6 | 92.2 |
+| Med-Replay | Walker2d | 73.9 | 66.6 | 82.6 | 70.6 | **84.7** |
+| **평균** | | 77.0 | 74.7 | 78.9 | 77.5 | **83.4** |
+
+평균 77.5에서 83.4로 오릅니다(7.5% 향상). 원래 데이터 품질이 낮은 Medium 데이터셋(Hopper 74.3 → 96.6)에서 효과가 크고, 이미 데이터가 좋은 Medium-Expert HalfCheetah에서는 거의 차이가 없습니다. 모든 과제에서 오르는 것은 아니어서 Med-Replay Hopper는 93.6에서 92.2로 조금 낮습니다. 부록의 동시대 연구 Decision Diffuser(평균 81.8)와 비교해도 평균은 더 높습니다.
+
+### 처음 보는 과제: 금화 줍기 미로와 KUKA pick-and-place
+
+![금화 줍기 미로](/assets/img/posts/adaptdiffuser/fig4.webp)
+_Figure 4. (a)(b) 금화가 없을 때의 경로, (c)(d) (4, 2)에 금화를 두었을 때의 경로. Diffuser는 금화 쪽으로 경로를 바꾸지만 벽과 충돌하고, AdaptDiffuser는 충돌 없이 금화를 지납니다. (출처: Liang et al., 2023)_
+
+금화 줍기 미로는 Figure 4 같은 정성 결과만 있고 수치 표는 없습니다. 두 planner 모두 guidance로 금화를 지나는 경로를 만들지만, Diffuser는 벽과 충돌하고 AdaptDiffuser는 충돌 없는 경로를 만듭니다. 저자들도 금화가 최적 경로에서 멀어 되돌아가야 하는 극단적인 경우에는 성공률이 낮다고 부록에서 인정합니다.
+
+KUKA pick-and-place는 무작위로 놓인 블록 4개를 정해진 목표 위치로 옮기는 과제이고, 이 과제의 전문가 데이터는 주지 않습니다. 설정 1은 블록이 바닥에 흩어져 있고, 설정 2는 한곳에 쌓여 있습니다(Table 3).
+
+| 설정 | Diffuser | AdaptDiffuser |
+|---|---|---|
+| Pick and Place 설정 1 | 28.16 ±2.0 | **36.03** ±2.1 |
+| Pick and Place 설정 2 | 35.25 ±1.4 | **39.00** ±1.3 |
+| 평균 | 31.71 | **37.52** |
+
+초록의 "27.9% 향상"은 설정 1 기준(28.16 → 36.03)이고, 두 설정 평균으로는 약 18%입니다.
+
+### Ablation
+
+| 반복 단계 (Table 4, MuJoCo) | 1단계 | 2단계 |
+|---|---|---|
+| Medium Hopper | 95.4 | 96.6 |
+| Medium Walker2d | 83.2 | 84.4 |
+| Med-Expert Hopper | 110.7 | 111.6 |
+| 6개 과제 평균 | 88.4 | 89.1 |
+
+| 전문가 데이터 양 (Table 5, Maze2D-Large) | 20% | 50% | 100% |
+|---|---|---|---|
+| Diffuser | 105.0 | 107.9 | 123.0 |
+| AdaptDiffuser | 112.5 | 123.8 | 167.9 |
+
+- 두 번째 반복은 첫 번째보다 이득이 작습니다. 성능이 어느 수준에 이르면 반복의 효과가 줄어듭니다.
+- 20%·50% 열은 데이터를 줄이고 학습 step도 25%만 쓴 설정입니다. AdaptDiffuser는 데이터 50%, 학습 25%만으로 완전히 학습한 Diffuser(123.0)보다 높습니다(123.8).
+
+논문은 부록 G에서 **ChatGPT로 더 다양한 미로 레이아웃을 만드는 방법**도 제시하고, 향후 과제로 프롬프트만으로 미로 설정을 생성해 합성 데이터 생성을 돕는 방향을 언급합니다.
+
+### 구현 디테일 (부록 C, D)
+
+| 항목 | 값 |
+|---|---|
+| 모델 | temporal U-Net, residual block 6개 (Diffuser와 같은 구조) |
+| 파라미터 수 | MuJoCo 3.96M, Maze2D 3.68M, KUKA 64.9M |
+| 학습 | Adam, lr $$2 \times 10^{-4}$$, batch 32 |
+| 학습 step | MuJoCo 1M, Maze2D 2M, KUKA 0.7M (fine-tuning은 사전학습 Diffuser에서 출발해 약 1/4 step) |
+| Planning horizon | locomotion 32, KUKA pick-and-place 128, Maze2D U-Maze 128, Medium 192, Large 384 |
+| Diffusion step | locomotion 100, KUKA 1000, Maze2D U-Maze 64, Medium 128, Large 256 |
+| Guide scale $$\alpha$$ | {1, 5, 10, 50, 100} 중 과제별 선택 |
+| 반복당 합성 데이터 | MuJoCo 50,000, Maze2D 10⁶, KUKA pick-and-place 11,000 (생성 1,000 + 쌓기 과제 궤적 10,000) |
+| Discriminator 기준 | MuJoCo는 보상 임계값(예: Medium Hopper 3211 → 3225), Maze2D는 궤적 길이와 보상, KUKA는 4번 중 2번 이상 성공 |
+| 시간 (RTX 3090 1장) | 행동 1개 추론 시간은 Diffuser와 거의 같음(MuJoCo 약 1.5초), 전체 학습은 평균 약 54시간(Diffuser 41시간) |
 
 <details markdown="1">
 <summary>더 알아보기: 자기 데이터로 다시 학습할 때의 위험</summary>
 
-모델이 만든 데이터로 그 모델을 다시 학습하면, 모델이 원래 가진 편향이 데이터를 통해 **스스로 강화**될 수 있습니다. 생성 모델 분야에서는 이렇게 반복할수록 다양성이 줄어드는 현상을 model collapse라고 부릅니다. AdaptDiffuser에서는 discriminator가 이 위험을 줄이는 핵심 장치입니다. 보상 기준과 동역학 일관성이라는 **모델 바깥의 기준**으로 데이터를 걸러서, 틀린 궤적이 학습 데이터로 다시 들어가는 것을 막습니다. 그 대신 생성 → 선별 → fine-tuning을 여러 번 반복해야 하므로 학습 비용이 Diffuser보다 큽니다.
+모델이 만든 데이터로 그 모델을 다시 학습하면, 모델이 원래 가진 편향이 데이터를 통해 **스스로 강화**될 수 있습니다. 생성 모델 분야에서는 이렇게 반복할수록 다양성이 줄어드는 현상을 model collapse라고 부릅니다. AdaptDiffuser에서는 discriminator가 이 위험을 줄이는 핵심 장치입니다. 보상 기준과 동역학 일관성이라는 **모델 바깥의 기준**으로 데이터를 걸러서, 틀린 궤적이 학습 데이터로 다시 들어가는 것을 막습니다. 그 대신 생성 → 선별 → fine-tuning을 여러 번 반복해야 하므로 학습 비용이 Diffuser보다 큽니다. 논문 부록 기준으로 MuJoCo에서 전체 학습 시간은 평균 약 54시간으로 Diffuser의 41시간보다 깁니다.
 </details>
 
 ## 7. 정리
@@ -153,6 +250,7 @@ MuJoCo처럼 **연속적인 보상 함수**가 있는 과제는, 보상을 최�
 | 품질 한계 | 학습 데이터의 $$\mu_\theta$$에 묶임 | 합성 데이터로 $$\mu_\theta$$ 자체를 이동 |
 | 일관성 보장 | - | Inverse dynamics 기반 discriminator |
 | Sparse reward | Inpainting | Inpainting + 복합 보상 처리 |
+| 결과 | Maze2D 119.5, MuJoCo 77.5, KUKA 31.71 | Maze2D 144.3, MuJoCo 83.4, KUKA 37.52 |
 
 ## References
 

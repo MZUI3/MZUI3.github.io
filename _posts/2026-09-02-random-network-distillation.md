@@ -1,13 +1,18 @@
 ---
-title: "[RL] RND: 무작위 네트워크를 따라 하며 새로움 측정하기"
+title: "[RL] RND(Exploration by Random Network Distillation): 무작위 네트워크를 따라 하며 새로움 측정하기"
 date: 2026-09-02 20:00:00 +0900
 categories: [Reinforcement Learning, Exploration]
 tags: [reinforcement-learning, exploration, intrinsic-motivation, rnd, random-network-distillation, ppo, montezuma, noisy-tv]
-description: 무작위로 고정한 target 네트워크의 출력을 따라 하는 predictor의 오차를 새로움으로 쓰는 RND의 아이디어와, intrinsic·extrinsic return을 나눠 다루는 방법, 정규화 디테일을 코드와 함께 정리합니다.
+description: "Exploration by Random Network Distillation(ICLR 2019) 논문 리뷰. 고정된 무작위 target 네트워크를 따라 하는 predictor의 오차를 새로움으로 쓰는 RND의 아이디어, intrinsic·extrinsic return을 나눠 다루는 방법, 정규화 디테일, Atari 6게임 수치와 하이퍼파라미터를 그림·코드와 함께 정리합니다."
 math: true
 ---
 
-> [ICM]({% post_url 2026-08-29-icm-curiosity %})은 다음 상태를 예측하는 오차를 호기심으로 썼지만, 결과 자체가 무작위인 상황에서는 오차가 영원히 줄지 않는 문제가 있었습니다. **RND(Random Network Distillation)**(Burda et al., ICLR 2019)는 예측 대상을 **무작위로 초기화한 고정 네트워크의 출력**으로 바꿔 이 문제를 깔끔하게 피합니다. 그리고 Montezuma's Revenge에서 처음으로 **사람 평균 점수를 넘었습니다.**
+> - **논문**: Exploration by Random Network Distillation
+> - **저자**: Yuri Burda, Harrison Edwards, Amos Storkey, Oleg Klimov (OpenAI, University of Edinburgh)
+> - **학회**: ICLR 2019 · [arXiv:1810.12894](https://arxiv.org/abs/1810.12894)
+{: .prompt-tip }
+
+> [ICM]({% post_url 2026-08-29-icm-curiosity %})은 다음 상태를 예측하는 오차를 호기심으로 썼지만, 결과 자체가 무작위인 상황에서는 오차가 영원히 줄지 않는 문제가 있었습니다. **RND(Random Network Distillation)**는 예측 대상을 **무작위로 초기화한 고정 네트워크의 출력**으로 바꿔 이 문제를 깔끔하게 피합니다. 그리고 Montezuma's Revenge에서 사람의 시연이나 게임 내부 상태 없이 처음으로 **사람 평균 점수를 넘었습니다.**
 
 ## 1. 기존 방법의 문제
 
@@ -72,11 +77,19 @@ print(rnd(seen)[0].mean().item())                 # 약 5e-07 → 익숙한 관�
 print(rnd(new)[0].mean().item())                  # 약 0.54  → 처음 보는 관측은 보상이 큼
 ```
 
-예측 대상이 고정된 함수라서, predictor가 본 관측에서는 오차가 거의 0까지 내려가고 처음 보는 관측에서는 크게 남습니다. 무작위 노이즈 관측이라도 **같은 관측에 대한 정답은 항상 같으므로**, Noisy TV처럼 "아무리 학습해도 줄지 않는 오차"가 생기지 않습니다. (논문 구현은 predictor를 target보다 층을 더 깊게 만들어, 따라 하기 어렵지 않게 합니다.)
+예측 대상이 고정된 함수라서, predictor가 본 관측에서는 오차가 거의 0까지 내려가고 처음 보는 관측에서는 크게 남습니다. 무작위 노이즈 관측이라도 **같은 관측에 대한 정답은 항상 같으므로**, Noisy TV처럼 "아무리 학습해도 줄지 않는 오차"가 생기지 않습니다. (논문은 target과 predictor 모두 DQN(Mnih et al., 2015)과 같은 conv encoder 뒤에 dense 층을 붙였다고만 적고, 정확한 구조는 공개 코드로 미룹니다.)
+
+실제 게임에서 이 보상이 어떻게 움직이는지는 아래 Figure 1에 잘 드러납니다. Montezuma's Revenge 첫 에피소드에서 목숨을 잃거나, 적을 아슬아슬하게 피하거나, 물건을 줍는 순간마다 intrinsic reward가 튀고, 처음 횃불을 만지는 마지막 순간(19~21)에 가장 크게 튑니다.
+
+![Montezuma's Revenge 한 에피소드의 RND 보상](/assets/img/posts/random-network-distillation/fig1.webp)
+_Figure 1. 첫 에피소드 동안의 RND 탐험 보너스. 에이전트는 17개 방을 지나 횃불(19~21)까지 도달하며, 보상이 튀는 지점마다 해당 화면을 붙여 놓았습니다. (출처: Burda et al., 2019)_
 
 ### Predictor가 target을 완벽히 외우면?
 
-Predictor가 학습하다가 target을 **모든 입력에서 완벽히 모방**해 버리면 보상이 의미 없어집니다. MNIST로 확인한 결과, 숫자 0과 특정 숫자 하나를 섞어 학습했을 때 **학습 데이터에 그 숫자가 적을수록, 처음 보는 그 숫자 이미지에 대한 오차가 컸습니다.** 지나친 일반화(overgeneralize)는 일어나지 않았습니다.
+Predictor가 학습하다가 target을 **모든 입력에서 완벽히 모방**해 버리면 보상이 의미 없어집니다. MNIST로 확인한 결과, 숫자 0과 특정 숫자 하나를 섞어 학습했을 때(전체 학습 데이터 수는 고정하고 비율만 바꿈) **학습 데이터에 그 숫자가 적을수록, 처음 보는 그 숫자 이미지에 대한 오차가 컸습니다.** 지나친 일반화(overgeneralize)는 일어나지 않았습니다.
+
+![MNIST 새로움 검출 실험](/assets/img/posts/random-network-distillation/fig2.webp)
+_Figure 2. 가로축은 학습 데이터에 들어간 목표 숫자의 개수(로그 축), 세로축은 처음 보는 목표 숫자 이미지에서의 MSE. 많이 본 숫자일수록 오차가 줄어듭니다. (출처: Burda et al., 2019)_
 
 ## 3. 예측 오차의 원인 분석
 
@@ -114,7 +127,7 @@ $$
 ### 정규화
 
 - **Reward normalization**: 환경과 시간에 따라 intrinsic reward의 크기가 크게 달라지므로, intrinsic return의 **표준편차로 나눠** 일관된 크기를 유지
-- **Observation normalization**: 고정된 무작위 target 네트워크는 입력 스케일에 민감해서, 정규화하지 않으면 임베딩의 분산이 극도로 작아집니다. 관측의 각 차원을 running mean/std로 정규화한 뒤 **[-5, 5]로 clipping**하고, predictor와 target에 같은 정규화를 씁니다.
+- **Observation normalization**: 고정된 무작위 target 네트워크는 입력 스케일에 민감해서, 정규화하지 않으면 임베딩의 분산이 극도로 작아집니다. 관측의 각 차원을 running mean/std로 정규화한 뒤 **[-5, 5]로 clipping**하고, predictor와 target에 같은 정규화를 씁니다(정책 네트워크에는 쓰지 않음). 정규화 통계는 학습 전에 무작위 행동 에이전트로 환경을 몇 step 돌려 초기화합니다.
 
 ```python
 # 관측 정규화 (target, predictor 공통)
@@ -124,24 +137,68 @@ r_int = r_int / (int_return_rms.var.sqrt() + 1e-8)        # intrinsic reward 정
 adv = 2.0 * adv_ext + 1.0 * adv_int                         # 두 value head의 advantage 결합 (논문 계수)
 ```
 
-## 5. 실험
+## 5. 구현 디테일
+
+논문 부록(Table 2~5)의 기본 설정입니다. 본문 실험에서 따로 밝힌 경우만 이 값과 다릅니다.
+
+| 항목 | 값 |
+|---|---|
+| 정책 최적화 | PPO, Adam, lr 0.0001, $$\lambda = 0.95$$, entropy 계수 0.001, clip range [0.9, 1.1] |
+| Rollout | 병렬 환경 128개 × 길이 128, 환경당 30K rollout (총 약 19.7억 프레임) |
+| 최적화 | minibatch 4개, epoch 4 |
+| Discount | $$\gamma_E = 0.999$$, $$\gamma_I = 0.99$$ |
+| Advantage 계수 | extrinsic 2, intrinsic 1 |
+| Predictor 학습 데이터 | 경험의 25%만 사용 (32개 환경일 때와 같은 유효 batch 유지) |
+| 정책 구조 | 기본은 CNN (DQN conv encoder), RNN 정책은 GRU 추가 |
+| 환경 전처리 | 흑백, 84×84, frame skip 4, sticky action 확률 0.25, 에피소드당 최대 18K 프레임, 목숨 잃어도 종료 아님 |
+| 보상 | extrinsic은 [-1, 1] clipping, intrinsic은 clipping 없음 |
+| 입력 | 정책: 4프레임 stack, $$x/255$$ / target·predictor: 1프레임, $$\text{clip}((x-\mu)/\sigma, [-5, 5])$$ |
+
+병렬 환경을 256개, 1,024개로 늘린 실험에서는 predictor에 넣는 경험을 각각 0.125, 0.03125 확률로만 남겨, 환경 수가 늘어도 intrinsic reward가 줄어드는 속도가 같게 맞췄습니다.
+
+## 6. 실험
 
 비교 baseline은 두 가지입니다.
 
 - 탐험 보너스 없는 **PPO**
-- **Forward dynamics 오차**를 보너스로 쓰는 PPO (ICM 계열)
+- **Forward dynamics 오차**를 보너스로 쓰는 PPO (ICM 계열). 공정한 비교를 위해 predictor가 "현재 관측과 행동으로 다음 관측의 무작위 특징"을 예측하도록 loss만 바꾸고, 두 value head·non-episodic intrinsic return·정규화 등 나머지는 RND와 똑같이 맞췄습니다.
+
+### Ablation (Montezuma's Revenge)
+
+| 실험 | 결과 |
+|---|---|
+| 순수 탐험 (extrinsic reward 없음) | non-episodic이 episodic보다 더 많은 방을 탐험. $$\gamma_I = 0.999$$의 한 run은 21개 방, 5 run 중 4 run의 최고 return이 6,700 |
+| episodic vs non-episodic intrinsic ($$\gamma_I = \gamma_E = 0.99$$) | non-episodic이 탐험한 방 수는 더 많고 평균 return은 비슷. episodic 설정에서 value head 2개는 1개보다 이득이 없었지만, 성격이 다른 보상을 합치려면 필요해서 이후 실험은 모두 2개 사용 |
+| discount | $$\gamma_E$$를 0.99 → 0.999로 올리면 성능이 크게 오르고, $$\gamma_I$$까지 0.999로 올리면 오히려 떨어짐 |
+| 병렬 환경 수 | 환경이 많을수록 평균 return이 높음. RNN·32개 환경을 오래 돌리면 16억 프레임에서 평균 7,570, 그중 한 run은 24개 방을 모두 방문하고 첫 레벨을 통과해 최고 17,500점. RNN·1,024개 환경은 학습 끝 평균 10,070 |
+| autoencoder 복원 오차를 보너스로 (부록) | RND보다 나쁘지만 PPO보다는 좋음 |
 
 ### RNN vs CNN 정책
 
-Montezuma's Revenge처럼 **부분 관측** 환경에서는 과거 기억이 중요하니 RNN 정책이 더 좋을 것으로 예상했지만, 실제로는 $$\gamma_E = 0.99$$ 설정에서 **CNN 정책이 더 좋았습니다.** (다만 $$\gamma_E = 0.999$$에서는 RNN 정책이 더 좋았습니다.)
+Montezuma's Revenge처럼 **부분 관측** 환경에서는 과거 기억이 중요하니 RNN 정책이 더 좋을 것으로 예상했지만, 실제로는 $$\gamma_E = 0.99$$ 설정에서 **CNN 정책이 더 좋았습니다.** (다만 $$\gamma_E = 0.999$$에서는 모든 환경 수에서 RNN 정책이 더 좋았고, 6게임 전체로 봐도 RNN이 CNN을 이기는 경우가 더 많았습니다.)
 
-### 결과
+### 결과 (Table 1, RNN 정책)
 
-- 6개의 어려운 탐험 게임에서 RND가 대부분 가장 좋았고, **세 게임(Gravitar, Montezuma's Revenge, Venture)에서 당시 SOTA**를 달성했습니다.
-- **Montezuma's Revenge**에서 사람의 시연(demonstration)이나 게임 내부 상태 정보 없이 **처음으로 사람 평균 점수를 넘었고**, 24개 방 중 대부분을 탐험했습니다.
-- 반면 Pitfall!처럼 보상이 극도로 드물고 함정이 많은 게임에서는 여전히 어려웠습니다.
+![6개 탐험 게임 학습 곡선](/assets/img/posts/random-network-distillation/fig7.webp)
+_Figure 7. RNN 정책으로 학습한 RND(주황), forward dynamics 보너스(파랑), PPO(초록)의 평균 에피소드 return. 음영은 seed 3개의 표준오차입니다. (출처: Burda et al., 2019)_
 
-## 6. 정리
+| 게임 | **RND** | PPO | Dynamics | 기존 SOTA | 사람 평균 |
+|---|---|---|---|---|---|
+| Gravitar | **3,906** | 3,426 | 3,371 | 2,209 | 3,351 |
+| Montezuma's Revenge | **8,152** | 2,497 | 400 | 3,700 | 4,753 |
+| Pitfall! | -3 | 0 | 0 | 0 | 6,464 |
+| Private Eye | 8,666 | 105 | 33 | 15,806 | 69,571 |
+| Solaris | 3,282 | 3,387 | 3,246 | 12,380 | 12,327 |
+| Venture | **1,859** | 0 | 1,712 | 1,813 | 1,188 |
+
+- **세 게임(Gravitar, Montezuma's Revenge, Venture)에서 당시 SOTA**를 넘었고, 이 세 게임 모두 사람 평균 점수도 넘었습니다. Montezuma's Revenge에서는 PPO의 약 3.3배입니다.
+- Private Eye는 PPO(105)보다 훨씬 높지만 기존 SOTA에는 못 미치고, Solaris는 PPO와 비슷합니다.
+- **Pitfall!**처럼 보상이 극도로 드물고 함정이 많은 게임에서는 RND와 PPO 모두 양수 보상을 한 번도 찾지 못했습니다.
+- Dynamics 보너스는 Montezuma's Revenge에서 400점에 그쳤습니다. 수렴한 에이전트를 보니 두 방 사이 경계를 오가고 있었는데, sticky action 때문에 경계에서 한 걸음 더 갔을 때 방을 넘어갈지 말지가 무작위라 예측 오차가 줄지 않습니다. 실제 게임에서 나타난 **Noisy TV 문제**입니다.
+
+RND 에이전트는 얻을 수 있는 extrinsic reward를 다 얻고 나면 움직이는 해골을 앞뒤로 뛰어넘거나 사라지는 다리를 오르내리는 등 **위험한 물체 근처에서 노는** 행동을 보였습니다. 위험한 상태는 도달하기 어려워 경험에 드물게 남고, 그래서 계속 새롭게 느껴지기 때문으로 봅니다.
+
+## 7. 정리
 
 | | ICM (Forward dynamics) | RND |
 |---|---|---|
@@ -149,6 +206,7 @@ Montezuma's Revenge처럼 **부분 관측** 환경에서는 과거 기억이 중
 | 정답의 성질 | 환경에 따라 **확률적**일 수 있음 | 항상 **결정적** |
 | Noisy TV | 영향 있음 | 원천적으로 없음 |
 | 계산 | forward + inverse model 학습 | predictor 하나 학습, forward pass 1회 |
+| Montezuma's Revenge (같은 PPO 설정) | 400 | 8,152 |
 
 RND는 단순함 덕분에 이후 탐험 연구의 표준 baseline이 됐고, [NGU]({% post_url 2026-09-12-never-give-up %})와 [Agent57]({% post_url 2026-09-17-agent57 %})에서도 **life-long novelty** 모듈로 쓰입니다.
 

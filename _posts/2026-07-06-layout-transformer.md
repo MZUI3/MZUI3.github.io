@@ -1,13 +1,18 @@
 ---
-title: "[Generative] LayoutTransformer: 레이아웃을 토큰 열로 보고 자기회귀로 생성·완성하기"
+title: "[Generative] LayoutTransformer(Layout Generation and Completion with Self-attention): 레이아웃을 토큰 열로 보고 자기회귀로 생성·완성하기"
 date: 2026-07-06 21:13:00 +0900
 categories: [Generative, Layout]
 tags: [layout-generation, transformer, autoregressive, discretization, coco, publaynet, rico, partnet, scene-generation]
-description: LayoutTransformer(Gupta et al., ICCV 2021)가 장면·문서·앱 화면·3D 부품의 레이아웃을 (카테고리, x, y, h, w) 토큰 열로 펼치고 마스크된 Transformer 디코더로 자기회귀 생성·완성하는 틀을 정리합니다. 좌표를 8비트로 이산화하는 이유, 속성을 분리해 임베딩하는 이유, 레이아웃 학습만으로 의미 임베딩이 생기는 관찰을 다루고, 작은 실험으로 연속 회귀와 범주형 모델링의 차이를 확인합니다.
+description: "LayoutTransformer: Layout Generation and Completion with Self-attention(ICCV 2021) 논문 리뷰. 장면·문서·앱 화면·3D 부품의 레이아웃을 (카테고리, x, y, h, w) 토큰 열로 펼쳐 Transformer 디코더로 생성·완성하는 틀, 8비트 좌표 이산화의 이유, 실험 수치와 구현 설정을 그림과 작은 실험으로 정리합니다."
 math: true
 ---
 
-> 복잡한 장면은 단순한 도형 원소들의 **배치**로 표현됩니다. 문서는 제목·본문·그림 상자, 앱 화면은 버튼·아이콘·텍스트, 자연 이미지는 물체 바운딩 박스, 3D 의자는 등받이·팔걸이·다리입니다. **LayoutTransformer**(Gupta, Lazarow, Achille, Davis, Mahadevan, Shrivastava, University of Maryland·UCSD·Amazon, ICCV 2021)는 이 모든 도메인을 **하나의 토큰 열 모델**로 다룹니다. 각 원소를 (카테고리, x, y, h, w) 다섯 토큰으로 펼치고, [Transformer 디코더]({% post_url 2026-07-01-transformer-decoder-to-gpt %})가 다음 토큰을 예측합니다. 빈 캔버스에서 생성하거나, 몇 개의 원소가 주어진 상태에서 나머지를 완성하거나, 기존 레이아웃의 가능도를 계산할 수 있고, 네 도메인에서 같은 구조와 하이퍼파라미터로 경쟁력 있는 결과를 냈습니다.
+> - **논문**: LayoutTransformer: Layout Generation and Completion with Self-attention
+> - **저자**: Kamal Gupta, Justin Lazarow, Alessandro Achille, Larry Davis, Vijay Mahadevan, Abhinav Shrivastava (University of Maryland, UC San Diego, Amazon AWS)
+> - **학회**: ICCV 2021 · [프로젝트 페이지](https://kampta.github.io/layout)
+{: .prompt-tip }
+
+> 복잡한 장면은 단순한 도형 원소들의 **배치**로 표현됩니다. 문서는 제목·본문·그림 상자, 앱 화면은 버튼·아이콘·텍스트, 자연 이미지는 물체 바운딩 박스, 3D 의자는 등받이·팔걸이·다리입니다. **LayoutTransformer**는 이 모든 도메인을 **하나의 토큰 열 모델**로 다룹니다. 각 원소를 (카테고리, x, y, h, w) 다섯 토큰으로 펼치고, [Transformer 디코더]({% post_url 2026-07-01-transformer-decoder-to-gpt %})가 다음 토큰을 예측합니다. 빈 캔버스에서 생성하거나, 몇 개의 원소가 주어진 상태에서 나머지를 완성하거나, 기존 레이아웃의 가능도를 계산할 수 있고, 네 도메인에서 같은 구조와 하이퍼파라미터로 경쟁력 있는 결과를 냈습니다.
 
 ## 1. 문제: 외형보다 배치
 
@@ -25,6 +30,9 @@ $$
 
 길이 $$5n + 2$$의 열에 대한 자기회귀 분포입니다. $$\langle eos \rangle$$를 예측하면 멈추므로 원소 수가 가변입니다.
 
+![LayoutTransformer 구조](/assets/img/posts/layout-transformer/fig2.webp)
+_Figure 2. 장난감 예시로 본 구조. 입력 토큰을 임베딩 $$E$$로 $$\theta_j$$로 바꾸고, 마스크된 self-attention 층이 앞쪽 토큰만 보며 다음 토큰(여기서는 sky 원소의 $$w$$)을 예측합니다. 학습 때는 정답 열을 넣는 teacher forcing을 씁니다. (출처: Gupta et al., 2021)_
+
 ### 좌표를 이산화
 
 $$x, y, h, w$$에 **8비트 균일 양자화**를 적용하고 범주형 분포로 모델링합니다. 연속 값을 이산화하는 것은 PixelCNN++ 같은 이미지 생성 연구에서 쓰인 방식이지만 레이아웃에서는 처음입니다. 근사 오차가 생기는 대신 **임의의 분포**(다봉, 격자 정렬)를 표현할 수 있고, 저자들은 이것이 문서나 앱 화면처럼 **강한 대칭과 정렬**이 있는 데이터에서 특히 중요하다고 관찰합니다. 연속 회귀는 두 열 사이의 평균을 예측하지만, 범주형은 두 열 중 하나를 고릅니다.
@@ -34,8 +42,25 @@ $$x, y, h, w$$에 **8비트 균일 양자화**를 적용하고 범주형 분포�
 - 보이는 원소 $$K$$개(0일 수 있음)를 **무작위 순열**로 입력하고, 출력은 항상 중심 좌표의 **래스터 순서**로 생성합니다. 순서가 학습에 중요하다는 것을 확인했고, 순서 불변 집합 생성은 향후 과제로 남깁니다.
 - 디코더는 마스크된 멀티헤드 attention + FFN의 $$L = 6$$층, $$d = 512$$, 8헤드입니다. 학습은 teacher forcing입니다.
 - 손실은 이산 필드에는 label smoothing($$\epsilon = 0.1$$)을 건 KL, 연속 필드(3D 부품 임베딩)에는 L1입니다.
+
+$$
+\mathcal{L} = \mathbb{E}_{\theta \sim \text{Disc.}}\big[\,\text{KL}(\text{SoftMax}(\theta^L)\ \Vert\ p(\theta'))\,\big] + \lambda\, \mathbb{E}_{\theta \sim \text{Cont.}}\big[\,\lVert \theta - \theta' \rVert_1\,\big]
+$$
+
 - 샘플링은 nucleus sampling(top-p 0.9)이 greedy나 beam search보다 좋습니다.
 - 3D(PartNet)에서는 부품의 복셀을 3D CNN 오토인코더로 $$d$$차원 잠재 벡터로 만들어 카테고리 자리에 넣고, 위치·크기는 3D로 확장합니다.
+
+### 구현 디테일
+
+| 항목 | 값 |
+|---|---|
+| 디코더 | $$d = 512$$, $$L = 6$$, head 8개. 모든 데이터셋에서 같은 구조 |
+| 좌표 | 중심 $$(x, y)$$와 크기 $$(h, w)$$를 캔버스 크기로 정규화한 뒤 8비트(256단계) 양자화 |
+| 손실 | label smoothing $$\epsilon = 0.1$$, $$\lambda = 1$$ |
+| 최적화 | Adam ($$\beta_1 = 0.9$$, $$\beta_2 = 0.99$$), lr $$10^{-4}$$ (PartNet은 $$10^{-5}$$), validation loss로 early stopping |
+| 샘플링 | nucleus sampling, top-p 0.9 |
+| 3D 부품 | $$64^3$$ 복셀, PQ-Net 방식으로 부품 오토인코더를 따로 학습, 카테고리별 별도 모델 |
+| 데이터 분할 | COCO: 공식 val을 test로, train의 5%를 validation. RICO: 무작위 5% validation, 15% test. PubLayNet: dev를 test로 |
 
 ## 3. 코드로 보기: 열 표현과 이산화의 효과
 
@@ -93,7 +118,7 @@ x of body elements: mean 0.498, values seen: [0.27, 0.73]
 
 ## 4. 실험
 
-**COCO 바운딩 박스(171개 카테고리, 중앙값 42개 원소).** 검증 레이아웃의 NLL과, 생성 레이아웃을 Layout2Im으로 이미지화한 IS·FID입니다.
+**COCO 바운딩 박스(171개 카테고리, 중앙값 42개 원소).** COCO Panoptic 2017의 thing 80개 + stuff 91개 카테고리 박스로, 학습 레이아웃 118,280개, 평가 5,000개입니다. 검증 레이아웃의 NLL(importance sampling으로 계산)과, 생성 레이아웃을 Layout2Im으로 이미지화한 IS·FID입니다.
 
 | 모델 | NLL ↓ | IS ↑ | FID ↓ |
 |---|---|---|---|
@@ -105,9 +130,33 @@ x of body elements: mean 0.498, values seen: [0.27, 0.73]
 
 LayoutVAE와 ObjGAN은 라벨 집합을 조건으로 받는 유리한 설정인데도 NLL에서 뒤처집니다. 생성된 박스 중심의 $$y$$ 분포는 실제와 비슷합니다(하늘은 위, 도로·바다는 아래). 다만 생성 초반에 person, car 같은 **고빈도 카테고리로 치우치는** 편향이 있습니다.
 
-**RICO 앱 화면(25개 카테고리, 중앙값 36개)과 PubLayNet 문서(5개 카테고리, 중앙값 33개).** 두 데이터는 캔버스를 거의 다 덮고, 원소가 겹치지 않으며, 양 축으로 정렬되어 있습니다. 후처리 없이도 생성 레이아웃이 정렬을 유지하고, Overlap(원소 간 IoU)과 Coverage(캔버스 점유율) 통계가 LayoutGAN·LayoutVAE보다 실제 데이터에 가깝습니다. 같은 초기 원소에서 여러 완성을 샘플링할 수 있습니다.
+**RICO 앱 화면(25개 카테고리, 중앙값 36개)과 PubLayNet 문서(5개 카테고리, 중앙값 33개).** RICO는 레이아웃 62,951개, PubLayNet은 원소 128개 이하로 거른 학습 레이아웃 335,703개입니다. 두 데이터는 캔버스를 거의 다 덮고, 원소가 겹치지 않으며, 양 축으로 정렬되어 있습니다. 후처리 없이도 생성 레이아웃이 정렬을 유지합니다. 같은 초기 원소에서 여러 완성을 샘플링할 수 있습니다.
 
-**PartNet 3D(의자 6,305개, 램프 1,188개).** 부품 하나에서 시작해 나머지 부품의 잠재 벡터와 3D 위치·크기를 순차 생성합니다. JSD, MMD, Coverage, 1-NNA의 모든 지표에서 PointFlow, StructureNet, IM-Net, PQ-Net 대비 1·2위입니다(JSD 0.81, MMD-EMD 7.38, 1-NNA-EMD 59.11). 실패 사례로 램프의 부품이 서로 연결되지 않는 경우가 있는데, 부품 오토인코더와 레이아웃 생성기를 따로 학습한 한계입니다.
+![문서 레이아웃 생성 비교](/assets/img/posts/layout-transformer/fig10.webp)
+_Figure 10. PubLayNet 문서 레이아웃 생성 결과. 위: LayoutVAE, 아래: LayoutTransformer. 아래쪽은 박스가 두 열에 맞춰 정렬되고 거의 겹치지 않습니다. (출처: Gupta et al., 2021)_
+
+이를 수치로 보기 위해 Overlap(원소 간 IoU)과 Coverage(캔버스 점유율)를 쟀습니다(논문 Table 4, 단위 %, 실제 데이터에 가까울수록 좋음).
+
+| 모델 | RICO NLL ↓ | RICO Coverage | RICO Overlap | PubLayNet NLL ↓ | PubLayNet Coverage | PubLayNet Overlap |
+|---|---|---|---|---|---|---|
+| sg2im | 7.43 | 25.2 | 16.5 | 7.12 | 30.2 | 3.4 |
+| ObjGAN | 4.21 | 39.2 | 36.4 | 4.20 | 38.9 | 8.2 |
+| LayoutVAE | 2.54 | 41.5 | 34.1 | 2.45 | 40.1 | 14.5 |
+| LayoutGAN | - | 37.3 | 31.4 | - | 45.3 | 8.3 |
+| **LayoutTransformer** | **1.07** | 33.6 | 23.7 | **1.10** | 47.0 | 0.13 |
+| 실제 데이터 | - | 36.6 | 22.4 | - | 57.1 | 0.1 |
+
+NLL은 두 데이터셋 모두 가장 낮고, PubLayNet의 Overlap은 0.13%로 실제(0.1%)와 거의 같습니다. 다만 RICO의 Coverage만 보면 LayoutGAN(37.3%)이 LayoutTransformer(33.6%)보다 실제 값(36.6%)에 더 가깝습니다. 모든 통계에서 앞서는 것은 아닙니다.
+
+**PartNet 3D(의자 6,305개, 램프 1,188개).** 부품 하나에서 시작해 나머지 부품의 잠재 벡터와 3D 위치·크기를 순차 생성합니다. JSD, MMD, Coverage, 1-NNA의 모든 지표에서 PointFlow, StructureNet, IM-Net, PQ-Net 대비 1·2위입니다(JSD 0.81, MMD-EMD 7.38, 1-NNA-EMD 59.11).
+
+| 모델 (Chair) | JSD ↓ | MMD-CD ↓ | MMD-EMD ↓ | Cov-CD ↑ | Cov-EMD ↑ | 1-NNA-CD ↓ | 1-NNA-EMD ↓ |
+|---|---|---|---|---|---|---|---|
+| PointFlow | 1.74 | 2.42 | 7.87 | 46.83 | 46.98 | 60.88 | 59.89 |
+| StructureNet | 4.77 | 0.97 | 15.24 | 29.67 | 31.7 | 75.32 | 74.22 |
+| IM-Net | 0.84 | **0.74** | 12.28 | 52.35 | 54.12 | 68.52 | 67.12 |
+| PQ-Net | 0.83 | 0.83 | 14.16 | 54.91 | **60.72** | 71.31 | 67.8 |
+| **LayoutTransformer** | **0.81** | 0.79 | **7.38** | **55.25** | 55.44 | **60.67** | **59.11** | 실패 사례로 램프의 부품이 서로 연결되지 않는 경우가 있는데, 부품 오토인코더와 레이아웃 생성기를 따로 학습한 한계입니다.
 
 **레이아웃에서 의미가 생긴다.** 카테고리 임베딩의 t-SNE에서 COCO 상위 카테고리끼리 뭉치고, window-blind와 curtain처럼 상위 카테고리가 달라도 함께 나타나는 것은 가까이 놓입니다. word2vec 식 유추도 됩니다. snowboard:snow::surfboard:? → waterdrops, sea, sand. car:road::train:? → railroad, platform. mouse:keyboard::spoon:? → knife, fork, oven. 언어 임베딩을 전혀 쓰지 않고 **배치만 배워서** 얻은 결과입니다.
 

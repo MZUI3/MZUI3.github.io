@@ -1,13 +1,18 @@
 ---
-title: "[Generative AI] Splice: DINO-ViT 특징을 쪼개어 구조와 외형을 잇는 의미 기반 외형 전이"
+title: "[Generative AI] Splice(Splicing ViT Features for Semantic Appearance Transfer): DINO-ViT 특징으로 구조와 외형을 잇는 외형 전이"
 date: 2026-10-13 15:04:00 +0900
 categories: [Generative AI, Style Transfer]
 tags: [appearance-transfer, dino, vit, self-similarity, cls-token, single-image, feature-inversion, splice]
-description: Splice(Tumanyan, Bar-Tal, Bagon, Dekel, CVPR 2022)가 자기지도 학습된 DINO-ViT를 외부 의미 사전으로 삼아, 마지막 층 키의 자기유사도를 구조로, [CLS] 토큰을 외형으로 정의하고 이미지 한 쌍만으로 생성기를 학습해 의미적으로 대응하는 영역끼리 외형을 옮긴 과정을 정리합니다. 특징 반전으로 얻은 관찰, 손실 설계, 사용자 연구를 다루고 작은 실험으로 두 표현의 성질을 확인합니다.
+description: "Splicing ViT Features for Semantic Appearance Transfer(CVPR 2022) 논문 리뷰. DINO-ViT 마지막 층 키의 자기유사도를 구조로, [CLS] 토큰을 외형으로 정의해 이미지 한 쌍만으로 생성기를 학습하는 Splice의 관찰·손실·구현 설정, 사용자 연구와 IoU 수치를 그림과 작은 실험으로 정리합니다."
 math: true
 ---
 
-> [Neural Style Transfer]({% post_url 2026-08-08-neural-style-transfer %})부터 [AdaIN]({% post_url 2026-08-11-adain %}), [StyTr²]({% post_url 2026-09-13-stytr2 %})까지 스타일 전이는 **회화의 질감을 사진 전체에** 입히는 일이었습니다. 그런데 "얼룩소 사진의 외형을 붉은 소 사진에 옮겨라"라는 요청은 다릅니다. 소에는 소의 무늬를, 풀밭에는 풀밭의 색을, 즉 **의미적으로 대응하는 영역끼리** 외형을 옮겨야 하고, VGG 특징의 Gram 행렬로는 이 대응을 알 수 없습니다. **Splice**(Weizmann Institute, CVPR 2022 oral)는 라벨 없이 학습된 **DINO-ViT**가 이 의미를 이미 알고 있다는 점을 이용합니다. 마지막 층 키(key)의 자기유사도 행렬을 "구조", [CLS] 토큰을 "외형"으로 정의하고, 입력 이미지 한 쌍만으로 생성기를 학습해 두 표현을 ViT 특징 공간에서 이어 붙입니다(splice). 적대 학습도, 분할 마스크도, 대응점도 필요 없습니다.
+> - **논문**: Splicing ViT Features for Semantic Appearance Transfer
+> - **저자**: Narek Tumanyan, Omer Bar-Tal, Shai Bagon, Tali Dekel (Weizmann Institute of Science)
+> - **학회**: CVPR 2022 · [arXiv:2201.00424](https://arxiv.org/abs/2201.00424) · [프로젝트 페이지](https://splice-vit.github.io)
+{: .prompt-tip }
+
+> [Neural Style Transfer]({% post_url 2026-08-08-neural-style-transfer %})부터 [AdaIN]({% post_url 2026-08-11-adain %}), [StyTr²]({% post_url 2026-09-13-stytr2 %})까지 스타일 전이는 **회화의 질감을 사진 전체에** 입히는 일이었습니다. 그런데 "얼룩소 사진의 외형을 붉은 소 사진에 옮겨라"라는 요청은 다릅니다. 소에는 소의 무늬를, 풀밭에는 풀밭의 색을, 즉 **의미적으로 대응하는 영역끼리** 외형을 옮겨야 하고, VGG 특징의 Gram 행렬로는 이 대응을 알 수 없습니다. **Splice**는 라벨 없이 학습된 **DINO-ViT**가 이 의미를 이미 알고 있다는 점을 이용합니다. 마지막 층 키(key)의 자기유사도 행렬을 "구조", [CLS] 토큰을 "외형"으로 정의하고, 입력 이미지 한 쌍만으로 생성기를 학습해 두 표현을 ViT 특징 공간에서 이어 붙입니다(splice). 적대 학습도, 분할 마스크도, 대응점도 필요 없습니다.
 
 ## 1. 문제: 한 쌍의 자연 이미지 사이에서 의미를 어디서 얻는가
 
@@ -18,7 +23,10 @@ math: true
 저자들은 CNN 특징 시각화에 쓰던 **특징 반전**(feature inversion)을 ViT에 처음 적용합니다. Deep Image Prior처럼 고정 잡음을 이미지로 바꾸는 CNN $$F_\theta$$를 최적화해 $$\lVert \phi(F_\theta(z)) - \phi(I) \rVert_F$$를 최소화합니다. 관찰은 둘입니다.
 
 - **[CLS] 토큰은 외형을 공간적으로 유연하게 담는다.** 얕은 층의 [CLS]를 반전하면 국소 질감이, 깊은 층(11층)에서는 **물체 부위** 같은 전역 정보가 나타납니다. 같은 이미지를 여러 번 반전하면 부위가 늘어나고 뒤집히지만 전역 외형은 유지됩니다. 즉 포즈와 배치는 버리고 "무엇이 어떻게 생겼는지"는 남깁니다.
-- **마지막 층 키에서 원본이 복원된다.** 깊은 층 특징은 고수준 정보만 담는다고 여겨졌지만, 키 $$K^L$$를 반전하면 원본 이미지가 되살아납니다. 의미적이면서 가역적인 표현입니다. 외형을 버리려면 키 자체가 아니라 **키의 자기유사도**를 써야 하고, 그 PCA를 보면 얼룩말의 줄무늬는 사라지고 몸통·다리 같은 의미 부위가 남습니다.
+- **마지막 층 키에서 원본이 복원된다.** 깊은 층 특징은 고수준 정보만 담는다고 여겨졌지만, 키 $$K^L$$를 반전하면 원본 이미지가 되살아납니다. 의미적이면서 가역적인 표현입니다. 외형을 버리려면 키 자체가 아니라 **키의 자기유사도**를 써야 하고, 그 PCA를 보면 얼룩말의 줄무늬는 사라지고 몸통·다리 같은 의미 부위가 남습니다(아래 Figure 5).
+
+![DINO-ViT 키 반전과 자기유사도 PCA](/assets/img/posts/splice-vit/fig5.webp)
+_Figure 5. (a) 11층 키를 반전하면 원본이 거의 그대로 복원됩니다. (b) 같은 층 키 자기유사도의 주성분 3개. 얼룩말 줄무늬 같은 외형은 사라지고 몸통, 다리, 배경 같은 의미 부위가 구분됩니다. (출처: Tumanyan et al., 2022)_
 
 ## 3. 방법
 
@@ -32,7 +40,10 @@ $$
 
 ### 손실
 
-생성기 $$G_\theta(I_s) = I_o$$를 쌍 $$\{I_s, I_t\}$$에 대해 학습합니다.
+생성기 $$G_\theta(I_s) = I_o$$를 쌍 $$\{I_s, I_t\}$$에 대해 학습합니다. 고정된 DINO-ViT가 손실을 계산하는 외부 사전 역할만 합니다(Figure 2).
+
+![Splice 파이프라인](/assets/img/posts/splice-vit/fig2.webp)
+_Figure 2. 생성기 $$G_\theta$$가 구조 이미지 $$I_s$$를 받아 $$I_o$$를 냅니다. 고정된 DINO-ViT로 $$I_o$$와 $$I_t$$의 [CLS] 토큰을 맞추는 외형 손실, $$I_o$$와 $$I_s$$의 키 자기유사도를 맞추는 구조 손실을 계산합니다. (출처: Tumanyan et al., 2022)_
 
 $$
 \mathcal{L}_{\text{splice}} = \mathcal{L}_{\text{app}} + \alpha \mathcal{L}_{\text{structure}} + \beta \mathcal{L}_{\text{id}}, \quad \alpha = \beta = 0.1
@@ -43,6 +54,21 @@ $$
 - $$\mathcal{L}_{\text{id}} = \lVert K^L(I_t) - K^L(G_\theta(I_t)) \rVert_F$$: 외형 이미지를 넣으면 **키 표현이 보존**되어야 한다는 항등 정규화. RGB 공간의 항등 손실(CycleGAN류)을 의미적이고 가역적인 키 공간으로 옮긴 것입니다.
 
 쌍 하나뿐이므로 크롭과 색 지터로 내부 예시 $$\{I_s^i, I_t^i\}_{i=1}^N$$를 만들어 학습합니다. 단일 인스턴스의 테스트 시 최적화가 아니라 $$N$$개 예시에 대한 **매핑 함수**를 배우는 셈이고, 이것이 일반화를 돕습니다. 고해상도(HD) 출력이 가능합니다.
+
+### 구현 디테일
+
+부록 A에 적힌 설정입니다.
+
+| 항목 | 값 |
+|---|---|
+| 생성기 | U-Net, 인코더 5층(채널 3→16→32→64→128→128)과 대칭 디코더, 3×3 conv + BatchNorm + LeakyReLU, 층마다 1×1 conv 스킵, 마지막 1×1 conv + Sigmoid |
+| 특징 추출기 | DINO ViT-B/8 (12층, 8×8 패치), 고정 |
+| 손실 계산 | 생성 이미지와 외형 이미지를 종횡비를 유지한 채 224px로 bicubic 축소한 뒤 DINO 특징 추출 |
+| 가중치 | $$\alpha = \beta = 0.1$$ |
+| Optimizer | Adam, 고정 lr $$2 \times 10^{-3}$$ |
+| 배치 | 증강된 $$\{\tilde I_s, \tilde I_t\}$$ 한 쌍, 75 iteration마다 증강 없는 원본 쌍도 넣음 |
+| 증강 | 높이의 95~100% 정사각 랜덤 크롭, 좌우 반전(p=0.5). 구조 이미지에는 색 지터(p=0.5), 3×3 Gaussian blur(p=0.5, $$\sigma$$ 0.1~2.0) 추가 |
+| 학습 | 2,000 iteration, 512×512 쌍 기준 RTX 6000 한 장에서 약 20분 |
 
 ## 4. 코드로 보기: 자기유사도는 외형에, 전역 토큰은 배치에 불변
 
@@ -88,6 +114,9 @@ global (mean) token: distance for the re-arranged image 0.0000  vs. for the appe
 
 **데이터.** AFHQ(동물 얼굴), Flickr Mountain, 그리고 직접 모은 **Wild-Pairs** 25쌍(동물·과일·물체, 512~2000px). 물체 수·포즈·외형이 쌍 안에서 크게 다릅니다. 결과를 보면 외형이 물체 간(오리 한 마리의 외형이 다섯 마리 모두에), 물체 안(부위별 대응)에서 의미적으로 옮겨집니다.
 
+![기존 방법과 비교](/assets/img/posts/splice-vit/fig7.webp)
+_Figure 7. 위 두 줄이 외형·구조 입력(Flickr Mountains, AFHQ), 아래로 SA, STROTSS, WCT², Splice 결과입니다. SA는 안개·나무를 놓치거나 구조 이미지를 거의 그대로 내고, WCT²는 색만 바뀝니다. (출처: Tumanyan et al., 2022)_
+
 **비교.** Swapping Autoencoder(SA)는 도메인별 GAN이라 AFHQ와 산 풍경에서만 비교 가능한데, 외형 이미지의 안개·나무 같은 요소를 놓치고 AFHQ에서는 구조 이미지와 거의 같은 출력을 내는 경우가 많습니다(셰퍼드에 표범 무늬는 학습 분포 밖이라 적대 손실이 "구조 이미지를 그대로 내면" 쉽게 만족되기 때문). STROTSS는 색이 번지고, WCT²는 색만 바꿔 전역 색 아티팩트가 생기며, SinCUT은 저수준 변환(풍경)은 되지만 백조의 외형은 못 옮깁니다.
 
 **사용자 연구(AMT 2AFC, 65장, 7,000 판정).** "A의 구조와 B의 외형을 가장 잘 보여 주는 것은?"에 대한 Splice 선호율입니다.
@@ -98,7 +127,14 @@ global (mean) token: distance for the re-arranged image 0.0000  vs. for the appe
 | Mountains | 56.3 ± 10.0 | 58.8 ± 14.2 | 60.3 ± 12.1 |
 | AFHQ | 71.8 ± 7.7 | 59.7 ± 15.3 | 61.0 ± 18.3 |
 
-SA는 산 이미지 50만 장으로 학습했는데도 Splice가 앞섭니다. Mask R-CNN 분할의 IoU로 잰 **의미 배치 보존**은 Wild-Pairs 0.88, Mountains 0.95로, 색만 바꾸는 WCT²(0.89/0.96)에 근접하고 SA·STROTSS보다 높습니다.
+SA는 산 이미지 50만 장으로 학습했는데도 Splice가 앞섭니다. **의미 배치 보존**은 구조 이미지와 출력의 분할 맵 IoU로 쟀습니다(Wild-Pairs는 Mask R-CNN, Mountains는 다른 분할 모델).
+
+| 데이터 | SA | STROTSS | WCT² | Splice |
+|---|---|---|---|---|
+| Wild-Pairs | - | 0.83 ± 0.11 | 0.89 ± 0.06 | 0.88 ± 0.06 |
+| Mountains | 0.91 ± 0.07 | 0.94 ± 0.12 | 0.96 ± 0.82 | 0.95 ± 0.10 |
+
+색만 바꾸는 WCT²가 구조를 거의 건드리지 않으니 IoU가 가장 높은 것은 당연하고, Splice는 외형을 크게 바꾸면서도 그에 근접하며 SA·STROTSS보다 높습니다(WCT² Mountains의 표준편차 0.82는 논문 표 그대로입니다).
 
 **Ablation.** 외형 손실을 빼면 색만 살짝 바뀌고(항등 손실 덕에 약간의 외형 감독은 남음), 구조 손실을 빼면 외형은 맞지만 배 모양이 뒤틀리며, 항등 손실은 아보카도 질감 같은 세부를 또렷하게 합니다.
 
@@ -114,7 +150,7 @@ SA는 산 이미지 50만 장으로 학습했는데도 Splice가 앞섭니다. M
 
 **4. 한계는 사전의 한계입니다.** DINO-ViT가 모르는 대응은 Splice도 모릅니다. 분포 밖 이미지와 무관한 범주의 실패는 방법의 결함이라기보다 외부 사전에 전적으로 의존하는 설계의 대가이고, 더 강한 자기지도 모델(DINOv2 등)로 바꾸면 그대로 개선되는 구조이기도 합니다.
 
-**5. 평가를 읽을 때 주의할 점.** 과제가 새로워서 자동 지표가 없고 주 증거는 사용자 연구입니다. 표준편차가 8~18%p로 크고, SA와는 두 데이터셋에서만 비교됩니다. 쌍마다 생성기를 학습하므로 추론은 빠르지만 쌍당 학습 시간이 들며, 본문에 그 시간은 명시되지 않았습니다. 위 toy의 "키"는 무작위 부위 벡터라 DINO의 의미성을 보여 주지는 못하고 두 표현의 불변성만 확인합니다.
+**5. 평가를 읽을 때 주의할 점.** 과제가 새로워서 자동 지표가 없고 주 증거는 사용자 연구입니다. 표준편차가 8~18%p로 크고, SA와는 두 데이터셋에서만 비교됩니다. 쌍마다 생성기를 학습하므로 추론은 빠르지만 쌍당 학습 시간이 듭니다. 부록 기준 512×512 쌍 하나에 RTX 6000으로 약 20분(2,000 iteration)입니다. 위 toy의 "키"는 무작위 부위 벡터라 DINO의 의미성을 보여 주지는 못하고 두 표현의 불변성만 확인합니다.
 
 ## 7. 정리
 
@@ -124,7 +160,7 @@ SA는 산 이미지 50만 장으로 학습했는데도 Splice가 앞섭니다. M
 | 사전 | 고정된 자기지도 DINO-ViT |
 | 표현 | 구조 = 마지막 층 키의 자기유사도 $$S^L$$, 외형 = 마지막 층 [CLS] 토큰 |
 | 손실 | [CLS] L2 + 0.1 × 자기유사도 Frobenius + 0.1 × 키 공간 항등 손실 |
-| 학습 | 쌍 하나를 크롭·색 지터로 증강한 내부 데이터셋, 적대 학습 없음, HD 가능 |
+| 학습 | 쌍 하나를 크롭·색 지터로 증강한 내부 데이터셋, 적대 학습 없음, HD 가능, 512² 쌍당 약 20분 |
 | 결과 | AMT 선호 56~83%, 의미 배치 IoU 0.88/0.95, SA·STROTSS·WCT²·SinCUT 대비 우위 |
 | 한계 | DINO-ViT가 대응을 못 잡는 분포 밖 이미지·무관 범주에서 실패 |
 

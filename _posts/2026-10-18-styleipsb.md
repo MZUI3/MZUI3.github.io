@@ -1,13 +1,21 @@
 ---
-title: "[Face Swapping] StyleIPSB: 신원을 보존하는 StyleGAN 의미 기저로 모공 수준 세부를 지키는 얼굴 교체"
+title: "[Face Swapping] StyleIPSB(Identity-Preserving Semantic Basis of StyleGAN for High Fidelity Face Swapping): 모공 수준 세부를 지키는 얼굴 교체"
 date: 2026-10-18 14:19:00 +0900
 categories: [Generative AI, Face Swapping]
 tags: [face-swapping, stylegan, semantic-basis, identity-preserving, 3dmm, hessian, w-plus-subspace, pore-level-detail, cvpr]
-description: StyleIPSB(Jiang, Song, Tong, Tang, CVPR 2023)가 StyleGAN 기반 교체의 흐릿함(회귀된 스타일 코드가 W+ 밖으로 나감)과 신원 이동(비매끄러운 신원 임베딩)을 함께 풀기 위해, 포즈·표정·조명 속성 변화를 신원 손실로 나눈 거리 메트릭의 헤시안을 분해해 신원을 보존하는 직교 의미 기저를 만들고, 3DMM 파라미터를 기저 좌표로 매핑하는 네트워크, 잔차 속성 전이 MLP, 마스크 공간 특징 변환으로 배경을 섞는 3단계 교체를 정리합니다. 기저의 표현력·분리·세부 보존, GANSpace·InterFaceGAN과의 비교를 다루고 작은 실험으로 신원 인식 기저와 PCA형 기저의 차이를 확인합니다.
+description: "StyleIPSB: Identity-Preserving Semantic Basis of StyleGAN for High Fidelity Face Swapping(CVPR 2023) 논문 리뷰. 속성 변화를 신원 손실로 나눈 메트릭의 헤시안으로 신원 보존 의미 기저를 만들고, 3DMM 매핑·잔차 속성 전이·마스크 특징 변환의 3단계로 얼굴을 교체하는 방법과 FaceForensics++·CelebA-HQ 수치를 그림과 함께 정리하고, 작은 실험으로 신원 인식 기저와 PCA형 기저의 차이를 확인합니다."
 math: true
 ---
 
-> StyleGAN을 디코더로 쓰면 모공 수준 세부가 가능해야 하는데, [MegaFS]({% post_url 2026-09-06-megafs %})·[FSLSD]({% post_url 2026-09-15-fslsd %}) 같은 방법의 결과는 **흐리고** 어려운 경우 **신원이 밀립니다**(Figure 1). **StyleIPSB**(Jiang, Song, Tong, Tang, 저장대·톈진대, CVPR 2023)의 진단은 둘입니다. 흐림은 인코더가 회귀한 스타일 코드가 **$$\mathcal{W}+$$ 공간 밖**으로 나가기 때문이고, 신원 이동은 신원 임베딩이 **비매끄러운 공간**이라([Smooth-Swap]({% post_url 2026-10-07-smooth-swap %})) 신원을 보존하는 최적화 방향을 찾기 어렵기 때문입니다. 해법은 회귀를 **신원 보존 의미 기저(StyleIPSB)**로 제약하는 것입니다. 기저는 $$\mathcal{W}+$$의 선형 부분 공간이라 그 안의 코드는 선명하게 렌더링되고, 좌표를 바꿔도 신원이 유지되며, 다양한 포즈·표정·조명을 표현합니다. 3DMM이 잡는 큰 의미 변화를 기저 좌표로 번역하는 매핑망이 둘을 잇습니다.
+> - **논문**: StyleIPSB: Identity-Preserving Semantic Basis of StyleGAN for High Fidelity Face Swapping
+> - **저자**: Diqiong Jiang, Dan Song, Ruofeng Tong, Min Tang (Zhejiang University, Tianjin University)
+> - **학회**: CVPR 2023 · [코드](https://github.com/a686432/StyleIPSB)
+{: .prompt-tip }
+
+> StyleGAN을 디코더로 쓰면 모공 수준 세부가 가능해야 하는데, [MegaFS]({% post_url 2026-09-06-megafs %})·[FSLSD]({% post_url 2026-09-15-fslsd %}) 같은 방법의 결과는 **흐리고** 어려운 경우 **신원이 밀립니다**(Figure 1). **StyleIPSB**의 진단은 둘입니다. 흐림은 인코더가 회귀한 스타일 코드가 **$$\mathcal{W}+$$ 공간 밖**으로 나가기 때문이고, 신원 이동은 신원 임베딩이 **비매끄러운 공간**이라([Smooth-Swap]({% post_url 2026-10-07-smooth-swap %})) 신원을 보존하는 최적화 방향을 찾기 어렵기 때문입니다. 해법은 회귀를 **신원 보존 의미 기저(StyleIPSB)**로 제약하는 것입니다. 기저는 $$\mathcal{W}+$$의 선형 부분 공간이라 그 안의 코드는 선명하게 렌더링되고, 좌표를 바꿔도 신원이 유지되며, 다양한 포즈·표정·조명을 표현합니다. 3DMM이 잡는 큰 의미 변화를 기저 좌표로 번역하는 매핑망이 둘을 잇습니다.
+
+![기존 방법과의 비교](/assets/img/posts/styleipsb/fig1.webp)
+_Figure 1. 목표·소스와 MegaFS, FSLSD, StyleIPSB의 교체 결과. 오른쪽 위 확대 영역에서 MegaFS·FSLSD는 피부가 매끈하게 뭉개지지만 StyleIPSB는 모공과 주름 같은 세부를 유지합니다. (출처: Jiang et al., 2023)_
 
 ## 1. StyleIPSB 구성
 
@@ -23,11 +31,26 @@ $$
 
 ## 2. 3단계 교체
 
+![StyleIPSB 전체 구조](/assets/img/posts/styleipsb/fig2.webp)
+_Figure 2. 아래 왼쪽: 헤시안 분해로 기저 $$V$$를 만드는 과정. 위: 1단계 3DMM-StyleGAN 매핑. 아래 가운데: 2단계 DAT-MLP의 세부 속성 전이. 아래 오른쪽: 3단계 VGG 특징을 섞는 블렌딩. (출처: Jiang et al., 2023)_
+
 **1단계: 3DMM-StyleGAN 매핑.** 소스·목표의 3DMM 파라미터 $$\alpha_s, \alpha_t$$를 6층 MLP 세 개가 포즈·표정·조명의 기저 좌표 $$\beta_{s \to t}$$로 바꾸고, StyleGAN 인코더가 만든 소스 코드에 더합니다: $$w_{s \to t} = w_s + \beta_{s \to t} V$$. 손실은 신원 $$L_{id}$$와 속성 $$L_{attr}$$(전이 결과의 3D 기하가 목표 표정·포즈와 같은지의 메시 L2 + 같은 형상·알베도로 렌더링한 이미지의 L1). 형상 파라미터는 소스 것으로 고정해 속성 차이만 비교합니다.
 
 **2단계: 세부 속성 전이.** 3DMM이 못 잡는 세부 속성(머리카락 등)을 위해 목표 코드 $$w_t$$와 $$w_{s \to t}$$에서 DAT-MLP가 $$\lambda \in [0,1]^{18 \times 512}$$를 회귀해 $$w'_{s \to t} = \lambda w_{s \to t} + (1 - \lambda) w_t$$로 섞습니다. 두 코드의 속성이 가까우므로 그 사이의 상자는 대부분 $$\mathcal{W}+$$ 부분 공간 안에 있어 세부가 유지된다고 봅니다. 손실은 신원 + 목표와의 지각 + 속성.
 
-**3단계: 블렌딩.** VGGFace 특징을 StyleGAN 특징에 **마스크 공간 특징 변환(MSFT)**으로 섞습니다. 가우시안 블러한 얼굴 마스크 안은 StyleGAN 특징을, 밖은 VGG 특징과 섞은 것을 쓰며, 배경 손실 $$\lVert M \odot (I_r - I_t) \rVert$$과 지각 손실로 학습합니다. 세 단계를 따로 사전학습(학습률 2e-4)한 뒤 함께 학습(2e-5)합니다. FFHQ, 3090 1장.
+**3단계: 블렌딩.** VGGFace 특징을 StyleGAN 특징에 **마스크 공간 특징 변환(MSFT)**으로 섞습니다. 가우시안 블러한 얼굴 마스크 안은 StyleGAN 특징을, 밖은 VGG 특징과 섞은 것을 쓰며, 배경 손실 $$\lVert M \odot (I_r - I_t) \rVert$$과 지각 손실로 학습합니다. 세 단계를 따로 사전학습한 뒤 함께 학습합니다.
+
+| 항목 | 값 |
+|---|---|
+| 학습 데이터 | FFHQ 7만 장(1024×1024) |
+| 평가 데이터 | CelebAMask-HQ(ablation: 무작위 1만 쌍, Table 4: RAFS를 따라 10만 장), FaceForensics++(885명) |
+| 3DMM 피팅 | DECA. 학습의 신원 임베딩은 ArcFace, 평가에는 CosFace와 D3FR |
+| 인코더 | 사전학습된 StyleGAN 인코더(e4e)로 $$w_s$$, $$w_t$$ 추출 |
+| 매핑망·DAT-MLP | 각각 6층 MLP(매핑망은 포즈·표정·조명별 3개), $$\lambda$$는 sigmoid로 $$[0, 1]$$ |
+| 기저 | 포즈 1~3층, 표정 4~10층, 조명 11층 이후, $$w_0$$ 100개 평균 후 Gram-Schmidt |
+| Optimizer | Adam, weight decay 5e-5, batch 2 |
+| 학습률 | 단계별 사전학습 2e-4, 마지막 공동 학습 2e-5 |
+| 하드웨어 | GTX 3090(논문 표기) 1장, PyTorch |
 
 ## 3. 코드로 보기: 신원 인식 기저 대 PCA형 기저
 
@@ -82,9 +105,36 @@ mapping 3DMM pose -> basis coordinates: residual pose error 0.000, identity loss
 
 **기저의 성질.** StyleIPSB는 pitch·yaw 회전, 색·방향·세기가 다른 조명, 입·눈 개폐, 안구 방향, 눈썹 올리기를 표현합니다(Figure 4). 포즈 편집 시 yaw 각도 대비 신원 손실(Figure 5)은 비지도 GANSpace보다 낮고 지도 InterFaceGAN과 대등하며, 메트릭에 신원 손실을 넣지 않으면 나빠집니다. 표정(미소) 편집에서 다른 방법은 얼굴 형태가 변형되지만 StyleIPSB는 유지합니다(Figure 6). FLAME 3DMM 파라미터로 생성 이미지의 속성을 제어하는 예(Figure 7)로 3DMM과의 호환을 보입니다.
 
-**Ablation(1단계).** 기저 없이 매핑망이 $$w_{s \to t}$$를 직접 회귀하면 모공 수준 세부가 사라지고(Figure 8) FID 26.06 대 22.15, 표정 3.73 대 3.37, ID 0.65 대 0.67로 기저가 모두에서 낫습니다. 포즈는 0.074 대 0.078로 비슷합니다.
+**Ablation(1단계, Table 2).** 기저 없이 매핑망이 $$w_{s \to t}$$를 직접 회귀하면 모공 수준 세부가 사라집니다(Figure 8). CelebAMask-HQ 1만 쌍으로 잰 수치입니다.
 
-**교체 비교.** MegaFS와 FSLSD 대비 모공 수준 세부와 신원 보존이 좋다는 것이 Figure 1의 주장입니다. FaceForensics++ 정량 비교(Table 3)에서 ID 검색은 95.05%로 FaceShifter 90.68%, MegaFS 90.83%, FSLSD 90.05%보다 높고 표정 오차도 2.23으로 가장 낮지만, 포즈 오차는 3.58로 FaceShifter(2.55)·FSLSD(2.46)보다 큽니다. CelebA-HQ(Table 4)에서도 FID 9.37, ID 유사도 0.5378로 MegaFS·RAFS·FSLSD보다 낫고 포즈만 0.078로 가장 나쁩니다. 사용자 연구는 없습니다.
+| 1단계 | FID ↓ | 표정 오차 ↓ | 포즈 오차 ↓ | ID 유사도 ↑ |
+|---|---|---|---|---|
+| 기저 없음 | 26.06 | 3.73 | **0.074** | 0.65 |
+| **기저 사용** | **22.15** | **3.37** | 0.078 | **0.67** |
+
+포즈만 기저 없이가 조금 낫고 나머지는 기저 쪽이 좋습니다.
+
+**교체 비교.** MegaFS와 FSLSD 대비 모공 수준 세부와 신원 보존이 좋다는 것이 Figure 1의 주장입니다. FaceForensics++ 정량 비교(Table 3)는 다음과 같습니다. ID 검색은 885명 중 소스와 top-1로 맞는 비율입니다.
+
+| FaceForensics++ | ID 검색(%) ↑ | 표정 오차 ↓ | 포즈 오차 ↓ |
+|---|---|---|---|
+| FaceSwap | 72.69 | 2.89 | 2.58 |
+| Deepfakes | 88.39 | 3.33 | 4.64 |
+| FaceShifter | 90.68 | 2.82 | 2.55 |
+| MegaFS | 90.83 | 2.92 | 2.64 |
+| FSLSD | 90.05 | 2.79 | **2.46** |
+| **StyleIPSB** | **95.05** | **2.23** | 3.58 |
+
+CelebA-HQ(Table 4, 교체 이미지 10만 장)에서는 StyleGAN 기반 방법과 비교합니다.
+
+| CelebA-HQ | FID ↓ | 표정 오차 ↓ | 포즈 오차 ↓ | ID 유사도 ↑ |
+|---|---|---|---|---|
+| MegaFS | 22.03 | 2.85 | **0.043** | 0.4837 |
+| RAFS | 13.25 | 3.15 | − | 0.5232 |
+| FSLSD | 10.01 | 2.99 | 0.053 | 0.4761 |
+| **StyleIPSB** | **9.37** | **2.75** | 0.078 | **0.5378** |
+
+신원·표정·화질은 모두 가장 좋고 포즈만 가장 나쁩니다. 저자들은 포즈 기저가 yaw와 pitch 두 방향뿐이라 정확한 포즈를 표현하기 어렵기 때문으로 보고, 오차가 몇 도 수준이라 눈으로는 정확해 보인다고 덧붙입니다. 사용자 연구는 없습니다.
 
 ## 5. 해석
 
@@ -94,7 +144,7 @@ mapping 3DMM pose -> basis coordinates: residual pose error 0.000, identity loss
 
 **3. 3DMM과 StyleGAN의 다리.** StyleRig(생성 이미지만), PIE(느린 최적화), GIF(아티팩트)와 달리 매핑망 하나로 실제 이미지의 포즈·표정·조명을 3DMM 파라미터로 제어하고, 세부 속성은 DAT-MLP가 보충합니다. [FaceInpainter]({% post_url 2026-09-01-faceinpainter %})가 3DMM 코드를 StyleGAN에 직접 넣은 것보다 분리가 명시적입니다.
 
-**4. 한계는 3DMM과 소스 지향 구조입니다.** 포즈·표정·조명이라는 3DMM이 잡는 속성 외의 변화(가림, 머리 모양 변화)는 2단계 혼합에 의존하고, 소스를 목표 속성으로 "재연기"한 뒤 배경을 섞는 구조라 [FSGAN]({% post_url 2026-08-16-fsgan %})류의 얼굴 형태 문제(목표 윤곽과의 불일치)를 블렌딩이 떠안습니다. 기저는 StyleGAN 하나, 층 분할 하나에 묶여 있습니다.
+**4. 한계는 3DMM과 소스 지향 구조입니다.** 포즈·표정·조명이라는 3DMM이 잡는 속성 외의 변화(가림, 머리 모양 변화)는 2단계 혼합에 의존하고, 소스를 목표 속성으로 "재연기"한 뒤 배경을 섞는 구조라 [FSGAN]({% post_url 2026-08-16-fsgan %})류의 얼굴 형태 문제(목표 윤곽과의 불일치)를 블렌딩이 떠안습니다. 기저는 StyleGAN 하나, 층 분할 하나에 묶여 있습니다. 논문이 직접 꼽은 한계(Figure 10)는 마스크에 묶인 가림 처리, 소스 이미지의 안경을 지우지 못함, 복잡한 조명에서 빛과 그림자를 완전히 복원하지 못함입니다.
 
 **5. 평가를 읽을 때 주의할 점.** 교체의 정량 비교는 FaceForensics++·CelebA-HQ 두 표뿐이고 사용자 연구는 없으며, 두 표 모두에서 포즈 오차는 대부분의 비교 방법보다 큽니다(FaceForensics++에서는 Deepfakes만 더 큼). 기저 구성의 $$w_0$$ 100개 평균·직교화가 비선형 다양체에서 얼마나 안정적인지는 논의되지 않았습니다. 위 toy는 선형 잠재 공간이라 헤시안 근사의 어려움(비율 메트릭)을 일반화 고유문제로 우회했고, 실제 StyleGAN 다양체의 곡률은 반영하지 않습니다.
 

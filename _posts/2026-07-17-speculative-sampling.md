@@ -1,13 +1,18 @@
 ---
-title: "[LLM] Speculative Sampling: Chinchilla 70B를 분산 환경에서 2~2.5배 빠르게"
+title: "[LLM] Speculative Sampling(Accelerating Large Language Model Decoding with Speculative Sampling): Chinchilla 70B를 2~2.5배 빠르게"
 date: 2026-07-17 15:50:00 +0900
 categories: [Transformer, LLM]
 tags: [llm, speculative-sampling, speculative-decoding, inference-acceleration, chinchilla, draft-model, memory-bandwidth, distributed-serving]
-description: DeepMind가 Google과 독립적으로 제안한 Speculative Sampling(Chen et al., 2023)의 수정 rejection sampling, 분산 서빙에서 draft 모델을 고르는 기준, 그리고 draft 길이 K의 trade-off를 Chinchilla 70B 실험과 간단한 시뮬레이션으로 정리합니다.
+description: "Accelerating Large Language Model Decoding with Speculative Sampling(DeepMind, arXiv 2023) 논문 리뷰. 수정 rejection sampling, 분산 서빙에서 draft 모델을 고르는 기준, draft 길이 K의 trade-off를 Chinchilla 70B 실험 수치, 그림, 간단한 시뮬레이션으로 정리합니다."
 math: true
 ---
 
-> [Speculative Decoding]({% post_url 2026-07-02-speculative-decoding %})과 거의 같은 시기에 DeepMind가 독립적으로 같은 아이디어에 도달했습니다. **Speculative Sampling**(Chen, Borgeaud, Irving, Lespiau, Sifre, Jumper, DeepMind, 2023)은 핵심 원리는 같지만 **수백억 파라미터 모델의 분산 서빙**에 초점을 맞춰, Chinchilla 70B에서 2~2.5배의 디코딩 가속을 보였습니다. 이 글은 겹치는 부분은 짧게 넘기고 이 논문만의 관점에 집중합니다.
+> - **논문**: Accelerating Large Language Model Decoding with Speculative Sampling
+> - **저자**: Charlie Chen, Sebastian Borgeaud, Geoffrey Irving, Jean-Baptiste Lespiau, Laurent Sifre, John Jumper (DeepMind)
+> - **학회**: arXiv preprint 2023 · [arXiv:2302.01318](https://arxiv.org/abs/2302.01318)
+{: .prompt-tip }
+
+> [Speculative Decoding]({% post_url 2026-07-02-speculative-decoding %})과 거의 같은 시기에 DeepMind가 독립적으로 같은 아이디어에 도달했습니다. **Speculative Sampling**은 핵심 원리는 같지만 **수백억 파라미터 모델의 분산 서빙**에 초점을 맞춰, Chinchilla 70B에서 2~2.5배의 디코딩 가속을 보였습니다. 이 글은 겹치는 부분은 짧게 넘기고 이 논문만의 관점에 집중합니다.
 
 ## 1. 문제: 메모리 대역폭이 정한 속도 상한
 
@@ -18,7 +23,7 @@ Transformer 샘플링은 보통 **메모리 대역폭에 묶여** 있습니다. 
 1. 짧은 연속 토큰 $$K$$개의 logit을 **병렬로 채점**하는 시간은 토큰 하나를 샘플링하는 시간과 거의 같습니다.
 2. 더 작고 빠른 **draft 모델**이 추측한 토큰을 큰 **target 모델**이 채점하고, 수정된 rejection sampling으로 받아들이면 target의 분포가 그대로 보존됩니다.
 
-Figure 1의 결과를 미리 말하면, speculative sampling(SpS)의 초당 토큰 수는 메모리 대역폭이 정한 이상적 상한을 **넘어섭니다**. 한 번의 메모리 읽기로 토큰을 여러 개 얻기 때문입니다.
+결과를 미리 말하면, speculative sampling(SpS)의 초당 토큰 수는 메모리 대역폭이 정한 이상적 상한을 **자주 넘어섭니다**(Table 1에서는 HumanEval과 greedy XSum). 한 번의 메모리 읽기로 토큰을 여러 개 얻기 때문입니다.
 
 ## 2. 알고리즘
 
@@ -116,15 +121,30 @@ K = 7: 평균    835ms (±  92) | 속도 향상 2.16배 | 루프당  26.7ms
 K = 8: 평균    859ms (± 104) | 속도 향상 2.10배 | 루프당  28.5ms
 ```
 
-세 가지가 논문의 Figure 1과 같습니다.
+세 가지가 아래 논문의 Figure 1과 같습니다.
 
-- **루프당 시간은 $$K$$에 선형**으로 늘어납니다. draft 호출이 $$K$$번이기 때문입니다.
+![K에 따른 샘플링 시간, 수락률, 루프 시간](/assets/img/posts/speculative-sampling/fig1.webp)
+_Figure 1. 왼쪽: 128토큰 생성 평균 시간(음영은 표준편차), 가운데: 수락된 토큰 수 ÷ (K+1), 오른쪽: 루프 한 번의 시간. K = 0이 일반 autoregressive 샘플링입니다. (출처: Chen et al., 2023)_
+
+- **루프당 시간은 $$K$$에 선형**으로 늘어납니다. draft 호출이 $$K$$번이기 때문입니다. 논문 그래프의 기울기는 draft의 토큰당 시간(1.8ms)보다 조금 큰데, nucleus 디코딩의 추가 오버헤드 때문이라고 설명합니다.
 - **속도 향상은 $$K = 5$$ 근처에서 정점을 찍고 다시 내려갑니다**. 뒤쪽 draft 토큰은 앞 토큰이 모두 수락되어야만 쓸모가 있어서, $$K$$를 키울수록 수락되는 비율(수락 토큰 수 ÷ $$K + 1$$)이 떨어집니다. XSum에서는 $$K = 3$$이 최적이었습니다.
 - **분산이 $$K$$와 함께 커집니다**. 평균이 조금 더 좋아지더라도 P90, P99 지연이 중요한 서비스에서는 큰 $$K$$가 손해일 수 있습니다.
 
 ## 5. 실험: Chinchilla 70B
 
-batch size 1, $$K = 4$$로 두 벤치마크를 돌렸습니다. XSum은 1-shot 요약(nucleus $$p = 0.8$$, 11,305개 시퀀스, 최대 128토큰), HumanEval은 100-shot 코드 생성($$p = 0.95$$, 온도 0.8, 16,400개 샘플, 최대 512토큰)입니다.
+batch size 1, $$K = 4$$로 두 벤치마크를 돌렸습니다. 실험 설정을 한곳에 모으면 다음과 같습니다.
+
+| 항목 | 값 |
+|---|---|
+| Target | Chinchilla 70B, TPU v4 16개 (14.1ms/token) |
+| Draft | 4B (8층, $$d_{model}$$ 6144, 48 head), Chinchilla와 같은 tokenizer·데이터로 학습, 같은 TPU v4 16개 (1.8ms/token) |
+| 샤딩 | Megatron 방식 |
+| 배치, draft 길이 | batch size 1, $$K = 4$$ (Figure 1은 $$K = 0 \sim 7$$) |
+| XSum | 1-shot 요약, 11,305개 시퀀스, 최대 길이 128, nucleus $$p = 0.8$$ 또는 greedy |
+| HumanEval | 100-shot 코드 생성, 16,400개 샘플, 최대 길이 512, nucleus $$p = 0.95$$, 온도 0.8 |
+| 시간 측정 | 루프당 시간은 TPU profile에서 직접 측정, 루프마다 생성 토큰 수를 기록해 평균 가속 계산 |
+
+결과는 Table 1입니다.
 
 | 샘플링 | 벤치마크 | 점수 | 토큰당 시간 | 속도 |
 |---|---|---|---|---|
@@ -147,7 +167,7 @@ batch size 1, $$K = 4$$로 두 벤치마크를 돌렸습니다. XSum은 1-shot �
 
 **3. 가속의 상한을 "메모리 대역폭"으로 명시했습니다.** autoregressive 샘플링은 토큰마다 가중치를 전부 읽어야 해서 모델 크기 ÷ 대역폭보다 빨라질 수 없습니다. SpS가 이 상한을 넘었다는 것은 한 번의 가중치 읽기로 평균 2개 이상의 토큰을 얻었다는 뜻이고, 이것이 이 방법이 quantization이나 multi-query attention과 **직교하는** 이유입니다. 그 방법들은 상한 자체를 올리고, SpS는 상한 위로 올라갑니다.
 
-**4. K는 작게.** 시뮬레이션에서 본 것처럼 $$K$$를 키우는 이득은 빠르게 포화하고 분산은 계속 커집니다. 논문도 $$K = 3{\sim}4$$를 썼습니다. 뒤쪽 토큰이 수락될 확률이 $$\alpha^K$$로 줄어드는 구조상, 수락률을 올리지 않고 $$K$$만 키우는 것은 의미가 없습니다. 수락률을 올리는 방향은 [Online Speculative Decoding]({% post_url 2026-09-24-online-speculative-decoding %})에서 이어집니다.
+**4. K는 작게.** 시뮬레이션에서 본 것처럼 $$K$$를 키우는 이득은 빠르게 포화하고 분산은 계속 커집니다. 논문도 Table 1에서 $$K = 4$$를 썼고, XSum(nucleus)은 $$K = 3$$에서 가장 빨랐습니다. 뒤쪽 토큰이 수락될 확률이 $$\alpha^K$$로 줄어드는 구조상, 수락률을 올리지 않고 $$K$$만 키우는 것은 의미가 없습니다. 수락률을 올리는 방향은 [Online Speculative Decoding]({% post_url 2026-09-24-online-speculative-decoding %})에서 이어집니다.
 
 **5. 평가를 읽을 때 주의할 점.** 모든 실험이 batch size 1입니다. batch가 커지면 linear 층이 compute-bound로 바뀌어 "채점이 샘플링만큼 싸다"는 전제가 약해집니다. 4B draft 모델은 Chinchilla와 같은 데이터로 새로 학습한 것이라, 기존 체크포인트만 쓴 Google 논문보다 준비 비용이 큽니다. 수락률 수치는 그래프로만 제시되어 정확한 값을 알 수 없습니다.
 

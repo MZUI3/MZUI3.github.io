@@ -1,13 +1,18 @@
 ---
-title: "[RL] IQL: 데이터 밖의 행동을 한 번도 묻지 않는 Offline RL"
+title: "[RL] IQL(Offline Reinforcement Learning with Implicit Q-Learning): 데이터 밖 행동을 묻지 않는 Offline RL"
 date: 2026-09-26 16:25:00 +0900
 categories: [Reinforcement Learning, Offline RL]
 tags: [reinforcement-learning, offline-rl, iql, implicit-q-learning, expectile-regression, awr, extrapolation-error, d4rl]
-description: 데이터셋에 없는 행동의 가치를 한 번도 계산하지 않고 expectile regression으로 '데이터 안의 max'를 근사하는 IQL의 가치 학습과 AWR 정책 추출을 실행 가능한 예제와 함께 정리합니다.
+description: "Offline Reinforcement Learning with Implicit Q-Learning(ICLR 2022) 논문 리뷰. 데이터셋에 없는 행동의 가치를 한 번도 계산하지 않고 expectile regression으로 '데이터 안의 max'를 근사하는 IQL의 가치 학습과 AWR 정책 추출, D4RL 수치와 구현 디테일을 그림·예제와 함께 정리합니다."
 math: true
 ---
 
-> Offline RL 카테고리의 첫 글입니다. **IQL(Implicit Q-Learning)**(Kostrikov, Nair & Levine, ICLR 2022)은 offline RL의 핵심 문제인 **분포 밖 행동의 과대평가**를, 아예 **데이터셋에 없는 행동의 가치를 한 번도 계산하지 않는** 방식으로 피합니다.
+> - **논문**: Offline Reinforcement Learning with Implicit Q-Learning
+> - **저자**: Ilya Kostrikov, Ashvin Nair, Sergey Levine (UC Berkeley)
+> - **학회**: ICLR 2022 · [arXiv:2110.06169](https://arxiv.org/abs/2110.06169) · [코드](https://github.com/ikostrikov/implicit_q_learning)
+{: .prompt-tip }
+
+> Offline RL 카테고리의 첫 글입니다. **IQL(Implicit Q-Learning)**은 offline RL의 핵심 문제인 **분포 밖 행동의 과대평가**를, 아예 **데이터셋에 없는 행동의 가치를 한 번도 계산하지 않는** 방식으로 피합니다.
 
 ## 1. Offline RL이란
 
@@ -53,6 +58,11 @@ $$
 - $$\tau = 0.5$$: 일반 MSE → **평균**
 - $$\tau > 0.5$$: 양의 오차(예측이 작을 때)에 더 큰 가중치 → 분포의 **위쪽**을 추정
 - $$\tau \to 1$$: 데이터에 있는 값들의 **최댓값**에 가까워짐
+
+![Expectile regression](/assets/img/posts/implicit-q-learning/fig1.webp)
+_Figure 1. 왼쪽: $$\tau$$별 비대칭 제곱 손실. 가운데: 정규분포의 expectile. 오른쪽: 2차원 분포에서 $$x$$마다 $$y$$의 조건부 expectile을 회귀한 예로, $$\tau \approx 1$$이면 분포 안에 있는 $$y$$의 최댓값을 따라갑니다. (출처: Kostrikov et al., 2022)_
+
+위 Figure 1 오른쪽이 IQL이 하려는 일의 축소판입니다. $$x$$를 상태, $$y$$를 그 상태에서 데이터에 있는 행동들의 Q 값이라고 보면, upper expectile 곡선은 "상태마다 데이터 안에서 가장 좋은 행동의 가치"를 근사합니다. 논문은 이 성질을 정리로도 보입니다. $$\tau$$가 커질수록 $$V_\tau$$는 단조 증가하고, $$\tau \to 1$$의 극한에서 **데이터 support 안으로 제한한 최적 Q의 max**와 같아집니다(Lemma 1, Theorem 3). 즉 $$\tau = 0.5$$는 SARSA, $$\tau \to 1$$은 Q-learning이고, 그 사이를 $$\tau$$ 하나로 조절합니다.
 
 ```python
 import torch
@@ -135,20 +145,70 @@ def iql_update(batch, q1, q2, q_target1, q_target2, v, policy, tau=0.7, beta=3.0
 
 ### 간단한 미로
 
-미로 예제에서, 같은 데이터로 학습해도 IQL은 single-step 방법(Onestep RL)보다 데이터 속 좋은 경로를 찾아내고, **noise가 적은** 가치 추정을 보였습니다.
+U자 미로에서 출발점 하나, 목표 하나를 둡니다. 목표에 들어가면 보상 10, 나머지는 0이고, 25% 확률로 의도와 상관없이 무작위 칸으로 이동합니다. 데이터셋은 **최적 궤적 1개와 무작위 행동 궤적 99개**입니다($$\gamma = 0.9$$).
+
+![U자 미로 실험](/assets/img/posts/implicit-q-learning/fig2.webp)
+_Figure 2. (a) 미로 MDP, (b) 실제 최적 가치 $$V^\star$$, (c) one-step policy evaluation, (d) IQL($$\tau = 0.95$$). 색은 가치, 화살표는 정책입니다. (출처: Kostrikov et al., 2022)_
+
+Figure 2 (c)처럼 single-step 방법(Onestep RL)은 behavior policy, 즉 거의 무작위 정책의 가치를 배우므로 목표에서 조금만 멀어져도 가치가 0 근처로 떨어지고, 먼 칸의 정책은 noise에 가깝습니다. IQL은 데이터 안에서 반복적으로 DP를 하므로 (d)처럼 가치가 출발점까지 전파되어 (b)의 최적 가치와 거의 같아집니다.
 
 ### D4RL
 
-- **MuJoCo locomotion**: 데이터 품질에 영향을 많이 받는 single-step DP 방식들도 성능이 좋은 영역인데, IQL도 SOTA와 비슷하거나 더 좋았습니다.
-- **AntMaze**: 개미 로봇이 미로를 통과하는 과제로, 데이터에 **완전한 성공 궤적이 거의 또는 전혀 없습니다.** 여러 궤적의 조각을 이어 붙여야(stitching) 하므로 **multi-step DP가 필수**입니다. 여기서 IQL은 기존 방법들을 크게 앞섰습니다.
-- **Kitchen, Adroit**에서도 좋은 성능을 보였습니다.
-- Expectile $$\tau$$는 locomotion에서 0.7, AntMaze에서 0.9처럼 과제에 따라 조정했습니다.
+D4RL normalized score입니다(Table 1, locomotion은 10 seed × 10 에피소드 평균, AntMaze는 100 에피소드 평균). 일부 열만 옮겼습니다.
+
+| 데이터셋 | BC | DT | Onestep RL | TD3+BC | CQL | **IQL** |
+|---|---|---|---|---|---|---|
+| locomotion-v2 합계 (9개) | 466.7 | 672.6 | 684.6 | 677.4 | **698.5** | 692.4 |
+| antmaze-umaze-v0 | 54.6 | 59.2 | 64.3 | 78.6 | 74.0 | **87.5** |
+| antmaze-medium-play-v0 | 0.0 | 0.0 | 0.3 | 10.6 | 61.2 | **71.2** |
+| antmaze-medium-diverse-v0 | 0.0 | 0.0 | 0.0 | 3.0 | 53.7 | **70.0** |
+| antmaze-large-play-v0 | 0.0 | 0.0 | 0.0 | 0.2 | 15.8 | **39.6** |
+| antmaze-large-diverse-v0 | 0.0 | 0.0 | 0.0 | 0.0 | 14.9 | **47.5** |
+| antmaze-v0 합계 (6개) | 100.2 | 112.2 | 125.3 | 163.8 | 303.6 | **378.0** |
+| kitchen-v0 합계 | 154.5 | - | - | - | 144.6 | **159.8** |
+| adroit-v0 합계 | 104.5 | - | - | - | 93.6 | **118.1** |
+| 학습 시간 (1M step) | 10m | 960m | ≈20m | 20m | 80m | 20m |
+
+- **MuJoCo locomotion**: 데이터에 최적에 가까운 궤적이 많이 섞여 있어 single-step 방법도 잘하는 영역입니다. IQL은 합계 692.4로 가장 좋은 CQL(698.5)과 비슷한 수준입니다.
+- **AntMaze**: 개미 로봇이 미로를 통과하는 과제로, 데이터에 **완전한 성공 궤적이 거의 또는 전혀 없습니다.** 여러 궤적의 조각을 이어 붙여야(stitching) 하므로 **multi-step DP가 필수**입니다. Onestep RL과 DT는 medium·large에서 거의 0점인데, IQL은 합계 378.0으로 CQL(303.6)도 앞섭니다.
+- **Kitchen, Adroit**: 논문은 이 두 도메인에서는 대부분의 RL 방법이 모방 학습과 비슷해 변별력이 낮다고 보고 부록(Table 3)에만 싣습니다. IQL 합계가 BC보다 조금 높은 정도입니다.
+- 학습 시간은 같은 JAX 재구현 기준으로, CQL의 약 4분의 1입니다. GTX1080 한 장에서 1M 업데이트가 20분이 안 걸립니다.
+
+![τ에 따른 AntMaze 성능](/assets/img/posts/implicit-q-learning/fig3.webp)
+_Figure 3. AntMaze 네 과제에서 $$\tau = 0.5, 0.7, 0.9$$의 학습 곡선. stitching이 필요한 과제에서는 큰 expectile이 필수입니다. (출처: Kostrikov et al., 2022)_
+
+Figure 3이 앞의 이론을 그대로 보여 줍니다. $$\tau = 0.5$$(SARSA와 같음)는 네 과제 모두 0점 근처이고, $$\tau = 0.7$$도 거의 오르지 못하며, $$\tau = 0.9$$에서야 medium은 약 70, large는 약 40까지 올라갑니다. 그래서 expectile $$\tau$$는 locomotion에서 0.7, AntMaze에서 0.9처럼 과제에 따라 조정합니다.
 
 ### Online Fine-tuning
 
-Offline으로 사전학습한 뒤 **온라인으로 fine-tuning**할 때도 IQL은 안정적으로 성능이 올랐습니다. CQL 같은 보수적인 방법은 fine-tuning 초반에 성능이 떨어지거나 느리게 오르는 경향이 있었습니다.
+Offline으로 1M step 학습한 뒤, 환경 step마다 gradient 1번씩 **온라인으로 1M step fine-tuning**한 결과입니다(Table 2, offline 직후 → fine-tuning 후).
 
-## 6. 정리
+| 도메인 | AWAC | CQL | **IQL** |
+|---|---|---|---|
+| antmaze-v0 합계 | 107.7 → 108.3 | 151.5 → 231.1 | **370.1 → 473.7** |
+| hand-v0 합계 (pen, door, relocate) | 46.7 → 103.1 | 31.5 → 9.9 | 38.1 → **124.0** |
+| 전체 | 154.4 → 211.4 | 182.8 → 241.0 | **408.2 → 597.7** |
+
+전체 합계로 보면 IQL은 offline 직후(408.2)와 fine-tuning 후(597.7) 모두 가장 높습니다. CQL은 antmaze-medium-play(23.0 → 0.0)와 hand 과제들(31.5 → 9.9)처럼 fine-tuning 뒤 오히려 떨어진 경우가 있었고, AWAC는 offline 초기값이 약해 AntMaze에서 거의 오르지 못했습니다. IQL이 fine-tuning에 잘 맞는 이유로 논문은 좋은 offline 초기값과, 온라인 개선에 유리하다고 알려진 가중 BC 방식의 정책 추출을 듭니다. 단, pen-binary-v0 하나에서는 AWAC(70.3)보다 낮았습니다(60.7).
+
+## 6. 구현 디테일
+
+| 항목 | 값 |
+|---|---|
+| 네트워크 | 모든 네트워크(Q 2개, V, 정책) 2층 MLP, hidden 256, ReLU |
+| 정책 | 상태와 무관한 표준편차를 갖는 Gaussian |
+| Optimizer | Adam, lr $$3 \cdot 10^{-4}$$, actor lr은 cosine schedule |
+| Target network | soft update, $$\alpha = 0.005$$ |
+| Advantage 가중치 | $$\exp(\beta A)$$를 $$(-\infty, 100]$$으로 clip |
+| Locomotion | $$\tau = 0.7$$, $$\beta = 3.0$$, 보상을 데이터셋 최고·최저 return 차이로 나눠 정규화 |
+| AntMaze | $$\tau = 0.9$$, $$\beta = 10.0$$, 보상에서 1을 뺌 |
+| Kitchen, Adroit | $$\tau = 0.7$$, $$\beta = 0.5$$, 정책 네트워크에 dropout 0.1 |
+| Fine-tuning (손 조작) | $$\tau = 0.8$$, $$\beta = 3.0$$, offline 25,000 step, 탐험용 Gaussian noise 표준편차 0.03 |
+| 구현 | JAX + Flax, GTX1080 1장에서 1M 업데이트 20분 미만 |
+
+V와 Q 업데이트는 한 step 안에서 번갈아 하고(Algorithm 1), 정책은 가치 학습에 전혀 영향을 주지 않으므로 가치 학습 뒤에 따로 추출해도 되고 동시에 학습해도 됩니다. 온라인 fine-tuning에서는 동시 학습을 씁니다.
+
+## 7. 정리
 
 | 단계 | 사용하는 행동 | 핵심 |
 |---|---|---|
@@ -156,7 +216,7 @@ Offline으로 사전학습한 뒤 **온라인으로 fine-tuning**할 때도 IQL�
 | Q 학습 | 데이터셋 행동만 | $$r + \gamma V(s')$$, max 없음 |
 | 정책 추출 | 데이터셋 행동만 | Advantage 가중 회귀 (AWR) |
 
-IQL은 단순하고 빠르며 하이퍼파라미터에 덜 민감해, 이후 offline RL의 강력한 baseline이 됐습니다. 다음 글에서는 탐험 보너스를 **뒤집어서** offline RL에 쓰는 [Anti-Exploration]({% post_url 2026-09-29-anti-exploration %})을 다룹니다.
+IQL은 SARSA식 TD에 손실 함수 하나만 바꾼 단순한 구조이고 빠르기까지 해서(1M step 약 20분), 이후 offline RL의 강력한 baseline이 됐습니다. 다만 Figure 3처럼 $$\tau$$는 과제 성격(stitching 필요 여부)에 맞춰 골라야 합니다. 다음 글에서는 탐험 보너스를 **뒤집어서** offline RL에 쓰는 [Anti-Exploration]({% post_url 2026-09-29-anti-exploration %})을 다룹니다.
 
 ## References
 

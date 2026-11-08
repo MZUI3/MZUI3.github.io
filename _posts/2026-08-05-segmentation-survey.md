@@ -3,13 +3,23 @@ title: "[Computer Vision] Image Segmentation Using Deep Learning: A Survey — F
 date: 2026-08-05 13:48:00 +0900
 categories: [Computer Vision, Segmentation]
 tags: [semantic-segmentation, instance-segmentation, survey, fcn, encoder-decoder, deeplab, mask-rcnn, miou]
-description: Minaee 등(TPAMI 2021)의 딥러닝 영상 분할 서베이를 정리합니다. 2019년까지의 100여 개 방법을 FCN, 그래프 모델 결합, 인코더-디코더, 다중 스케일·피라미드, R-CNN 기반, 팽창 합성곱·DeepLab, 순환, attention, 생성·적대, 능동 윤곽의 10개 계보로 묶고, 20여 개 데이터셋, PA·mIoU·Dice 등 지표, PASCAL VOC·Cityscapes·COCO·ADE20k 성능표, 그리고 미래 과제를 다룹니다. 작은 실험으로 지표들의 관계와 수용 영역 계산을 확인합니다.
+description: "Image Segmentation Using Deep Learning: A Survey(Minaee et al., TPAMI 2021) 논문 리뷰. 2019년까지의 딥러닝 분할 방법 100여 개를 10개 계보로 묶은 서베이를 따라 데이터셋, PA·mIoU·Dice 지표, PASCAL VOC·Cityscapes·COCO·ADE20k 성능표, 미래 과제를 정리하고, 작은 실험으로 지표 관계와 수용 영역을 확인합니다."
 math: true
 ---
 
-> [CNN 기초]({% post_url 2026-05-25-cnn-basics %})와 [객체 검출]({% post_url 2026-06-06-object-detection %})을 거쳐 픽셀 단위로 내려가면 분할입니다. 의미 분할은 모든 픽셀에 클래스를, 인스턴스 분할은 거기에 개체 구분까지 붙입니다. **Image Segmentation Using Deep Learning: A Survey**(Minaee, Boykov, Porikli, Plaza, Kehtarnavaz, Terzopoulos, TPAMI 2021)는 FCN(2015) 이후 2019년까지 쏟아진 100개 이상의 방법을 **기술적 기여**를 기준으로 10개 계보로 묶은 지도입니다. 이 글은 각 계보가 **어떤 문제를 풀려고 나왔는지**를 축으로 정리하고, 데이터셋·지표·성능표의 요점을 옮깁니다. 서베이의 시점이 Transformer 이전이라는 점은 마지막에 짚습니다.
+> - **논문**: Image Segmentation Using Deep Learning: A Survey
+> - **저자**: Shervin Minaee, Yuri Boykov, Fatih Porikli, Antonio Plaza, Nasser Kehtarnavaz, Demetri Terzopoulos (Snap, University of Waterloo, Qualcomm, University of Extremadura, UT Dallas, UCLA)
+> - **학회**: IEEE TPAMI 2021 · [arXiv:2001.05566](https://arxiv.org/abs/2001.05566)
+{: .prompt-tip }
+
+> [CNN 기초]({% post_url 2026-05-25-cnn-basics %})와 [객체 검출]({% post_url 2026-06-06-object-detection %})을 거쳐 픽셀 단위로 내려가면 분할입니다. 의미 분할은 모든 픽셀에 클래스를, 인스턴스 분할은 거기에 개체 구분까지 붙입니다. **Image Segmentation Using Deep Learning: A Survey**는 FCN(2015) 이후 2019년까지 쏟아진 100개 이상의 방법을 **기술적 기여**를 기준으로 10개 계보로 묶은 지도입니다. 이 글은 각 계보가 **어떤 문제를 풀려고 나왔는지**를 축으로 정리하고, 데이터셋·지표·성능표의 요점을 옮깁니다. 서베이의 시점이 Transformer 이전이라는 점은 마지막에 짚습니다.
 
 ## 1. 열 개의 계보
+
+아래 Figure 32는 서베이가 정리한 2014~2020년 대표 모델의 연표입니다. 주황은 의미 분할, 초록은 인스턴스 분할, 노랑은 파놉틱 분할입니다.
+
+![딥러닝 분할 모델 연표](/assets/img/posts/segmentation-survey/fig32.webp)
+_Figure 32. 2D 영상 분할 딥러닝 모델의 연표(2014~2020). 주황·초록·노랑이 각각 의미·인스턴스·파놉틱 분할입니다. (출처: Minaee et al., 2021)_
 
 **1. 완전 합성곱 네트워크(FCN).** Long 등은 분류 CNN의 FC 층을 합성곱으로 바꿔 임의 크기 입력에 대해 분할 맵을 내게 했습니다. 깊은 층의 거친 맵을 얕은 층과 **스킵 연결**로 합쳐 세부를 복원합니다(FCN-8s). 문제는 느리고, 전역 문맥을 못 보고, 3D로 바로 안 간다는 점입니다. ParseNet은 전역 평균 특징을 각 위치에 붙여 문맥을 더했습니다.
 
@@ -21,17 +31,20 @@ math: true
 
 **5. R-CNN 기반(인스턴스 분할).** Faster R-CNN의 제안 영역마다 마스크를 예측하는 **Mask R-CNN**(RoIAlign으로 정렬 오차 제거)이 중심이고, PANet(경로 집계), MaskLab, TensorMask(밀집 슬라이딩 윈도우), 실시간 YOLACT 등이 뒤따릅니다.
 
-**6. 팽창 합성곱과 DeepLab.** 풀링 없이 수용 영역을 키우는 **팽창(atrous) 합성곱**이 핵심입니다. DeepLab v2는 여러 팽창률의 병렬 가지 **ASPP**로 다중 스케일을, v3는 배치 정규화와 이미지 수준 특징을 더하고, **v3+**는 인코더-디코더 구조와 Xception 백본, 깊이별 분리 팽창 합성곱을 합쳐 PASCAL VOC 89.0%에 이릅니다. DenseASPP, DUC-HDC도 이 계보입니다.
+**6. 팽창 합성곱과 DeepLab.** 풀링 없이 수용 영역을 키우는 **팽창(atrous) 합성곱**이 핵심입니다. DeepLab v2는 여러 팽창률의 병렬 가지 **ASPP**로 다중 스케일을, v3는 배치 정규화와 이미지 수준 특징을 더하고, **v3+**는 인코더-디코더 구조와 Xception 백본, 깊이별 분리 팽창 합성곱을 합쳐 PASCAL VOC 89.0%에 이릅니다(COCO·JFT 사전학습). DenseASPP, DUC-HDC도 이 계보입니다.
+
+![팽창 합성곱](/assets/img/posts/segmentation-survey/fig21.webp)
+_Figure 21. 팽창률 1, 2, 3인 3×3 커널. 가중치는 9개 그대로인데 덮는 영역이 넓어집니다. (출처: Minaee et al., 2021)_
 
 **7. 순환 네트워크.** 픽셀 간 장거리 의존을 RNN·LSTM으로 모델링합니다(ReSeg, 2D LSTM, Graph LSTM, DA-RNN). 자연스럽지만 느리고 이후 attention으로 대체됩니다.
 
-**8. Attention.** 어디를 볼지 학습합니다. 다중 스케일 입력에 소프트 attention(Chen 등), 역 attention(RAN), 쌍별 attention(PSANet), 위치·채널 이중 attention(**DANet**), 교차 attention으로 비용을 줄인 CCNet, EMANet, 객체 문맥 표현 **OCR**. 2019~2020년 Cityscapes 상위권이 모두 여기 속합니다.
+**8. Attention.** 어디를 볼지 학습합니다. 다중 스케일 입력에 소프트 attention(Chen 등), 역 attention(RAN), 쌍별 attention(PSANet), 위치·채널 이중 attention(**DANet**), 교차 attention으로 비용을 줄인 CCNet, 객체 문맥 풀링의 OCNet, EMANet, 채널 attention을 쓰는 DFN. 2019~2020년 Cityscapes 상위권에 이 계열과 아래 OCR 같은 문맥 모델이 많이 올라 있습니다.
 
 **9. 생성·적대 학습.** 판별기가 분할 맵의 사실성을 판단해 공간적 일관성을 강제하고(Luc 등), 반지도 학습으로 라벨 없는 이미지를 활용합니다.
 
 **10. 능동 윤곽 결합.** 고전적 능동 윤곽 모델(ACM)의 에너지를 손실로 쓰거나(ACWE 손실), 네트워크가 윤곽의 변형을 예측하게 합니다(Deep Active Contours, DARNet).
 
-그 밖에 EncNet(문맥 인코딩), RefineNet(다중 경로 정제), Gated-SCNN(모양 흐름), 포인트 클라우드 분할(PointNet 계열), 그리고 **파놉틱 분할**(의미+인스턴스, Panoptic FPN, UPSNet, Panoptic-DeepLab)이 "기타"에 묶입니다.
+그 밖에 EncNet(문맥 인코딩), RefineNet(다중 경로 정제), 픽셀과 객체 영역의 관계로 표현을 보강하는 **OCR**(Object-Contextual Representations), Gated-SCNN(모양 흐름), 포인트 클라우드 분할(PointNet 계열), 그리고 **파놉틱 분할**(의미+인스턴스, Panoptic FPN, UPSNet, Panoptic-DeepLab)이 "기타"에 묶입니다.
 
 ## 2. 데이터셋
 
@@ -101,11 +114,40 @@ receptive field: 8 plain 3x3 convs 17 | 4 convs with dilation 1,2,4,8 31 | 4 con
 
 ## 5. 성능
 
-**PASCAL VOC 테스트 mIoU.** FCN 62.2 → DeepLab-CRF 79.7 → PSPNet 85.4 → DeepLabv3 85.7 → DeepLabv3+ 87.8 → DeepLabv3+(사전학습) 89.0 → EfficientNet+NAS-FPN 90.5. 5년 사이 28%p 올랐습니다.
+서베이의 Table 1·2에서 계보별 대표 모델을 골라 옮겼습니다. *는 COCO·ImageNet·JFT-300M 같은 다른 데이터로 사전학습한 모델입니다.
 
-**Cityscapes 테스트 mIoU.** FCN-8s 65.3 → DeepLabv2 70.4 → PSPNet 78.4(서베이 표에는 85.4로 적혀 있으나 원 논문은 78.4) → DANet 81.5 → OCR 82.4 → GS-CNN 82.8 → HRNetV2+OCR 83.7 → Hierarchical MSA 85.1. 서베이는 FCN 대비 약 23% 상대 개선이라고 적었지만, FCN-8s 65.3을 기준으로 계산하면 약 30%(19.8%p)입니다.
+| 모델 (계보) | 백본 | PASCAL VOC test mIoU | Cityscapes test mIoU |
+|---|---|---|---|
+| FCN / FCN-8s (1) | VGG-16 | 62.2 | 65.3 |
+| CRF-RNN (2) | - | 72.0 | - |
+| DeepLab-CRF / DeepLabv2 (6) | ResNet-101 | 79.7 | 70.4 |
+| RefineNet (기타) | ResNet-152 / ResNet-101 | 84.2 | 73.6 |
+| PSPNet (4) | ResNet-101 | 85.4 | 85.4 (원 논문 78.4, 아래 참고) |
+| DeepLabv3 (6) | ResNet-101 | 85.7 | 81.3 |
+| DANet (8) | ResNet-101 | - | 81.5 |
+| OCR (기타) | ResNet-101 | - | 82.4 |
+| DeepLabv3+ (6) | Xception-71 | 87.8 (사전학습* 89.0) | - |
+| HRNetV2+OCR (w/ASPP) | HRNetV2-W48 | - | 83.7 |
+| EfficientNet+NAS-FPN | - | 90.5 | - |
+| Hierarchical MSA | HRNet-OCR | - | 85.1 |
 
-**COCO stuff**(mIoU 최고 약 40, OCR/HRNetV2-W48 40.5)와 **ADE20k**(AC-Net 45.9)는 훨씬 어렵습니다. **인스턴스 분할**(COCO test-dev AP)은 Mask R-CNN 37.9, CenterMask 38.3이고 YOLACT-550은 29.8 AP에 33.5 FPS로 실시간입니다. **파놉틱**(COCO val PQ)은 UPSNet 42.5, OCFusion(ResNeXt-101) 45.7입니다. RGB-D(NYUD-v2, SUN-RGBD)도 표로 정리됩니다.
+- PASCAL VOC는 FCN 62.2에서 90.5까지 5년 사이 28%p 올랐습니다.
+- Cityscapes 표의 PSPNet 85.4는 VOC 수치를 잘못 옮긴 것으로 보입니다. PSPNet 원 논문의 Cityscapes 결과(fine 라벨만 사용)는 78.4입니다. 서베이는 FCN 대비 약 23% 상대 개선이라고 적었지만, FCN-8s 65.3과 Hierarchical MSA 85.1로 계산하면 약 30%(19.8%p)입니다.
+
+나머지 데이터셋은 훨씬 어렵습니다. **COCO stuff**(Table 3)는 최고가 OCR(HRNetV2-W48) 40.5, **ADE20k** validation(Table 4)은 AC-Net 45.9 mIoU입니다. 파놉틱 분할(Table 6, COCO val PQ)은 UPSNet(ResNet-50, deformable conv) 42.5, OCFusion(ResNeXt-101) 45.7입니다. RGB-D(NYUD-v2, SUN-RGBD)도 Table 7로 정리됩니다.
+
+인스턴스 분할(Table 5, COCO test-dev 2017, 모두 R-101-FPN 백본)은 정확도와 속도를 함께 적어 둔 드문 표입니다.
+
+| 모델 | FPS | mask AP |
+|---|---|---|
+| YOLACT-550 | 33.5 | 29.8 |
+| YOLACT-700 | 23.8 | 31.2 |
+| RetinaMask | 10.2 | 34.7 |
+| TensorMask | 2.6 | 37.1 |
+| Mask R-CNN | 10.6 | 37.9 |
+| CenterMask | 13.2 | 38.3 |
+
+25 FPS를 넘는 것은 YOLACT-550뿐이고, AP 8%p 정도를 내주고 얻은 속도입니다.
 
 ## 6. 과제와 방향
 

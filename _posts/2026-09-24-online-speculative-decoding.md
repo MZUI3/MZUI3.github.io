@@ -3,11 +3,16 @@ title: "[LLM] Online Speculative Decoding: 서빙 중 남는 연산으로 draft 
 date: 2026-09-24 11:28:00 +0900
 categories: [Transformer, LLM]
 tags: [llm, speculative-decoding, online-learning, knowledge-distillation, draft-model, distribution-shift, llm-serving, acceptance-rate]
-description: speculative decoding의 거절 기록을 지식 증류 데이터로 되먹여, 서빙 클러스터의 남는 FLOPs로 draft 모델을 실제 질의 분포에 맞춰 계속 갱신하는 Online Speculative Decoding(Liu et al., 2023)의 알고리즘과 결과를 정리하고, 분포가 바뀌는 상황을 작은 예제로 재현합니다.
+description: "Online Speculative Decoding(arXiv 2023) 논문 리뷰. speculative decoding의 거절 기록을 지식 증류 데이터로 되먹여 서빙 클러스터의 남는 FLOPs로 draft 모델을 실제 질의 분포에 맞춰 계속 갱신하는 알고리즘, 수락률·가속 수치와 실험 설정을 그림과 함께 정리하고, 분포가 바뀌는 상황을 작은 예제로 재현합니다."
 math: true
 ---
 
-> [Speculative Decoding]({% post_url 2026-07-02-speculative-decoding %})의 가속은 전적으로 수락률 $$\alpha$$, 즉 draft 모델이 target 모델을 얼마나 잘 흉내 내는지에 달려 있습니다. 그런데 draft는 작고, 사용자 질의는 다양합니다. **Online Speculative Decoding**(OSD, Liu et al., UC Berkeley·UCSD, 2023)은 이 문제를 "draft를 배포 후에도 계속 학습시키자"로 풉니다. speculative decoding이 거절한 토큰 자리에는 target의 정답 분포가 공짜로 따라오므로, 그것을 증류 데이터로 쓰고 서빙 클러스터의 **남는 FLOPs**로 학습하면 비용이 거의 들지 않습니다.
+> - **논문**: Online Speculative Decoding
+> - **저자**: Xiaoxuan Liu, Lanxiang Hu, Peter Bailis, Ion Stoica, Zhijie Deng, Alvin Cheung, Hao Zhang (UC Berkeley, UCSD, Sisu Data, SJTU)
+> - **학회**: arXiv preprint 2023 · [arXiv:2310.07177](https://arxiv.org/abs/2310.07177) · [코드](https://github.com/LiuXiaoxuanPKU/OSD)
+{: .prompt-tip }
+
+> [Speculative Decoding]({% post_url 2026-07-02-speculative-decoding %})의 가속은 전적으로 수락률 $$\alpha$$, 즉 draft 모델이 target 모델을 얼마나 잘 흉내 내는지에 달려 있습니다. 그런데 draft는 작고, 사용자 질의는 다양합니다. **Online Speculative Decoding**(OSD)은 이 문제를 "draft를 배포 후에도 계속 학습시키자"로 풉니다. speculative decoding이 거절한 토큰 자리에는 target의 정답 분포가 공짜로 따라오므로, 그것을 증류 데이터로 쓰고 서빙 클러스터의 **남는 FLOPs**로 학습하면 비용이 거의 들지 않습니다.
 
 ## 1. 문제: draft가 못 맞히면 가속은 없다
 
@@ -57,7 +62,10 @@ $$
 
 ## 3. 온라인 알고리즘
 
-Algorithm 1을 풀어 쓰면 다음과 같습니다.
+![OSD 전체 흐름](/assets/img/posts/online-speculative-decoding/fig1.webp)
+_Figure 1. draft(학생)가 토큰을 제안하고 target(교사)이 검증합니다. 거절된 위치(t3)의 draft 분포와 target의 정답 분포(`t3_correct`)를 버퍼에 모았다가, 버퍼가 일정 크기를 넘으면 KL·reverse KL·JSD 중 하나로 draft를 갱신합니다. (출처: Liu et al., 2023)_
+
+위 Figure 1의 흐름을 Algorithm 1로 풀어 쓰면 다음과 같습니다.
 
 ```text
 준비     warmup 데이터로 q_θ를 p에 맞춰 증류
@@ -80,9 +88,16 @@ $$
 \frac{1 + \alpha_2 + \alpha_2^2 + \cdots + \alpha_2^k}{1 + \alpha_1 + \alpha_1^2 + \cdots + \alpha_1^k}
 $$
 
-실험의 수락률 변화를 넣으면 Vicuna-7B(draft LLaMA-160M)에서 네 데이터셋에 대해 2.42배, 1.43배, 1.64배, 1.22배, Flan-T5-XL(draft T5-small)에서 3.06배, 1.76배, 2.72배, 1.55배입니다.
+아래 Table 1의 수락률(원본 → 교사 샘플링 증류)을 $$k = 5$$로 넣으면, 기존 speculative decoding 대비 기대 가속은 다음과 같습니다.
 
-**FLOPs.** 학습은 추론의 약 3배(파라미터당 6 FLOPs 대 2 FLOPs)라는 추정으로 요청 $$I$$개를 처리하는 총 연산을 쓰면, target 대비 draft(추론 + 갱신)의 FLOPs 비율은 $$\frac{(k+1) F_{p}}{(k + 3a) F_{q}}$$입니다. (LLaMA-160M, Vicuna-7B)에서 18.75, (T5-small, Flan-T5-XL)에서 12.6으로 draft 갱신 비용은 target 추론에 묻힙니다. 게다가 공개된 LMSYS-Chat-1M 트레이스를 보면 30B 모델을 A100 8장으로 서빙할 때 초당 약 5.5 GFLOPs만 쓰는데, A100 8장의 용량은 8 × 312 TFLOPs입니다. 활용률이 1%에도 못 미칩니다.
+| target (draft) | Spider | GSM8K | Code-Python | Alpaca-finance |
+|---|---|---|---|---|
+| Vicuna-7B (LLaMA-160M) | 2.42× | 1.43× | 1.64× | 1.22× |
+| Flan-T5-XL 3B (T5-small 80M) | 3.06× | 1.76× | 2.72× | 1.55× |
+
+논문은 네 값을 데이터셋 이름 없이 나열하는데, Table 1 순서대로 식에 넣어 계산하면 위 값과 맞습니다(예: Vicuna Spider $$\alpha$$ 0.28 → 0.76이면 2.42×).
+
+**FLOPs.** 학습은 추론의 약 3배(파라미터당 6 FLOPs 대 2 FLOPs)라는 추정으로 요청 $$I$$개를 처리하는 총 연산을 쓰면, target 대비 draft(추론 + 갱신)의 FLOPs 비율은 $$\frac{(k+1) F_{p}}{(k + 3a) F_{q}}$$입니다. 여기서 $$a$$는 target 한 번 실행당 기대 생성 길이입니다. 평균 수락률 0.71인 (LLaMA-160M, Vicuna-7B)는 $$a \approx 3$$으로 $$\frac{6 \times 7\text{B}}{14 \times 160\text{M}} = 18.75$$, 평균 수락률 0.76인 (T5-small, Flan-T5-XL)는 $$a \approx 4.3$$으로 12.6이어서 draft 갱신 비용은 target 추론에 묻힙니다. 게다가 공개된 LMSYS-Chat-1M 트레이스(125일, 요청 100만 개, 요청당 평균 2,000토큰 미만)로 30B 모델을 A100 8장으로 서빙하는 경우를 추정하면 연산 활용률이 1%에도 못 미칩니다. 논문 부록(A.3)은 이 값을 "초당 5.5 GFLOPs"로 적었지만, 같은 식(초당 약 185토큰 × 30B × 2)을 다시 계산하면 초당 약 11 TFLOPs입니다. 그래도 A100 8장의 용량 8 × 312 = 2,496 TFLOPs의 0.5% 미만이라 결론은 같습니다.
 
 ## 4. 코드로 보기: 거절 기록으로 배우면 α가 오르고, 분포가 바뀌어도 따라간다
 
@@ -172,7 +187,7 @@ target은 Vicuna-7B(draft LLaMA-160M)와 Flan-T5-XL 3B(draft T5-small 80M), 데�
 
 ### 오프라인: 증류 방식 비교
 
-질의 분포가 고정되어 있고 학습 데이터를 모두 볼 수 있는 상한 설정입니다. 두 epoch 증류 후 테스트 수락률입니다.
+질의 분포가 고정되어 있고 학습 데이터를 모두 볼 수 있는 상한 설정입니다. 학습 데이터로 두 epoch 증류한 뒤의 테스트 수락률입니다(Table 1).
 
 | 모델 | 작업 | 원본 | 라벨 FT | 교사 샘플 | 학생 샘플 | 혼합 샘플 |
 |---|---|---|---|---|---|---|
@@ -191,9 +206,17 @@ target은 Vicuna-7B(draft LLaMA-160M)와 Flan-T5-XL 3B(draft T5-small 80M), 데�
 
 ### 온라인: 얼마나 빨리 오르나
 
-10%의 데이터로 오프라인 증류한 고정 draft를 기준선으로 두고, 나머지를 요청 스트림으로 흘려보냈습니다. 최근 50개 요청의 평균 $$\alpha$$를 보면, OSD는 처음에는 기준선보다 낮지만 데이터가 쌓이며 빠르게 올라 **오프라인 상한에 도달**하고, 때로는 넘어섭니다(최근 50개의 이동 평균이라 좁은 부분 분포에서는 더 높을 수 있음).
+10%의 데이터로 오프라인 증류한 고정 draft를 기준선으로 두고, 데이터셋의 프롬프트를 요청 스트림으로 흘려보냈습니다. 최근 50개 요청의 평균 $$\alpha$$를 보면, OSD는 처음에는 기준선보다 낮지만 데이터가 쌓이며 빠르게 올라 **오프라인 상한에 도달**하고, 때로는 넘어섭니다(최근 50개의 이동 평균이라 좁은 부분 분포에서는 더 높을 수 있음).
 
-**분포 이동.** 네 데이터셋을 2K개씩 이어 붙여 흘리면 경계마다 $$\alpha$$가 떨어졌다가 회복합니다. 각 구간에서 OSD는 처음에는 데이터의 30%로 오프라인 증류한 모델과 비슷하다가, 곧 70~100%로 증류한 모델에 맞먹었습니다.
+![데이터셋별 온라인 수락률](/assets/img/posts/online-speculative-decoding/fig3.webp)
+_Figure 3. 처리한 요청 수(K)에 따른 수락률(최근 50개 평균). 파랑이 OSD, 주황이 10% 데이터로 오프라인 증류한 고정 draft, 빨간 점선이 오프라인 증류 상한(Table 1)입니다. 위는 Vicuna-7B, 아래는 Flan-T5-XL. (출처: Liu et al., 2023)_
+
+Figure 3에서 고정 draft는 Vicuna Spider 0.4~0.5, Flan-T5 Spider 0.2 근처에 머무는 반면, OSD는 수천 개 요청 안에 빨간 점선 근처까지 올라갑니다.
+
+**분포 이동.** 네 데이터셋을 2K개씩 이어 붙여 흘리면 경계마다 $$\alpha$$가 떨어졌다가 회복합니다. 각 구간에서 OSD는 처음에는 데이터의 30%로 오프라인 증류한 모델과 비슷하거나 약간 낮다가, 곧 70~100%로 증류한 모델에 맞먹었습니다. 비교용 정적 모델은 온라인 평가와 겹치지 않는 샘플 0.6K, 1K, 1.4K, 2K개(온라인 구간 크기의 30, 50, 70, 100%)로 증류했습니다.
+
+![분포 이동 실험](/assets/img/posts/online-speculative-decoding/fig4.webp)
+_Figure 4. GSM8K → Spider → Alpaca-finance → Code-search-Python 순으로 2K개씩 흘린 스트림에서의 수락률(최근 100개 평균). 굵은 파랑이 OSD, 나머지는 각 비율의 데이터로 미리 증류한 정적 draft입니다. (출처: Liu et al., 2023)_
 
 **실제 트래픽.** 4개월치 LMSYS-Chat 대화에서 영어를 뺀 상위 5개 언어마다 독립된 LLaMA-160M draft를 두니 2K개 미만의 데이터로 수락률이 0.1~0.2 올랐습니다(일본어가 가장 쉽고 포르투갈어가 가장 어려웠음). 영어를 주제별로 나누면 모든 주제에서 0.6 이상, Social과 Computer는 0.8 근처였습니다.
 
@@ -203,13 +226,30 @@ target은 Vicuna-7B(draft LLaMA-160M)와 Flan-T5-XL 3B(draft T5-small 80M), 데�
 
 Spider에서 target이 가장 자주 내는 상위 100개 토큰(전체 등장의 72.2%)의 정밀도와 재현율이 증류 후 크게 올랐습니다. 가장 많이 좋아진 토큰은 데이터 분포와 맞아떨어집니다. Spider에서는 `SELECT`, `WHERE`, `COUNT`, GSM8K에서는 `<<`, `>>`, `=`, `+`, 코드에서는 `python`, `import`, `def`입니다.
 
+### 실험 설정
+
+| 항목 | 값 |
+|---|---|
+| target / draft | Vicuna-7B / LLaMA-160M, Flan-T5-XL 3B / T5-small 80M |
+| 데이터셋 | Spider, GSM8K, Code-search-Python, Alpaca-finance |
+| 제안 토큰 수 $$k$$ | 5 |
+| 갱신 간격 $$I$$ | 8 (온라인 실험 전체 고정) |
+| replay 버퍼 | 쌍을 내보내지 않고 모두 쌓았다가 갱신 후 비움 |
+| 오프라인 증류 | 학습 데이터로 2 epoch, forward KL |
+| 온라인 기준선 | 데이터의 10%로 오프라인 증류 후 고정 |
+| 수락률 집계 | 최근 50개(Figure 3) 또는 100개(Figure 4, 실제 트래픽) 요청 평균 |
+| 분포 이동 | 데이터셋마다 프롬프트 2K개를 이어 붙임 |
+| 실제 트래픽 | LMSYS-Chat-1M에서 무작위 10K개, Vicuna 대화만. 주제 분류는 distilled BERT, 주제당 최대 5K |
+
+학습 하드웨어, optimizer, learning rate는 논문에 적혀 있지 않습니다.
+
 ## 6. 해석
 
 **1. speculative decoding은 자기 자신의 학습 데이터를 만든다.** 이 논문의 가장 좋은 관찰은 거절이 곧 라벨이라는 점입니다. target이 어차피 $$k + 1$$개 위치의 분포를 계산하므로, 거절된 자리의 정답 분포는 추가 비용 없이 손에 들어옵니다. [DAgger]({% post_url 2026-09-23-dagger %})가 학습자가 실제로 가는 상태에서 전문가에게 정답을 묻듯, OSD는 draft가 실제로 틀리는 자리에서 target에게 정답을 받습니다.
 
 **2. 범용 draft를 포기하고 서비스별 draft를 택했다.** 모든 입력을 잘 맞히는 작은 모델은 없지만, 한 서비스의 질의는 좁습니다. 이 포기가 수락률을 0.1~0.65 올린 동력입니다. 위 예제에서도 도메인 하나로 좁히자 표 하나짜리 draft가 0.86까지 올랐습니다. 언어별, 주제별로 draft를 여러 개 두는 것은 같은 생각의 연장입니다.
 
-**3. 비용 분석이 설득력 있습니다.** draft 갱신 FLOPs가 target 추론의 1/12~1/19이고, 실제 서빙 클러스터의 연산 활용률이 1% 미만이라는 두 수치를 합치면 "공짜"라는 주장이 성립합니다. 다만 LMSYS Arena가 효율적인 서비스가 아닐 수 있다는 점은 논문도 인정합니다.
+**3. 비용 분석이 설득력 있습니다.** draft 갱신 FLOPs가 target 추론의 1/12~1/19이고, 실제 서빙 클러스터의 연산 활용률이 1% 미만이라는 두 수치를 합치면 "공짜"라는 주장이 성립합니다. 다만 LMSYS Arena가 효율적인 서비스가 아닐 수 있다는 점은 논문도 인정하고, 위에서 본 것처럼 활용률 계산의 중간값(5.5 GFLOPs)에도 단위 오류가 있습니다. 결론(1% 미만)은 바뀌지 않습니다.
 
 **4. 증류 척도의 선택은 아직 열려 있습니다.** forward KL과 교사 샘플링이 대체로 좋았지만 모델 쌍과 작업에 따라 달랐고, 논문은 최적 조합을 향후 과제로 남겼습니다. reverse KL의 mode-seeking이 작은 모델에 유리하다는 직관(Gu et al., 2023)이 여기서는 확인되지 않았습니다.
 

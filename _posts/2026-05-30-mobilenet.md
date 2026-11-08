@@ -1,11 +1,16 @@
 ---
-title: "[Lightweight] MobileNet: Depthwise Separable Convolution으로 연산량 줄이기"
+title: "[Lightweight] MobileNet(MobileNets: Efficient Convolutional Neural Networks for Mobile Vision Applications): Depthwise Separable Conv로 연산량 줄이기"
 date: 2026-05-30 17:26:00 +0900
 categories: [Neural Network, Lightweight]
 tags: [lightweight, mobilenet, depthwise-separable, on-device, efficient-cnn]
-description: 일반 합성곱을 depthwise와 pointwise로 쪼개 연산량을 약 1/8~1/9로 줄인 MobileNet의 원리와 연산량 유도, width·resolution multiplier, FLOPs와 실제 속도의 차이, MobileNetV2의 inverted residual까지 정리합니다.
+description: "MobileNets: Efficient Convolutional Neural Networks for Mobile Vision Applications(arXiv 2017) 논문 리뷰. 일반 합성곱을 depthwise와 pointwise로 쪼개 연산량을 약 1/8~1/9로 줄인 원리와 연산량 유도, 28층 구조와 학습 설정, width·resolution multiplier의 ImageNet 수치, FLOPs와 실제 속도의 차이, MobileNetV2의 inverted residual까지 그림과 함께 정리합니다."
 math: true
 ---
+
+> - **논문**: MobileNets: Efficient Convolutional Neural Networks for Mobile Vision Applications
+> - **저자**: Andrew G. Howard, Menglong Zhu, Bo Chen, Dmitry Kalenichenko, Weijun Wang, Tobias Weyand, Marco Andreetto, Hartwig Adam (Google)
+> - **학회**: arXiv preprint 2017 · [arXiv:1704.04861](https://arxiv.org/abs/1704.04861)
+{: .prompt-tip }
 
 > 경량화 시리즈의 첫 글입니다. 이후 다룰 [ShuffleNet]({% post_url 2026-06-02-cnn-architectures %}), [Mobile-Former]({% post_url 2026-07-13-mobile-former %}) 등은 모두 이 글에서 다루는 **Depthwise Separable Convolution**을 기본 부품으로 씁니다.
 
@@ -59,7 +64,10 @@ $$
 
 ## 4. Depthwise Separable Convolution
 
-일반 conv가 한 번에 하던 두 가지 일, 즉 **공간 정보 섞기**와 **채널 정보 섞기**를 두 단계로 나눕니다.
+일반 conv가 한 번에 하던 두 가지 일, 즉 **공간 정보 섞기**와 **채널 정보 섞기**를 두 단계로 나눕니다. 아래 Figure 2가 필터 모양의 차이입니다.
+
+![일반 conv, depthwise conv, pointwise conv 필터](/assets/img/posts/mobilenet/fig2.webp)
+_Figure 2. (a) 일반 합성곱 필터 $$N$$개(각각 $$D_K \times D_K \times M$$), (b) 채널마다 하나씩인 depthwise 필터 $$M$$개($$D_K \times D_K \times 1$$), (c) 채널을 섞는 1×1 pointwise 필터 $$N$$개($$1 \times 1 \times M$$). (출처: Howard et al., 2017)_
 
 ### Step 1. Depthwise Convolution: 공간만 본다
 
@@ -91,7 +99,12 @@ $$
 = \frac{1}{N} + \frac{1}{D_K^2}
 $$
 
-3×3 커널($$D_K=3$$)이고 출력 채널이 충분히 크면 $$1/N$$은 무시할 수 있으므로 **연산량이 약 1/8 ~ 1/9**로 줄어듭니다. 논문에서는 이렇게 줄여도 ImageNet 정확도가 약 1%p밖에 떨어지지 않았다고 보고합니다.
+3×3 커널($$D_K=3$$)이고 출력 채널이 충분히 크면 $$1/N$$은 무시할 수 있으므로 **연산량이 약 1/8 ~ 1/9**로 줄어듭니다. 논문에서는 이렇게 줄여도 ImageNet 정확도가 약 1%p밖에 떨어지지 않았다고 보고합니다(논문 Table 4).
+
+| 모델 | ImageNet Top-1 | Mult-Adds | 파라미터 |
+|---|---|---|---|
+| 모든 층을 일반 conv로 만든 MobileNet | 71.7% | 4,866M | 29.3M |
+| MobileNet (depthwise separable) | 70.6% | 569M | 4.2M |
 
 ```python
 import torch.nn as nn
@@ -145,6 +158,27 @@ dw-separable  34.8 ms
 
 파라미터와 연산량은 약 1/9로 줄었는데 시간은 2배도 빨라지지 않았습니다. Depthwise conv는 채널마다 따로 계산해서 **불러온 데이터 하나당 계산량(arithmetic intensity)이 매우 낮습니다.** 그래서 연산 장치보다 **메모리 대역폭**이 병목이 되고, GPU처럼 큰 행렬 곱에 최적화된 하드웨어에서는 이 차이가 더 두드러지기도 합니다. "FLOPs가 적다 = 빠르다"가 아니라는 점은 [ShuffleNetV2]({% post_url 2026-06-02-cnn-architectures %})가 설계 원칙으로 정리했습니다.
 
+### 전체 구조와 학습 설정
+
+MobileNet은 첫 층만 일반 3×3 conv(stride 2, 32채널)이고 나머지는 모두 depthwise separable 블록입니다. 다운샘플링은 depthwise conv의 stride 2로 하고, 채널은 32 → 64 → 128 → 256 → 512(14×14에서 5번 반복) → 1024로 늘어난 뒤 7×7 평균 풀링과 FC 1000으로 끝납니다. depthwise와 pointwise를 따로 세면 **28층**이고, 모든 conv 뒤에 BN과 ReLU가 붙습니다.
+
+연산의 대부분은 1×1 conv에 몰려 있습니다(논문 Table 2). 1×1 conv는 im2col 재배열 없이 바로 GEMM으로 계산할 수 있어 구현 효율이 좋다는 것이 저자들의 설계 근거입니다.
+
+| 층 종류 | Mult-Adds 비중 | 파라미터 비중 |
+|---|---|---|
+| Conv 1×1 (pointwise) | 94.86% | 74.59% |
+| Conv DW 3×3 | 3.06% | 1.06% |
+| Conv 3×3 (첫 층) | 1.19% | 0.02% |
+| Fully Connected | 0.18% | 24.33% |
+
+| 학습 설정 | 값 |
+|---|---|
+| 프레임워크 | TensorFlow |
+| Optimizer | RMSprop, 비동기 경사 하강(Inception V3와 비슷) |
+| 정규화·증강 | 큰 모델보다 약하게: side head·label smoothing 없음, 작은 crop 크기 제한으로 왜곡 축소 |
+| Weight decay | depthwise 필터에는 거의 또는 전혀 주지 않음(파라미터가 매우 적기 때문) |
+| 모델 크기별 설정 | ImageNet 실험은 크기와 상관없이 같은 학습 설정 |
+
 ## 5. 더 줄이기: 두 개의 Hyper-parameter
 
 MobileNet은 기기 사양에 맞게 모델 크기를 조절할 수 있는 손잡이를 두 개 제공합니다.
@@ -161,6 +195,32 @@ $$
 \text{Cost} = D_K^2 \cdot \alpha M \cdot \rho^2 D_F^2 + \alpha M \cdot \alpha N \cdot \rho^2 D_F^2
 $$
 
+논문 Table 3은 14×14×512 입력, 3×3×512×512 커널인 내부 층 하나에 이 기법들을 차례로 적용한 예입니다.
+
+| 층 하나에 누적 적용 | Mult-Adds | 파라미터 |
+|---|---|---|
+| 일반 conv | 462M | 2.36M |
+| Depthwise separable | 52.3M | 0.27M |
+| $$\alpha = 0.75$$ | 29.6M | 0.15M |
+| $$\rho = 0.714$$ (224 → 160) | 15.1M | 0.15M |
+
+ImageNet에서 두 손잡이를 각각 돌린 결과입니다(논문 Table 6, 7).
+
+| 모델 | Top-1 | Mult-Adds | 파라미터 |
+|---|---|---|---|
+| 1.0 MobileNet-224 | 70.6% | 569M | 4.2M |
+| 0.75 MobileNet-224 | 68.4% | 325M | 2.6M |
+| 0.5 MobileNet-224 | 63.7% | 149M | 1.3M |
+| 0.25 MobileNet-224 | 50.6% | 41M | 0.5M |
+| 1.0 MobileNet-192 | 69.1% | 418M | 4.2M |
+| 1.0 MobileNet-160 | 67.2% | 290M | 4.2M |
+| 1.0 MobileNet-128 | 64.4% | 186M | 4.2M |
+
+$$\alpha = 0.25$$에서 정확도가 크게 꺾이는 것 말고는 완만하게 떨어집니다. 층을 줄이는 것보다 폭을 줄이는 쪽이 낫다는 비교도 있습니다. 14×14×512 블록 5개를 뺀 Shallow MobileNet은 65.3%(307M, 2.9M)로, 비슷한 비용의 0.75 MobileNet(68.4%)보다 3%p 낮습니다.
+
+![ImageNet 정확도와 연산량](/assets/img/posts/mobilenet/fig4.webp)
+_Figure 4. $$\alpha \in \{1, 0.75, 0.5, 0.25\}$$와 해상도 $$\{224, 192, 160, 128\}$$를 조합한 16개 모델의 Mult-Adds(로그 축) 대 ImageNet 정확도. 거의 로그 선형이고 $$\alpha = 0.25$$에서 꺾입니다. (출처: Howard et al., 2017)_
+
 ## 6. 결과
 
 | 모델 | ImageNet Top-1 | 파라미터 | Mult-Adds |
@@ -169,7 +229,20 @@ $$
 | GoogLeNet | 69.8% | 6.8M | 1,550M |
 | **MobileNet 1.0-224** | **70.6%** | **4.2M** | **569M** |
 
-VGG-16과 거의 같은 정확도를 **파라미터 1/32, 연산량 1/27**로 달성했습니다.
+VGG-16과 거의 같은 정확도를 **파라미터 1/32, 연산량 1/27**로 달성했습니다. 더 작은 0.50 MobileNet-160은 60.2%(76M Mult-Adds, 1.32M 파라미터)로, AlexNet(57.2%, 720M, 60M)보다 4%p 높으면서 45배 작고 연산은 9.4배 적고, SqueezeNet(57.5%, 1,700M, 1.25M)과 크기는 비슷하면서 연산은 22배 적습니다.
+
+분류 밖에서도 백본으로 씁니다. COCO 검출(mAP, AP@[.5:.95]) 결과는 다음과 같습니다(논문 Table 13).
+
+| 프레임워크 | 백본 | mAP | Mult-Adds | 파라미터 |
+|---|---|---|---|---|
+| SSD 300 | VGG | 21.1% | 34.9B | 33.1M |
+| SSD 300 | Inception V2 | 22.0% | 3.8B | 13.7M |
+| SSD 300 | MobileNet | 19.3% | 1.2B | 6.8M |
+| Faster R-CNN 600 | VGG | 25.7% | 149.6B | 138.5M |
+| Faster R-CNN 600 | Inception V2 | 21.9% | 129.6B | 13.3M |
+| Faster R-CNN 600 | MobileNet | 19.8% | 30.5B | 6.1M |
+
+이 밖에 Stanford Dogs 세밀 분류(83.3%, Inception V3 84%), PlaNet 위치 추정, 얼굴 속성 분류(distillation과 결합해 기준 모델 대비 Mult-Adds 1%로 비슷한 mean AP), FaceNet distillation 실험도 실려 있습니다.
 
 ## 7. 다음 단계: MobileNetV2의 Inverted Residual
 

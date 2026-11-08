@@ -1,17 +1,25 @@
 ---
-title: "[Distillation] Self Attention Distillation: 자기 attention map을 교사로 삼아 가벼운 차선 검출 CNN 학습하기"
+title: "[Distillation] SAD(Learning Lightweight Lane Detection CNNs by Self Attention Distillation): 자기 attention map을 교사로 삼는 차선 검출"
 date: 2026-07-20 18:20:00 +0900
 categories: [Neural Network, Lightweight]
 tags: [knowledge-distillation, self-distillation, self-attention-distillation, sad, lane-detection, attention-map, enet, culane, tusimple, lightweight]
-description: 얇고 희소한 차선 라벨만으로는 학습이 어렵다는 문제에서 출발해, 어느 정도 학습된 네트워크의 깊은 층 attention map을 얕은 층이 top-down으로 모방하게 하는 Self Attention Distillation(Hou et al., ICCV 2019)의 attention 생성, 모방 경로, 도입 시점, ENet-SAD의 TuSimple·CULane·BDD100K 결과를 정리하고 attention map 계산을 코드로 확인합니다.
+description: "Learning Lightweight Lane Detection CNNs by Self Attention Distillation(ICCV 2019) 논문 리뷰. 깊은 층 attention map을 얕은 층이 top-down으로 모방하는 SAD의 attention 생성, 모방 경로, 도입 시점, ENet-SAD의 TuSimple·CULane·BDD100K 수치와 학습 설정을 그림과 함께 정리하고 attention map 계산을 코드로 확인합니다."
 math: true
 ---
 
-> 차선은 길고 얇아서 라벨 픽셀이 배경보다 훨씬 적습니다. 이 **희소한 감독**만으로는 가려짐, 모호한 차선, 어두운 조명에서 모델이 자주 실패합니다. 기존 해법인 multi-task learning은 추가 라벨이 필요하고, SCNN의 message passing은 추론 시간의 35%를 차지합니다. **Self Attention Distillation**(SAD, Hou, Ma, Liu, Loy, CUHK·SenseTime·NTU, ICCV 2019)은 둘 다 피합니다. 어느 정도 학습된 네트워크의 **깊은 층 attention map**이 장면의 맥락을 담고 있다는 관찰에서, 그것을 **얕은 층이 모방**하게 하는 '공짜' 감독을 만듭니다. 라벨도 교사도 추론 비용 증가도 없습니다. 0.98M 파라미터의 ENet-SAD가 20배 큰 SCNN과 맞먹거나 넘었습니다.
+> - **논문**: Learning Lightweight Lane Detection CNNs by Self Attention Distillation
+> - **저자**: Yuenan Hou, Zheng Ma, Chunxiao Liu, Chen Change Loy (The Chinese University of Hong Kong, SenseTime, Nanyang Technological University)
+> - **학회**: ICCV 2019 · [arXiv:1908.00821](https://arxiv.org/abs/1908.00821) · [코드](https://github.com/cardwing/Codes-for-Lane-Detection)
+{: .prompt-tip }
+
+> 차선은 길고 얇아서 라벨 픽셀이 배경보다 훨씬 적습니다. 이 **희소한 감독**만으로는 가려짐, 모호한 차선, 어두운 조명에서 모델이 자주 실패합니다. 기존 해법인 multi-task learning은 추가 라벨이 필요하고, SCNN의 message passing은 추론 시간의 35%를 차지합니다. **Self Attention Distillation**(SAD)은 둘 다 피합니다. 어느 정도 학습된 네트워크의 **깊은 층 attention map**이 장면의 맥락을 담고 있다는 관찰에서, 그것을 **얕은 층이 모방**하게 하는 '공짜' 감독을 만듭니다. 라벨도 교사도 추론 비용 증가도 없습니다. 0.98M 파라미터의 ENet-SAD가 20배 큰 SCNN과 맞먹거나 넘었습니다.
 
 ## 1. 관찰: 절반 학습된 모델의 attention은 이미 맥락을 안다
 
-ENet을 40K episode까지 학습한 뒤 네 블록의 attention map을 보면, 차선의 위치와 장면의 대략적인 윤곽이 이미 드러납니다. 여기서 SAD를 켜서 block 3이 block 4를, block 2가 block 3을 모방하게 하면 두 가지가 일어납니다.
+ENet을 40K episode까지 학습한 뒤 네 블록의 attention map을 보면, 차선의 위치와 장면의 대략적인 윤곽이 이미 드러납니다(아래 Figure 1의 (a) 첫 줄). 여기서 SAD를 켜서 block 3이 block 4를, block 2가 block 3을 모방하게 하면 두 가지가 일어납니다.
+
+![SAD 전후의 블록별 attention map](/assets/img/posts/self-attention-distillation/fig1.webp)
+_Figure 1. (a) SAD 없이 40K → 60K episode까지 학습한 ENet의 블록별 attention map, (b) 40K에서 SAD를 켠 뒤 50K, 60K의 attention map. (출처: Hou et al., 2019)_
 
 1. 얕은 층의 attention map이 더 풍부한 맥락을 담도록 **다듬어집니다**.
 2. 얕은 층의 표현이 좋아지자 **깊은 층도 좋아집니다**. block 4는 아무것도 모방하지 않는데도 차선 위치의 attention이 훨씬 또렷해집니다.
@@ -48,7 +56,10 @@ $$\mathcal{L}_{\text{IoU}} = 1 - N_p / (N_p + N_g - N_o)$$는 예측·정답 차
 
 ### 구조 손질
 
-ENet의 인코더 E1~E4와 디코더 D1, D2에 차선 존재 branch P1을 붙이고(인코더 공유), P1에는 파라미터를 늘리지 않고 수용 영역을 키우는 dilated convolution을 썼습니다. CULane에서 E4의 feature map이 36×100밖에 안 되어 정보 손실이 커서 E3와 E4의 출력을 이어 붙였습니다.
+![ENet에 SAD를 붙인 구조](/assets/img/posts/self-attention-distillation/fig3.webp)
+_Figure 3. ENet 인코더 E2~E4 뒤에 AT-GEN을 붙이고, 앞 블록의 attention map이 다음 블록의 map을 모방합니다. D1, D2는 디코더, P1은 차선 존재 예측 branch. (출처: Hou et al., 2019)_
+
+위 Figure 3처럼 ENet의 인코더 E1~E4와 디코더 D1, D2에 차선 존재 branch P1을 붙이고(인코더 공유), P1에는 파라미터를 늘리지 않고 수용 영역을 키우는 dilated convolution을 썼습니다. CULane에서 E4의 feature map이 36×100밖에 안 되어 정보 손실이 커서 E3와 E4의 출력을 이어 붙였습니다.
 
 ## 3. 코드로 보기: attention map과 SAD 손실의 생김새
 
@@ -98,13 +109,25 @@ L_distill(P23 + P34) = 1.07e-02  (attention map은 합이 1이라 값이 작으�
 
 ### 데이터셋과 지표
 
-| 데이터셋 | 프레임 | 해상도 | 도로 | 지표 |
+| 데이터셋 | 프레임 (학습 / 검증 / 테스트) | 해상도 | 도로 | 지표 |
 |---|---|---|---|---|
-| TuSimple | 6,408 | 1280×720 | 고속도로 | 정확도(맞춘 차선 점 / 정답 점), FP, FN |
-| CULane | 133,235 | 1640×590 | 도시·시골·고속도로, 9가지 어려운 상황 | 30픽셀 폭 선의 IoU > 0.5를 TP로 한 F1 |
-| BDD100K | 80,000 | 1280×720 | 도시·시골·고속도로, 프레임당 8개 이상 차선 | 픽셀 정확도, IoU |
+| TuSimple | 6,408 (3,268 / 358 / 2,782) | 1280×720 | 고속도로 | 정확도(맞춘 차선 점 / 정답 점), FP, FN |
+| CULane | 133,235 (88,880 / 9,675 / 34,680) | 1640×590 | 도시·시골·고속도로, 9가지 어려운 상황 | 30픽셀 폭 선의 IoU > 0.5를 TP로 한 F1 |
+| BDD100K | 80,000 (60,000 / 10,000 / 10,000) | 1280×720 | 도시·시골·고속도로, 프레임당 8개 이상 차선 | 픽셀 정확도, IoU |
 
-BDD100K는 두 선으로 라벨된 차선의 중심선을 새 목표로 만들고 학습용은 8픽셀로 팽창했습니다. 모든 모델에 같은 분할 손실과 augmentation(회전, crop, flip)을 적용해 공정하게 비교했습니다. SAD는 CULane·BDD100K에서 60K episode 중 40K 시점에 켭니다.
+BDD100K는 테스트 라벨이 공개되지 않아 원래 검증 셋을 테스트로 쓰고, 학습 셋에서 검증 셋을 따로 떼었습니다. 두 선으로 라벨된 차선의 중심선을 새 목표로 만들고 학습용은 8픽셀로 팽창했습니다(테스트는 2픽셀 그대로). 모든 모델에 같은 분할 손실과 augmentation(회전, crop, flip)을 적용해 공정하게 비교했습니다. SAD는 CULane·BDD100K에서 60K episode 중 40K 시점에 켭니다.
+
+### 구현 디테일
+
+| 항목 | 값 |
+|---|---|
+| 입력 크기 | TuSimple 368×640, CULane 288×800, BDD100K 360×640 |
+| Optimizer | SGD, lr 0.01, batch 12 |
+| 학습 길이 | TuSimple 1,800 episode, CULane·BDD100K 60K episode |
+| 손실 가중치 | 배경 픽셀 cross-entropy × 0.4, $$\alpha = \beta = \gamma = 0.1$$ |
+| BDD100K 설정 | 분할 branch를 이진 출력으로 바꾸고 차선 존재 branch(P1)는 제거 |
+| CULane 후처리 | 확률 map을 9×9 커널로 smoothing → 존재 확률 0.5 초과 차선만 20행마다 최댓값 위치 탐색 → cubic spline으로 연결 |
+| 실행 시간 측정 | GTX TITAN X 1장, 100개 샘플 평균 |
 
 ### 결과
 
@@ -112,6 +135,8 @@ BDD100K는 두 선으로 라벨된 차선의 중심선을 새 목표로 만들�
 
 | 방법 | 정확도 | FP | FN |
 |---|---|---|---|
+| ResNet-18 | 92.69% | 0.0948 | 0.0822 |
+| ResNet-34 | 92.84% | 0.0918 | 0.0796 |
 | ENet | 93.02% | 0.0886 | 0.0734 |
 | LaneNet | 96.38% | 0.0780 | 0.0244 |
 | EL-GAN | 96.39% | 0.0412 | 0.0336 |
@@ -129,6 +154,7 @@ BDD100K는 두 선으로 라벨된 차선의 중심선을 새 목표로 만들�
 | Night | 20.3% | 66.0 | 64.6 | 66.3 | 65.9 | 66.1 |
 | No line | 11.7% | 41.6 | 42.2 | 43.5 | 41.7 | 43.4 |
 | Shadow | 2.7% | 65.9 | 67.7 | 67.0 | 64.6 | 66.9 |
+| Arrow | 2.6% | 84.0 | 83.8 | 84.4 | 84.0 | 84.1 |
 | Dazzle light | 1.4% | 60.2 | 59.9 | 59.9 | 59.8 | 58.5 |
 | Curve | 1.2% | 65.7 | 66.0 | 65.7 | 65.5 | 64.4 |
 | Crossroad (FP) | 9.0% | 1998 | 1960 | 2052 | 2183 | 1990 |
@@ -157,7 +183,17 @@ BDD100K는 두 선으로 라벨된 차선의 중심선을 새 목표로 만들�
 - **인접 층**을 연속으로 모방하는 것이 비인접 층보다 좋습니다(P23 + P34 > P24 + P34). 이웃한 층의 attention이 의미적으로 더 가깝기 때문으로 봅니다.
 - **거꾸로**(높은 층이 낮은 층을 모방) 하면 93.02% → 91.26%로 나빠집니다. 낮은 층의 map은 세부가 많고 노이즈가 많아 높은 층의 전역 정보를 흐립니다.
 
-**Deep supervision과 비교**: 중간 층에 1×1 합성곱과 업샘플링으로 예측을 만들어 라벨로 직접 감독하는 deep supervision보다 세 데이터셋 모두에서 SAD가 좋습니다(ENet: TuSimple 94.69 → 96.64, CULane 69.6 → 70.8, BDD100K 15.38 → 16.02 IoU). 라벨은 희소하고 경직되어 있지만 attention 목표는 **부드럽고 장면 구조의 맥락**을 담으며, SAD 경로가 깊은 층에서 얕은 층으로의 피드백 연결 역할을 한다는 설명입니다.
+**Deep supervision과 비교**: 중간 층에 1×1 합성곱과 업샘플링으로 예측을 만들어 라벨로 직접 감독하는 deep supervision보다 세 데이터셋 모두에서 SAD가 좋습니다(Table 6).
+
+| 모델 | TuSimple 정확도 | CULane F1 | BDD100K 정확도 / IoU |
+|---|---|---|---|
+| ENet | 93.02% | 68.4 | 34.12% / 14.64 |
+| ENet-Deep | 94.69% | 69.6 | 35.61% / 15.38 |
+| **ENet-SAD** | **96.64%** | **70.8** | **36.56% / 16.02** |
+| R-18 / R-18-Deep / R-18-SAD | 92.69 / 94.14 / **96.02%** | 67.9 / 68.8 / **70.5** | IoU 11.07 / 12.23 / **13.29** |
+| R-34 / R-34-Deep / R-34-SAD | 92.84 / 94.52 / **96.24%** | 68.6 / 69.2 / **70.7** | IoU 12.24 / 13.59 / **14.56** |
+
+Deep supervision은 block 2~4에 걸었을 때 가장 좋았고, 그것과 비교해도 SAD가 앞섭니다. 라벨은 희소하고 경직되어 있지만 attention 목표는 **부드럽고 장면 구조의 맥락**을 담으며, SAD 경로가 깊은 층에서 얕은 층으로의 피드백 연결 역할을 한다는 설명입니다.
 
 **도입 시점**: 언제 켜든 최종 성능은 거의 같지만 **수렴 속도**가 다릅니다. 너무 이르면 깊은 층이 아직 좋은 목표를 못 만들어 느려집니다.
 

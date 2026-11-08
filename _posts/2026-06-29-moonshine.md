@@ -1,13 +1,18 @@
 ---
-title: "[Distillation] Moonshine: 네트워크를 줄이지 말고 합성곱을 싸게 바꿔서 증류하라"
+title: "[Distillation] Moonshine(Distilling with Cheap Convolutions): 네트워크를 줄이지 말고 합성곱을 싸게 바꿔서 증류하라"
 date: 2026-06-29 15:44:00 +0900
 categories: [Neural Network, Lightweight]
 tags: [knowledge-distillation, moonshine, attention-transfer, grouped-convolution, bottleneck, depthwise-separable, wide-resnet, model-compression, lightweight]
-description: 학생 네트워크를 얇거나 얕게 만드는 대신 교사와 같은 구조를 유지하고 합성곱 블록만 grouped·bottleneck 블록으로 바꾼 뒤 attention transfer로 증류하면, 같은 파라미터 예산에서 더 정확하다는 Moonshine(Crowley et al., NeurIPS 2018)의 블록 설계, CIFAR·ImageNet·Cityscapes 결과를 정리하고 블록별 파라미터 공식을 코드로 확인합니다.
+description: "Moonshine: Distilling with Cheap Convolutions(NeurIPS 2018) 논문 리뷰. 교사 구조는 그대로 두고 합성곱 블록만 grouped·bottleneck 블록으로 바꿔 attention transfer로 증류하는 방법, CIFAR·ImageNet·Cityscapes 수치와 학습 설정을 그림과 함께 정리하고 블록별 파라미터 공식을 코드로 확인합니다."
 math: true
 ---
 
-> 메모리가 제한된 기기에 큰 네트워크를 올리려면 작은 학생을 증류해야 합니다. 보통 학생은 교사보다 **얇거나 얕은** 구조입니다. **Moonshine**(Distilling with Cheap Convolutions, Crowley, Gray, Storkey, University of Edinburgh, NeurIPS 2018)은 다른 길을 제안합니다. 교사의 구조를 그대로 두고 **표준 합성곱 블록을 더 싼 블록으로 치환**하는 것입니다. 설계를 다시 할 필요가 없고 같은 하이퍼파라미터로 학습할 수 있으며, 같은 파라미터 예산에서 구조를 줄인 학생보다 정확했습니다. [MobileNet]({% post_url 2026-05-30-mobilenet %})의 depthwise separable 합성곱과 [ResNet]({% post_url 2026-05-28-resnet %})의 bottleneck이 재료입니다.
+> - **논문**: Moonshine: Distilling with Cheap Convolutions
+> - **저자**: Elliot J. Crowley, Gavin Gray, Amos Storkey (University of Edinburgh)
+> - **학회**: NeurIPS 2018 · [코드](https://github.com/BayesWatch/pytorch-moonshine)
+{: .prompt-tip }
+
+> 메모리가 제한된 기기에 큰 네트워크를 올리려면 작은 학생을 증류해야 합니다. 보통 학생은 교사보다 **얇거나 얕은** 구조입니다. **Moonshine**은 다른 길을 제안합니다. 교사의 구조를 그대로 두고 **표준 합성곱 블록을 더 싼 블록으로 치환**하는 것입니다. 설계를 다시 할 필요가 없고 같은 하이퍼파라미터로 학습할 수 있으며, 같은 파라미터 예산에서 구조를 줄인 학생보다 정확했습니다. [MobileNet]({% post_url 2026-05-30-mobilenet %})의 depthwise separable 합성곱과 [ResNet]({% post_url 2026-05-28-resnet %})의 bottleneck이 재료입니다.
 
 ## 1. 문제: 학생을 어떻게 작게 만들 것인가
 
@@ -47,6 +52,9 @@ $$N_{in} \times k \times k$$ 필터 $$N_{out}$$개짜리 합성곱의 파라미�
 - **Grouped + Pointwise G(g)**: 채널을 $$g$$개 그룹으로 나눠 그룹 안에서만 섞으면 파라미터가 $$g$$분의 1이 되고, 뒤에 1×1 합성곱을 붙여 그룹 사이를 섞습니다. $$g = N$$이면 depthwise separable입니다.
 - **Bottleneck B(b)**: 1×1로 채널을 $$b$$분의 1로 줄인 뒤 합성곱하고 다시 늘립니다.
 - **BG(b, g)**: 둘을 합칩니다.
+
+![grouped 합성곱과 G, BG 블록](/assets/img/posts/moonshine/fig1.webp)
+_Figure 1. (a) grouped 합성곱은 채널을 g개 그룹으로 나눠 그룹마다 따로 필터를 돌리므로 파라미터가 g분의 1이 됩니다. (b) G(g) 블록은 k×k 합성곱을 grouped 합성곱 + 1×1 합성곱으로 바꾸고 이를 두 번 반복하며, BG(b, g)는 그 앞에 1×1 bottleneck을 둡니다. (출처: Crowley et al., 2018)_
 
 모든 합성곱 앞에 BN + ReLU가 오는 pre-activation이고, $$b$$와 $$g$$를 바꾸면 파라미터 수가 두 자릿수 범위에서 달라집니다. 희소화나 근사 층 같은 방법과 달리 **희소 구조를 저장할 필요가 없고** 어떤 프레임워크에서나 쉽게 구현됩니다.
 
@@ -92,11 +100,21 @@ BG(2,M)           16,960      16,960   0.058
 
 ## 5. CIFAR 실험
 
-교사는 WRN-40-2(S 블록, 2.24M 파라미터), 학생은 두 부류입니다. 구조를 줄인 WRN-16-2, 40-1, 16-1(S 블록)과, WRN-40-2 구조에 S-2×2(dilated 2×2 커널), G(g), B(b), BG(2, g)를 넣은 것입니다. 200 epoch, SGD, KD는 $$\alpha = 0.9$$, $$T = 4$$, AT는 $$\beta = 1000$$입니다.
+교사는 WRN-40-2(S 블록, 2.24M 파라미터), 학생은 두 부류입니다. 구조를 줄인 WRN-16-2, 40-1, 16-1(S 블록)과, WRN-40-2 구조에 S-2×2(dilated 2×2 커널), G(g), B(b), BG(2, g), BG(4, M)을 넣은 것입니다. AT는 conv2, conv3, conv4 세 그룹의 출력에 겁니다($$N_L = 3$$).
+
+| 항목 | 값 |
+|---|---|
+| 데이터 증강 | 4픽셀 zero padding 후 32×32 random crop, 좌우 반전(확률 0.5) |
+| 학습 | 200 epoch, batch 128, SGD momentum 0.9, lr 0.1, epoch 60·120·160에서 ×0.2 |
+| KD | $$\alpha = 0.9$$, $$T = 4$$ |
+| AT | $$\beta = 1000$$ |
 
 ### 같은 예산이면 싼 블록이 이긴다
 
-파라미터 대 오차 그래프(Figure 2)에서 **같은 구조에 싼 블록을 넣은 네트워크가 거의 모두 구조를 줄인 네트워크보다 아래**에 있습니다.
+아래 파라미터 대 오차 그래프(Figure 2)에서 **같은 구조에 싼 블록을 넣은 네트워크가 거의 모두 구조를 줄인 네트워크보다 아래**에 있습니다.
+
+![CIFAR-10 파라미터 대 오차](/assets/img/posts/moonshine/fig2.webp)
+_Figure 2(a). CIFAR-10에서 attention transfer로 학습한 학생들의 파라미터 수(로그 축) 대 테스트 오차. 빨강이 구조를 줄인 표준 블록 네트워크, 초록·파랑·하늘색이 WRN-40-2 구조에 G, B, BG 블록을 넣은 네트워크입니다. (출처: Crowley et al., 2018)_
 
 | 네트워크 | 파라미터(K) | MAdds(M) | CIFAR-10 Scr / KD / AT | CIFAR-100 Scr / KD / AT |
 |---|---|---|---|---|
@@ -122,11 +140,11 @@ BG(2,M)           16,960      16,960   0.058
 
 ### 증류는 필요하다
 
-모든 경우 AT로 학습한 학생이 처음부터 학습한(Scr) 학생보다 좋고, KD보다도 한 경우(40-2 G(N)의 CIFAR-100, 30.06 대 29.99)를 빼면 좋습니다. 싼 블록의 높은 성능은 **증류에서 나오는 것**이지 데이터로 직접 학습해서 얻을 수 있는 것이 아닙니다. MAdds 기준으로도 싼 블록 네트워크는 표준 블록보다 연산이 적어 대체로 더 빠르지만, 실제 속도는 메모리 페이징과 라이브러리에 따라 다르다고 단서를 답니다.
+모든 경우 AT로 학습한 학생이 처음부터 학습한(Scr) 학생보다 좋고, KD보다도 CIFAR-100의 두 경우(40-2 G(N) 30.06 대 29.99, 위 표에는 없는 40-2 BG(2,M/16) 29.05 대 28.69)를 빼면 좋습니다. 싼 블록의 높은 성능은 **증류에서 나오는 것**이지 데이터로 직접 학습해서 얻을 수 있는 것이 아닙니다. MAdds 기준으로도 싼 블록 네트워크는 표준 블록보다 연산이 적어 대체로 더 빠르지만, 실제 속도는 메모리 페이징과 라이브러리에 따라 다르다고 단서를 답니다.
 
 ## 6. ImageNet과 Cityscapes
 
-**ImageNet**: 사전학습 ResNet-34(21.8M)를 교사로 AT 증류. 네 그룹의 출력에 AT 손실, $$\beta = 750$$.
+**ImageNet**: 사전학습 ResNet-34(21.8M)를 교사로 AT 증류. 네 그룹의 출력에 AT 손실을 걸고, 그룹이 하나 늘어난 만큼 AT 항의 전체 기여가 CIFAR와 같도록 $$\beta = 750$$으로 둡니다. 100 epoch, SGD(momentum 0.9, weight decay 1e-4), lr 0.1에서 30 epoch마다 ×0.1, batch 256(GPU 4장)입니다. 교사 ResNet의 블록이 pre-activation이 아니어서 G 블록도 BN + ReLU를 합성곱 뒤에 두도록 바꿨습니다. Res18-0.5는 마지막 세 그룹의 채널을 절반으로 줄인 ResNet-18입니다.
 
 | 모델 | 파라미터 | MAdds | Scratch Top-1 / Top-5 | AT Top-1 / Top-5 |
 |---|---|---|---|---|
@@ -139,7 +157,14 @@ BG(2,M)           16,960      16,960   0.058
 - 약 3M 예산에서 Res34-G(N)의 Top-5 오차가 10.66%로 Res18-0.5(15.02%)보다 훨씬 낮습니다. Res18-0.5는 증류로 오히려 조금 나빠져 **표현력의 한계**에 닿은 것으로 보입니다.
 - Res34-G(4)는 처음부터 학습해도 교사와 같은 수준이고(1,300만 개 적은 파라미터로), 증류하면 Top-5에서 **교사를 넘습니다**(8.43 대 8.57). grouped 합성곱의 일반화 능력(Ioannou et al., 2017)이 다시 확인됩니다.
 
-**Cityscapes 분할**: ERFNet(2.06M, 3×1과 1×3 합성곱 쌍)의 블록을 G(N)으로 바꾼 ERFNet-G(N)(0.49M)은 처음부터 학습하면 IoU 65.29, 원래 ERFNet(70.59)을 교사로 AT 증류하면 68.11입니다. 같은 optimizer와 스케줄에 AT 항만 더했습니다.
+**Cityscapes 분할**: ERFNet(3×1과 1×3 합성곱 쌍)의 블록을 G(N)으로 바꾼 ERFNet-G(N)입니다.
+
+| 모델 | 파라미터 | MAdds | Scratch IoU | AT IoU |
+|---|---|---|---|---|
+| ERFNet (교사) | 2.06M | 3.73G | 70.59 | - |
+| ERFNet-G(N) | 0.49M | 1.19G | 65.29 | **68.11** |
+
+파라미터를 1/4로 줄이고 IoU 2.48 손실입니다. ERFNet 논문의 optimizer, 스케줄, 증강을 그대로 쓰고 AT 항만 더했습니다. encoder 학습에서는 7, 12, 16번 층 출력에 $$\beta = 1000$$, decoder 학습에서는 19, 22번 층을 더하고 $$\beta = 600$$입니다. 학습은 한 번, 튜닝 없이 돌린 결과라고 밝힙니다.
 
 ## 7. 해석
 
@@ -151,7 +176,7 @@ BG(2,M)           16,960      16,960   0.058
 
 **4. 증류 방법의 선택도 결과의 일부입니다.** 같은 학생에서 AT가 KD를 거의 언제나 이겼고, KD는 CIFAR-100의 작은 학생에서 처음부터 학습한 것보다 못한 경우도 있었습니다(16-1: 37.28 대 34.00). [DIST]({% post_url 2026-06-26-dist-kd %})가 지적한 "KL의 정확한 일치 요구"가 작은 학생에게 부담이 되는 현상과 맞닿아 있습니다.
 
-**5. 평가를 읽을 때 주의할 점.** CIFAR 결과는 단일 실행이고 분산을 보고하지 않습니다. 비교 대상인 "구조를 줄인 학생"은 WRN의 깊이·너비 조합 세 가지뿐이라 더 잘 설계된 작은 구조와의 비교는 아닙니다. MAdds와 실제 지연 시간의 관계는 측정하지 않았고, grouped 합성곱은 하드웨어에 따라 효율이 크게 다릅니다.
+**5. 평가를 읽을 때 주의할 점.** CIFAR 결과는 반복 횟수와 분산을 보고하지 않아, 0.1%p 단위 차이는 실행 간 편차 안에 있을 수 있습니다. 비교 대상인 "구조를 줄인 학생"은 WRN의 깊이·너비 조합 세 가지뿐이라 더 잘 설계된 작은 구조와의 비교는 아닙니다. MAdds와 실제 지연 시간의 관계는 측정하지 않았고, grouped 합성곱은 하드웨어에 따라 효율이 크게 다릅니다.
 
 ## 8. 정리
 

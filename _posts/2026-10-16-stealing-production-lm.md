@@ -3,11 +3,16 @@ title: "[LLM] Stealing Part of a Production Language Model: API 질의만으로 
 date: 2026-10-16 15:45:00 +0900
 categories: [Transformer, LLM]
 tags: [llm, model-stealing, model-extraction, security, svd, logit-bias, logprobs, embedding-projection, openai-api]
-description: 블랙박스 API의 logprob과 logit bias만으로 Transformer의 마지막 embedding projection 층과 숨은 차원을 복원한 Stealing Part of a Production Language Model(Carlini et al., 2024)의 SVD 기반 공격, 제한된 API를 우회하는 기법, 비용과 방어책을 정리하고 작은 모델로 공격 원리를 재현합니다.
+description: "Stealing Part of a Production Language Model(ICML 2024) 논문 리뷰. 블랙박스 API의 logprob과 logit bias만으로 Transformer의 마지막 embedding projection 층과 숨은 차원을 복원하는 SVD 기반 공격, 제한된 API 우회 기법, OpenAI 모델 공격 비용과 방어책을 그림과 함께 정리하고 작은 모델로 공격 원리를 재현합니다."
 math: true
 ---
 
-> GPT-4나 PaLM-2의 기술 보고서는 모델 크기조차 공개하지 않습니다. 그런데 모델은 API로 노출되어 있습니다. **Stealing Part of a Production Language Model**(Carlini et al., Google DeepMind·ETH Zurich 등, 2024)은 API 질의만으로 **마지막 층(embedding projection)을 대칭성을 제외하고 통째로** 복원하는 첫 공격을 제시했습니다. 20달러 미만으로 OpenAI의 ada와 babbage의 projection 행렬 전체를 뽑아 숨은 차원이 각각 1024와 2048임을 확인했고, gpt-3.5-turbo의 숨은 차원도 알아냈습니다. 책임 있는 공개 절차를 거쳐 OpenAI와 Google은 API를 수정했습니다.
+> - **논문**: Stealing Part of a Production Language Model
+> - **저자**: Nicholas Carlini, Daniel Paleka, Krishnamurthy (Dj) Dvijotham, Thomas Steinke, Jonathan Hayase, A. Feder Cooper, Katherine Lee, Matthew Jagielski, Milad Nasr, Arthur Conmy, Eric Wallace, David Rolnick, Florian Tramèr (Google DeepMind, ETH Zurich, University of Washington, OpenAI, McGill University)
+> - **학회**: ICML 2024 · [arXiv:2403.06634](https://arxiv.org/abs/2403.06634)
+{: .prompt-tip }
+
+> GPT-4나 PaLM-2의 기술 보고서는 모델 크기조차 공개하지 않습니다. 그런데 모델은 API로 노출되어 있습니다. **Stealing Part of a Production Language Model**은 API 질의만으로 **마지막 층(embedding projection)을 대칭성을 제외하고 통째로** 복원하는 첫 공격을 제시했습니다. 20달러 미만으로 OpenAI의 ada와 babbage의 projection 행렬 전체를 뽑아 숨은 차원이 각각 1024와 2048임을 확인했고, gpt-3.5-turbo의 숨은 차원도 알아냈습니다. 책임 있는 공개 절차를 거쳐 OpenAI와 Google은 API를 수정했습니다.
 
 ## 1. 문제 설정
 
@@ -40,6 +45,16 @@ Q = W \cdot H \quad \Rightarrow \quad \text{rank}(Q) \le h
 $$
 
 $$H$$는 $$g_\theta(p_i)$$를 열로 쌓은 $$h \times n$$ 행렬이고, $$H$$와 $$W$$가 모두 rank $$h$$이면 등호가 성립합니다. 실수가 아니라 부동소수점(16비트, 8비트까지도)으로 계산하므로 rank를 그대로 세지 않고, 특잇값을 정렬해 **연속한 특잇값 사이의 곱셈 낙차 $$\lambda_i / \lambda_{i+1}$$가 가장 큰 자리**를 찾습니다. 진짜 특잇값에서 수치 오차에 의한 특잇값으로 넘어가는 지점입니다.
+
+![질의 수에 따른 특잇값](/assets/img/posts/stealing-production-lm/fig1.webp)
+_Figure 1. Pythia-1.4B에 질의 수를 늘려 가며 쌓은 logit 행렬의 특잇값. 질의가 2048개를 넘으면 의미 있는 특잇값의 개수가 2048(점선)에서 멈추고, 그 뒤 특잇값은 크기가 뚝 떨어집니다. (출처: Carlini et al., 2024)_
+
+아래 Figure 2처럼 이웃한 특잇값 사이의 (로그) 차이를 그리면 이 지점이 뾰족한 스파이크로 드러납니다.
+
+![연속한 특잇값 차이의 스파이크](/assets/img/posts/stealing-production-lm/fig2.webp)
+_Figure 2. 연속한 특잇값 사이의 차이. 2048차원 모델인 Pythia-1.4B에서 스파이크가 2047번째 특잇값에 생깁니다. (출처: Carlini et al., 2024)_
+
+여섯 개 공개 모델에 적용한 결과(Table 2)는 다음과 같습니다.
 
 | 모델 | 숨은 차원 | 복원값 | $$W$$ RMS |
 |---|---|---|---|
@@ -102,7 +117,7 @@ logprob 하나에 질의 1회지만 수치적으로 훨씬 불안정합니다.
 
 - **이진 탐색**: 토큰 $$i$$가 top-1이 되는 최소 bias를 이진 탐색으로 찾으면 $$z_i - z_0$$을 $$\varepsilon$$ 정밀도로 $$\log(B/\varepsilon)$$번의 질의에 얻습니다.
 - **Hyperrectangle**: 여러 토큰에 동시에 bias를 걸고, 토큰 $$k$$가 나왔다는 사실에서 모든 $$j$$에 대해 $$z_k + b_k \ge z_j + b_j$$라는 선형 제약을 모읍니다. 매 라운드 각 $$z_i - z_0$$의 최소·최대를 선형 계획으로 좁히는데, 이 LP는 가중 그래프의 **all-pairs shortest path**로 바꿀 수 있어 Bellman-Ford로 $$O(N^3)$$에 풉니다.
-- **균형 잡힌 질의**: 구간 중앙으로 bias를 주면 구간이 넓은 토큰만 자꾸 뽑혀 좁은 토큰에 대한 제약이 모이지 않습니다. 균일 사전분포 아래 각 토큰이 $$1/(N+1)$$ 확률로 나오도록 $$b_i = -(1 - c)\alpha_i - c\beta_i$$, $$c = \exp(-\log(N+1)/N)$$로 bias를 걸면 크게 좋아집니다.
+- **균형 잡힌 질의**: 구간 중앙으로 bias를 주면 구간이 넓은 토큰만 자꾸 뽑혀 좁은 토큰에 대한 제약이 모이지 않습니다. 균일 사전분포 아래 구간이 가장 좁은 0번 토큰(원래 top-1)이 정확히 $$1/(N+1)$$ 확률로 나오도록 $$b_i = -(1 - c)\alpha_i - c\beta_i$$, $$c = \exp(-\log(N+1)/N)$$로 bias를 걸면 크게 좋아집니다.
 
 | 공격 | logprob | 정밀도(bit) | logit당 질의 |
 |---|---|---|---|
@@ -183,16 +198,16 @@ logit 벡터 복원: 질의 500회, 최대 오차 5.7e-06
 
 2024년 1월 1일 기준 OpenAI 모델 5개에 사전 허가를 받고 가장 효율적이고 정밀한 logprob-4 공격을 돌렸습니다.
 
-| 모델 | 크기 | 차원 복원 질의 | 비용 | 가중치 복원 질의 | 비용 |
-|---|---|---|---|---|---|
-| ada | 1024 ✓ | < $$2 \cdot 10^6$$ | $1 | < $$2 \cdot 10^7$$ | $4 |
-| babbage | 2048 ✓ | < $$4 \cdot 10^6$$ | $2 | < $$4 \cdot 10^7$$ | $12 |
-| babbage-002 | 1536 ✓ | < $$4 \cdot 10^6$$ | $2 | (미실행) | $12 |
-| gpt-3.5-turbo-instruct | 비공개 ✓ | < $$4 \cdot 10^7$$ | $200 | (미실행, 추정) | $2,000 |
-| gpt-3.5-turbo-1106 | 비공개 ✓ | < $$4 \cdot 10^7$$ | $800 | (미실행, 추정) | $8,000 |
+| 모델 | 크기 | 차원 복원 질의 | 비용 | 가중치 RMS | 가중치 복원 질의 | 비용 |
+|---|---|---|---|---|---|---|
+| ada | 1024 ✓ | < $$2 \cdot 10^6$$ | $1 | $$5 \cdot 10^{-4}$$ | < $$2 \cdot 10^7$$ | $4 |
+| babbage | 2048 ✓ | < $$4 \cdot 10^6$$ | $2 | $$7 \cdot 10^{-4}$$ | < $$4 \cdot 10^7$$ | $12 |
+| babbage-002 | 1536 ✓ | < $$4 \cdot 10^6$$ | $2 | (미실행) | < $$4 \cdot 10^6$$ (추정) | $12 (추정) |
+| gpt-3.5-turbo-instruct | 비공개 ✓ | < $$4 \cdot 10^7$$ | $200 | (미실행) | < $$4 \cdot 10^8$$ (추정) | $2,000 (추정) |
+| gpt-3.5-turbo-1106 | 비공개 ✓ | < $$4 \cdot 10^7$$ | $800 | (미실행) | < $$4 \cdot 10^8$$ (추정) | $8,000 (추정) |
 
 - 복원한 크기는 모두 OpenAI가 확인한 실제 크기와 **정확히 일치**했습니다. 앞의 세 모델은 이미 폐기되어 공개했고, gpt-3.5-turbo의 크기는 OpenAI의 요청으로 비공개입니다.
-- 가중치 복원 오차는 $$h \times h$$ 변환을 제외하고 $$7 \cdot 10^{-4}$$ 미만입니다. gpt-3.5는 가중치 보호를 위해 전체 복원은 하지 않고 비용만 추정했습니다.
+- 가중치 복원 오차는 $$h \times h$$ 변환을 제외하고 $$7 \cdot 10^{-4}$$ 미만입니다. ada는 $$5 \cdot 10^{-4}$$, babbage는 $$7 \cdot 10^{-4}$$입니다. babbage-002와 gpt-3.5는 가중치 보호를 위해 전체 복원은 하지 않고, 모델 크기와 추정 배율로 비용만 계산했습니다.
 - 모든 데이터는 OpenAI와 효과를 확인한 뒤 삭제했습니다.
 
 ## 7. 방어
@@ -213,7 +228,7 @@ logit 벡터 복원: 질의 500회, 최대 오차 5.7e-06
 
 ## 8. 해석
 
-**1. "한 층만"이지만 "프로덕션 모델에서 처음"입니다.** 논문 스스로 이 층을 훔쳐서 당장 할 수 있는 일은 많지 않다고 말합니다. 중요한 것은 배포된 Transformer의 **정확한 정보가 처음으로 훔쳐졌다**는 존재 증명이고, 숨은 차원은 전체 파라미터 수와 상관이 있어 모델 간 상대적 크기를 드러냅니다. 기존 공격이 100뉴런 ReLU 망에서 전체를 훔치는 "all-or-nothing"이었다면, 이 논문은 **부분 정보를 훔치는 것이 훨씬 실용적**임을 보였습니다.
+**1. "한 층만"이지만 "프로덕션 모델에서 처음"입니다.** 논문 스스로 이 층을 훔쳐서 당장 할 수 있는 일은 많지 않다고 말합니다. 중요한 것은 배포된 Transformer의 **정확한 정보가 처음으로 훔쳐졌다**는 존재 증명이고, 숨은 차원은 전체 파라미터 수와 상관이 있어 모델 간 상대적 크기를 드러냅니다. 기존 공격이 작은 ReLU 망에서만 전체를 훔치는 "all-or-nothing"이었다면, 이 논문은 **부분 정보를 훔치는 것이 훨씬 실용적**임을 보였습니다.
 
 **2. 공격의 뿌리는 선형대수 한 줄입니다.** $$h \ll l$$이면 logit은 $$h$$차원 부분공간에 갇히고, 그 부분공간은 SVD로 읽힙니다. 위 예제에서 192번의 질의로 128이라는 숫자가 튀어나온 것이 전부입니다. 나머지는 제한된 API에서 logit 벡터를 어떻게든 복원하는 공학이고, 그 공학은 "softmax는 덧셈 이동에 불변"이라는 성질을 반복해서 씁니다.
 

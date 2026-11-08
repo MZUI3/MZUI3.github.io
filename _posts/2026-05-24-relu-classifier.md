@@ -1,13 +1,18 @@
 ---
-title: "[Deep Learning] Deep Learning using ReLU: 소프트맥스 대신 ReLU를 분류층에 쓰면 어떻게 되는가"
+title: "[Deep Learning] Deep Learning using Rectified Linear Units (ReLU): 소프트맥스 대신 ReLU를 분류층에 쓰면 어떻게 되는가"
 date: 2026-05-24 09:53:00 +0900
 categories: [Deep Learning, Fundamentals]
 tags: [relu, softmax, classification-layer, cross-entropy, dying-relu, mnist, fashion-mnist, agarap]
-description: Agarap(2018)이 신경망의 마지막 분류층을 소프트맥스 대신 ReLU로 바꾸고 MNIST, Fashion-MNIST, WDBC에서 비교한 짧은 실험 보고서를 정리합니다. 제안의 내용, 결과(FFNN에서는 대등, CNN과 WDBC에서는 느린 수렴과 낮은 정확도), 저자가 든 죽은 ReLU 설명을 다루고, 작은 실험으로 ReLU 분류층의 손실이 왜 학습을 방해하는지 확인합니다. 결론은 이 아이디어를 쓰지 말아야 할 이유에 가깝습니다.
+description: "Deep Learning using Rectified Linear Units (ReLU)(arXiv 2018) 논문 리뷰. 신경망의 마지막 분류층을 소프트맥스 대신 ReLU로 바꾸고 MNIST, Fashion-MNIST, WDBC에서 비교한 짧은 실험 보고서를 실험 수치, 폴드별 수렴 기록, 구현 설정과 함께 정리합니다. FFNN에서는 대등, CNN과 WDBC에서는 느린 수렴과 낮은 정확도라는 결과와 죽은 ReLU 설명을 다루고, 작은 실험으로 ReLU 분류층의 손실이 왜 학습을 방해하는지 확인합니다."
 math: true
 ---
 
-> [활성 함수]({% post_url 2026-05-13-activation-functions %}) 글에서 ReLU는 은닉층의 표준이고, 분류는 소프트맥스 + 교차 엔트로피가 표준이라고 정리했습니다. **Deep Learning using Rectified Linear Units**(Agarap, 2018, arXiv)는 "ReLU를 분류층에도 쓰면 어떨까"를 실험한 짧은 보고서입니다. SVM을 분류층에 쓴 Tang(2013)이나 GRU-SVM 같은 선행 연구의 연장선에 있습니다. 결과는 썩 좋지 않습니다. 완전 연결망에서는 소프트맥스와 비슷하지만 CNN과 WDBC에서는 수렴이 느리고 정확도가 낮으며, 저자 스스로 죽은 뉴런 문제를 원인으로 듭니다. 이 글은 그 내용을 정리하되, **왜** 이 설계가 원리적으로 불리한지를 짧은 실험으로 보충합니다. 널리 인용되는 논문은 아니지만, "분류층은 왜 소프트맥스인가"를 되짚기에 좋은 반면교사입니다.
+> - **논문**: Deep Learning using Rectified Linear Units (ReLU)
+> - **저자**: Abien Fred M. Agarap
+> - **학회**: arXiv preprint 2018 · [arXiv:1803.08375](https://arxiv.org/abs/1803.08375) · [코드](https://github.com/AFAgarap/relu-classifier)
+{: .prompt-tip }
+
+> [활성 함수]({% post_url 2026-05-13-activation-functions %}) 글에서 ReLU는 은닉층의 표준이고, 분류는 소프트맥스 + 교차 엔트로피가 표준이라고 정리했습니다. **Deep Learning using Rectified Linear Units**는 "ReLU를 분류층에도 쓰면 어떨까"를 실험한 짧은 보고서입니다. SVM을 분류층에 쓴 Tang(2013)이나 GRU-SVM 같은 선행 연구의 연장선에 있습니다. 결과는 썩 좋지 않습니다. 완전 연결망에서는 소프트맥스와 비슷하지만 CNN과 WDBC에서는 수렴이 느리고 정확도가 낮으며, 저자 스스로 죽은 뉴런 문제를 원인으로 듭니다. 이 글은 그 내용을 정리하되, **왜** 이 설계가 원리적으로 불리한지를 짧은 실험으로 보충합니다. 널리 인용되는 논문은 아니지만, "분류층은 왜 소프트맥스인가"를 되짚기에 좋은 반면교사입니다.
 
 ## 1. 제안
 
@@ -27,7 +32,18 @@ $$
 
 ## 2. 실험
 
-두 구조입니다. **FFNN**은 512-512(드롭아웃) 두 은닉층, **CNN**은 Keras의 VGG형(conv 32×2, pool, conv 64×2, pool, dense 256)이고, 마지막 dense 층만 소프트맥스 또는 ReLU입니다. WDBC(유방암 진단, 30특징 569개)는 64-32 FFNN입니다. 지표는 10겹 교차검증 정확도, 테스트 정확도, 정밀도/재현율/F1, 혼동 행렬입니다.
+두 구조입니다. **FFNN**은 본문에서 "은닉층 2개"라고 하지만 논문 Table 2에는 512유닛 Dense 층이 3개(각각 드롭아웃) 있습니다. **CNN**은 Keras의 VGG형(conv 32×2, pool, conv 64×2, pool, dense 256)이고, 마지막 dense 층만 소프트맥스 또는 ReLU입니다. WDBC(유방암 진단, 30특징 569개, 악성 212·양성 357)는 64-32 FFNN이고 PCA 없이 표준화만 합니다. 지표는 10겹 교차검증 정확도, 테스트 정확도, 정밀도/재현율/F1, 혼동 행렬입니다.
+
+| 항목 | 설정 |
+|---|---|
+| 구현 | Keras + TensorFlow, scikit-learn(StandardScaler, PCA) |
+| 입력 | MNIST·Fashion-MNIST: 표준화 후 PCA 784 → 256(16×16), WDBC: 표준화만 |
+| CNN | Keras 예제의 VGG형: conv 32, conv 32, pool, dropout, conv 64, conv 64, pool, dropout, dense 256, dropout, dense 10 |
+| FFNN | Dense 512 × 3(각각 dropout) + dense 10. WDBC는 64-32 |
+| Optimizer | Adam, lr 1e-3, $$\beta_1 = 0.9$$, $$\beta_2 = 0.999$$, $$\epsilon = 10^{-8}$$, decay 없음. 소프트맥스·ReLU 모델은 같은 하이퍼파라미터 |
+| 하드웨어 | 노트북 1대(Core i5-6300HQ, RAM 16GB, GTX 960M 4GB) |
+
+에폭 수와 배치 크기는 논문에 없고 저장소의 노트북에만 있습니다.
 
 | 데이터 / 모델 | 소프트맥스 CV / 테스트 | ReLU CV / 테스트 | F1 |
 |---|---|---|---|
@@ -37,7 +53,13 @@ $$
 | Fashion-MNIST CNN | 91.96% / 86.08% | 83.24% / 85.84% | 0.86 / 0.86 |
 | WDBC FFNN | 91.21% / 92.40% | 87.96% / 90.64% | 0.92 / 0.90 |
 
-**FFNN**에서는 테스트 정확도가 0.2~0.3%p 낮지만 F1이 같아 저자는 "대등"이라고 봅니다. 혼동 행렬도 클래스별로 엎치락뒤치락합니다. **CNN**에서는 ReLU 분류층이 **수렴이 훨씬 느립니다.** MNIST CNN의 10겹 학습 정확도는 1겹 33%에서 10겹 92%로 서서히 오르고(소프트맥스는 처음부터 높음), 교차검증 평균이 73.5%에 그칩니다. 테스트 정확도는 91.7%로 소프트맥스보다 약 4%p 낮습니다. Fashion-MNIST CNN도 같은 패턴이고 격차는 작습니다. **WDBC**에서도 ReLU가 느리게 수렴하고 1.8%p 낮으며, 소프트맥스는 거짓 음성이, ReLU는 거짓 양성이 더 많습니다.
+**FFNN**에서는 테스트 정확도가 0.2~0.3%p 낮지만 F1이 같아 저자는 "대등"이라고 봅니다. 혼동 행렬도 클래스별로 엎치락뒤치락합니다. **CNN**에서는 ReLU 분류층이 **수렴이 훨씬 느립니다.** MNIST CNN의 10겹 학습 정확도는 1겹 33%에서 10겹 92%로 서서히 오르고(소프트맥스의 폴드별 값은 보고되지 않았고 평균만 97.2%), 교차검증 평균이 73.5%에 그칩니다. 테스트 정확도는 91.7%로 소프트맥스보다 3.6%p 낮습니다(논문은 "약 4%"로 적음).
+
+| 폴드 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| MNIST CNN-ReLU 학습 정확도 | 0.330 | 0.509 | 0.594 | 0.750 | 0.704 | 0.873 | 0.860 | 0.903 | 0.913 | 0.917 |
+| MNIST CNN-ReLU 손실 | 1.906 | 1.432 | 1.363 | 0.826 | 1.222 | 0.451 | 0.491 | 0.345 | 0.302 | 0.280 |
+| Fashion CNN-ReLU 학습 정확도 | 0.731 | 0.782 | 0.813 | 0.839 | 0.841 | 0.850 | 0.856 | 0.868 | 0.864 | 0.880 | Fashion-MNIST CNN도 같은 패턴이고 격차는 작습니다. **WDBC**에서도 ReLU가 느리게 수렴하고 1.8%p 낮으며(F1 차이는 0.02인데 본문에는 "0.2"로 적혀 있습니다), 소프트맥스는 거짓 음성이, ReLU는 거짓 양성이 더 많습니다.
 
 저자의 결론은 "불리한 결과는 아마 **죽은 ReLU** 때문"이라는 것입니다. 기울기가 뉴런을 통해 흐르지 않아 뉴런이 멈추고, 학습이 방해받는다는 설명이고, PELU 같은 ReLU 변형으로 해결될 수 있다고 봅니다. 그러면서도 "DL-ReLU 모델은 여전히 소프트맥스 기반과 비교할 만하거나 더 낫다"고 적는데, 표의 수치가 이를 뒷받침하지는 않습니다.
 

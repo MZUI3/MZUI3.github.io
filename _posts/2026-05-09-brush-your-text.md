@@ -1,13 +1,18 @@
 ---
-title: "[Generative] Brush Your Text(Diff-Text): 학습 없이 어떤 언어의 장면 텍스트든 합성하기"
+title: "[Generative] Diff-Text(Brush Your Text: Synthesize Any Scene Text on Images via Diffusion Model): 학습 없이 어떤 언어든 장면 텍스트 합성"
 date: 2026-05-09 20:05:00 +0900
 categories: [Generative, Diffusion]
 tags: [diffusion, stable-diffusion, controlnet, scene-text, training-free, cross-attention, classifier-free-guidance, multilingual, text-rendering]
-description: Diff-Text(Zhang et al., AAAI 2024)가 렌더링한 텍스트 스케치의 에지를 ControlNet 조건으로 쓰고, 'sign'·'billboard' 같은 토큰의 cross-attention을 텍스트 상자 안으로 제한하는 localized attention constraint와 양·음의 이미지 수준 프롬프트로 가이던스를 확장해, 추가 학습 없이 아랍어·태국어·러시아어 장면 텍스트의 OCR 정확도를 약 30%p 올린 방법을 정리합니다. 작은 실험으로 attention 제한과 가이던스 식의 구조를 확인합니다.
+description: "Brush Your Text: Synthesize Any Scene Text on Images via Diffusion Model(AAAI 2024) 논문 리뷰. 렌더링한 텍스트 스케치의 에지를 ControlNet 조건으로 쓰고, 'sign'·'billboard' 같은 토큰의 cross-attention을 글자 상자 안으로 제한하며 양·음의 이미지 수준 프롬프트로 가이던스를 확장해, 추가 학습 없이 아랍어·태국어·러시아어 장면 텍스트의 OCR 정확도를 약 30%p 올린 Diff-Text를 그림, 실험·ablation 수치, 구현 설정과 함께 정리합니다."
 math: true
 ---
 
-> [GlyphDraw]({% post_url 2026-05-06-glyphdraw %})는 글리프 조건을 **학습**시켜 글자를 쓰게 했습니다. 하지만 아랍어, 태국어, 카자흐어처럼 데이터가 적은 수천 개의 언어마다 수십만 장을 모아 학습할 수는 없습니다. **Diff-Text**(Brush Your Text, Zhang, Chen, Wang, Lu, Qiao, East China Normal University·Shanghai AI Lab, AAAI 2024)는 **학습이 전혀 없는** 틀입니다. 글자를 스케치로 렌더링해 Canny 에지를 뽑고 기존 ControlNet에 넣되, 에지가 "이상한 무늬"가 아니라 "표지판 위의 글자"로 해석되도록 cross-attention과 가이던스를 추론 때만 조작합니다. 다섯 언어에서 OCR 정확도가 기존 방법 대비 평균 25%p 올랐습니다.
+> - **논문**: Brush Your Text: Synthesize Any Scene Text on Images via Diffusion Model
+> - **저자**: Lingjun Zhang, Xinyuan Chen, Yaohui Wang, Yue Lu, Yu Qiao (East China Normal University, Shanghai AI Laboratory)
+> - **학회**: AAAI 2024 · [arXiv:2312.12232](https://arxiv.org/abs/2312.12232) · [코드](https://github.com/ecnuljzhang/brush-your-text)
+{: .prompt-tip }
+
+> [GlyphDraw]({% post_url 2026-05-06-glyphdraw %})는 글리프 조건을 **학습**시켜 글자를 쓰게 했습니다. 하지만 아랍어, 태국어, 카자흐어처럼 데이터가 적은 수천 개의 언어마다 수십만 장을 모아 학습할 수는 없습니다. **Diff-Text**(논문 제목은 Brush Your Text)는 **학습이 전혀 없는** 틀입니다. 글자를 스케치로 렌더링해 Canny 에지를 뽑고 기존 ControlNet에 넣되, 에지가 "이상한 무늬"가 아니라 "표지판 위의 글자"로 해석되도록 cross-attention과 가이던스를 추론 때만 조작합니다. 다섯 언어에서 OCR 정확도가 기존 방법 대비 평균 25%p 올랐습니다.
 
 ## 1. 문제: 에지는 글자로 읽히지 않는다
 
@@ -22,6 +27,9 @@ Prompt-to-Prompt의 관찰처럼, 프롬프트의 단어가 이미지의 **어�
 
 ### 전처리와 전체 흐름
 
+![Diff-Text 전체 구조](/assets/img/posts/brush-your-text/fig2.webp)
+_Figure 2. 왼쪽: 입력 텍스트를 스케치로 렌더링하고 에지를 뽑아 ControlNet(control branch)에 넣고, 장면 프롬프트는 U-Net branch로 넣습니다. 오른쪽: U-Net 블록의 cross-attention에서 "sign" 토큰의 attention 맵을 글자 상자 마스크로 제한하는 과정. (출처: Zhang et al., 2024)_
+
 입력 텍스트 $$I_{text}$$를 무작위 폰트로 흰 바탕에 검은 글자 스케치 $$I_s$$로 렌더링하고(위치는 사용자가 주거나 무작위), Canny로 에지 이미지 $$I_e$$를 만들어 ControlNet 분기에 넣습니다. 장면 설명 프롬프트 $$I_{prompt}$$는 텍스트 인코더로 UNet 분기에 들어갑니다. 모델은 runwayml/stable-diffusion-v1-5와 lllyasviel/sd-controlnet-canny 그대로이고, 512×512 출력입니다.
 
 ### Localized attention constraint
@@ -32,13 +40,16 @@ $$
 M_t^{*} = \{\lambda \cdot M_t^{i} \odot m_{bbx} \mid i \in I\}, \qquad \lambda = 6.0
 $$
 
+![Localized attention constraint](/assets/img/posts/brush-your-text/fig3.webp)
+_Figure 3. "sign" 토큰의 attention 맵 $$M_t^i$$에 글자 상자 마스크 $$m_{bbx}$$를 원소별로 곱해 새 맵으로 바꿔 끼웁니다(swap). (출처: Zhang et al., 2024)_
+
 즉 "sign" 토큰은 **글자 상자 안에서만, 더 강하게** attention하도록 강제합니다. 그러면 표지판이 글자 자리에 생기고, 글자가 그 위에 얹혀 배경과 자연스럽게 섞입니다. UNet 분기와 ControlNet 분기 모두에 적용합니다.
 
 ### Contrastive image-level prompts
 
 attention 제한은 **글자를 받칠 물체가 생성될 때만** 작동합니다. "sign" 토큰의 attention이 0에 가까우면 아무 효과가 없습니다. 그래서 이미지 수준 조건에도 양·음의 방향을 줍니다.
 
-- **양의 프롬프트(PIP)** $$I'_e$$: 원래 에지 이미지에 글자 상자의 테두리를 그려 넣은 것. 네트워크에 "여기 사각형 물체가 있다"는 힌트를 줘서 표지판류를 유도합니다.
+- **양의 프롬프트(PIP)** $$I'_e$$: 원래 에지 이미지에 글자 상자의 테두리(폭 1픽셀)를 그려 넣은 것. 네트워크에 "여기 사각형 물체가 있다"는 힌트를 줘서 표지판류를 유도합니다.
 - **음의 프롬프트(NIP)** $$\varnothing$$: 완전히 흰 스케치. 에지 조건이 없는 예측을 기준점으로 삼아 에지 방향을 강조합니다.
 
 가이던스 식은 classifier-free guidance를 확장한 형태입니다.
@@ -50,7 +61,19 @@ $$
 \end{aligned}
 $$
 
-$$s_{cfg} = 7.5$$, $$s_{neg} = 2.0$$, $$s_{pos} = 0.1$$입니다. $$s_{pos}$$는 배경에 표지판이 나타나는 강도를, $$s_{neg}$$는 글자의 선명도를 조절합니다.
+$$s_{cfg} = 7.5$$, $$s_{neg} = 2.0$$, $$s_{pos} = 0.1$$입니다. $$s_{pos}$$는 배경에 표지판이 나타나는 강도를, $$s_{neg}$$는 글자의 선명도를 조절합니다. 부록은 이 식을 베이즈 정리로 $$\nabla \log P(z_t) + \nabla \log P(I_{prompt} \mid z_t) + \nabla \log P(I_e \mid z_t, I_{prompt})$$로 나눈 두 조건 CFG로 설명합니다.
+
+### 구현 디테일
+
+| 항목 | 값 |
+|---|---|
+| 프레임워크 | Hugging Face Diffusers |
+| 사전학습 모델 | `runwayml/stable-diffusion-v1-5`, `lllyasviel/sd-controlnet-canny` (추가 학습 없음) |
+| 출력 해상도 | 512×512, 추론은 A100 1장 |
+| Attention 제한 | UNet 분기와 ControlNet 분기 모두, $$\lambda = 6.0$$ |
+| 가이던스 | $$s_{cfg} = 7.5$$, $$s_{neg} = 2.0$$, $$s_{pos} = 0.1$$ |
+| 단어 목록 | sign, billboard, label, promotions, notice, marquee, board, blackboard, slogan, whiteboard, logo |
+| 비교 모델 설정 | SD·ControlNet은 50 step, CFG 7.5(ControlNet control scale 1.0), DeepFloyd는 기본 3단 캐스케이드(1024×1024), TextDiffuser는 template 모드에 같은 스케치 입력 |
 
 ## 3. 코드로 보기: attention 제한과 가이던스 식
 
@@ -111,7 +134,7 @@ weights sum to 1.0 -> the estimate stays on the noise scale
 
 ## 4. 실험
 
-다국어 어휘에서 5자 이상 단어를 언어별 3,000개 뽑고 ChatGPT로 프롬프트를 만들어 15,000장씩 생성합니다. 지표는 CLIPScore(프롬프트 일치), OCR 정확도(easy-OCR, 단어 단위 일치), 정규화 편집 거리 기반 정확도입니다.
+공개된 다국어 벤치마크가 없어서, 다국어 어휘에서 5자 이상 단어를 언어별 3,000개 뽑고 ChatGPT로 프롬프트를 만들어 방법마다 15,000장(5개 언어 × 3,000)을 생성합니다. 지표는 CLIPScore(프롬프트에 "that reads 'xxx'"를 붙여 계산), OCR 정확도(easy-OCR, 단어 단위 일치), 정규화 편집 거리 $$1 - D(s, \tilde s)/\max(\lvert s \rvert, \lvert \tilde s \rvert)$$ 기반 정확도입니다.
 
 | 언어 | 지표 | Stable Diffusion | DeepFloyd | TextDiffuser | ControlNet | Diff-Text |
 |---|---|---|---|---|---|---|
@@ -121,10 +144,31 @@ weights sum to 1.0 -> the estimate stays on the noise scale
 | 영어 | 정확도 / 편집 정확도 | 0.08 / 32.75 | 16.67 / 66.20 | 43.91 / 84.84 | 12.88 / 40.04 | **61.03 / 89.52** |
 | 중국어 | 정확도 / 편집 정확도 | 0.00 / 3.89 | 0.00 / 6.83 | 0.00 / 9.60 | 5.88 / 26.81 | **32.40 / 68.75** |
 
-- 소수 언어에서 SD, DeepFloyd, TextDiffuser(영어 학습)는 정확도 0%입니다. 같은 사전학습 모델을 쓰는 ControlNet도 3~10%인데, 추론만 바꾼 Diff-Text가 **33~39%**로 올립니다. 에지 조건이 있었어도 "글자로 해석"되지 않았던 것이 문제였음을 보여 줍니다.
-- 영어에서는 전용 학습 모델 TextDiffuser(43.9%)보다 높은 61.0%이고, CLIPScore도 모든 언어에서 1~2위라 배경 품질을 잃지 않습니다.
+| CLIPScore ↑ | SD | DeepFloyd | TextDiffuser | ControlNet | Diff-Text |
+|---|---|---|---|---|---|
+| 아랍어 | 0.7961 | 0.7335 | 0.8084 | 0.8067 | **0.8138** |
+| 태국어 | 0.7733 | 0.7926 | 0.7873 | 0.8059 | **0.8164** |
+| 러시아어 | 0.7948 | 0.8201 | 0.8335 | 0.8306 | **0.8632** |
+| 영어 | 0.7879 | 0.8658 | **0.8666** | 0.7334 | 0.8649 |
+| 중국어 | 0.8265 | 0.8347 | 0.8201 | 0.8312 | **0.8351** |
+
+![러시아어·태국어·아랍어 비교](/assets/img/posts/brush-your-text/fig5.webp)
+_Figure 5. 러시아어(왼쪽 두 열), 태국어(가운데), 아랍어(오른쪽)에서 SD, DeepFloyd, TextDiffuser, ControlNet, Diff-Text(맨 아래) 비교. (출처: Zhang et al., 2024)_
+
+- 소수 언어에서 SD, DeepFloyd, TextDiffuser(영어 학습)는 정확도 0~1.4%입니다. 같은 사전학습 모델을 쓰는 ControlNet도 3~10%인데, 추론만 바꾼 Diff-Text가 **33~39%**로 올립니다. 에지 조건이 있었어도 "글자로 해석"되지 않았던 것이 문제였음을 보여 줍니다.
+- 영어에서는 전용 학습 모델 TextDiffuser(43.9%)보다 높은 61.0%입니다. CLIPScore는 영어에서만 3위(1위 TextDiffuser와 0.0017 차)이고 나머지 네 언어는 1위라 배경 품질을 잃지 않습니다.
 - 정성 비교에서 SD와 DeepFloyd는 영어도 단어를 여러 번 반복하거나 철자를 틀리고, ControlNet은 글자를 허공에 띄웁니다.
-- Ablation의 attention 히트맵은 제한 없이 "sign" 토큰이 흩어지던 것이 제한 후 글자 상자에 모이는 것을 보여 주고, $$s_{pos}$$를 키우면 표지판이 더 자주, $$s_{neg}$$를 키우면 글자가 더 선명하게 나타납니다.
+- 정량 ablation(논문 Table 2)은 세 요소가 모두 필요하다는 것을 보여 줍니다. 특히 NIP를 빼면 정확도가 3분의 1 이하로 떨어집니다.
+
+| 설정 | CLIPScore | 정확도 | 편집 정확도 |
+|---|---|---|---|
+| Attention 제한 없음 | 0.8065 | 31.42 | 74.30 |
+| PIP 없음 | 0.7935 | 27.68 | 70.92 |
+| NIP 없음 | 0.7718 | 10.39 | 50.95 |
+| **전체 모델** | **0.8108** | **35.48** | **77.22** |
+
+- Attention 히트맵은 제한 없이 "sign" 토큰이 흩어지던 것이 제한 후 글자 상자에 모이는 것을 보여 줍니다. $$s_{pos}$$를 키우면 표지판이 더 뚜렷해지지만 너무 크면 표지판이 평평하고 도드라져 보이고, $$s_{neg}$$를 키우면 글자가 선명해지지만 너무 크면 글자가 엉뚱한 곳에 떠 있게 됩니다.
+- 수치를 읽을 때는 OCR 자체의 상한도 봐야 합니다. 렌더링한 스케치(정답 글자 그대로)를 easy-OCR에 넣었을 때 정확도가 영어 92.80, 중국어 60.85, 아랍어 60.67, 태국어 72.05, 러시아어 53.67%입니다. 소수 언어의 33~39%는 이 상한에 비춰 읽어야 합니다.
 
 ## 5. 해석
 
@@ -134,7 +178,7 @@ weights sum to 1.0 -> the estimate stays on the noise scale
 
 **3. 가이던스 식의 확장은 CFG의 자연스러운 일반화입니다.** 텍스트 조건에 대한 CFG처럼 이미지 조건에도 "없음"과 "있음"의 차이 방향을 더하고, 거기에 "상자 힌트" 방향을 하나 더 얹었습니다. [디퓨전 가속]({% post_url 2026-07-29-adversarial-diffusion-distillation %}) 논문들이 CFG 호출을 줄이려 애쓰는 반면 여기서는 호출을 단계당 4회(CFG의 2배)로 늘려 품질을 사는 반대 방향의 선택입니다.
 
-**4. 한계는 조건의 출처에 있습니다.** 글자 위치와 폰트가 스케치에서 정해지므로 디퓨전 모델이 장면에 맞는 폰트·원근·조명을 스스로 고르지 못합니다. GlyphDraw의 마스크 예측이 원근을 반영한 것과 대비됩니다. 긴 문장, 곡면 위의 글자, 여러 줄 배치도 다루지 않습니다.
+**4. 한계는 조건의 출처에 있습니다.** 글자 위치와 폰트가 스케치에서 정해지므로 디퓨전 모델이 장면에 맞는 폰트·원근·조명을 스스로 고르지 못합니다. GlyphDraw의 마스크 예측이 원근을 반영한 것과 대비됩니다. 긴 문장, 곡면 위의 글자, 여러 줄 배치도 다루지 않습니다. 저자들이 직접 꼽은 실패 사례는 작은 글자(획이 뭉개져 읽을 수 없음), 글자 색 제어 불가, 그리고 의도하지 않은 영어 글자가 섞여 나오는 경우입니다. 상자 위치와 단어 목록을 사람이 정해야 한다는 점은 GPT-4로 자동화할 수 있다고 제안합니다.
 
 **5. 평가를 읽을 때 주의할 점.** 테스트 프롬프트는 ChatGPT로 생성했고 "sign"류 단어가 포함되기 쉬워 방법에 유리할 수 있습니다. OCR 정확도는 easy-OCR의 언어별 성능에 의존하며, 단어 수준 완전 일치라 편집 거리 지표와 차이가 큽니다. 비교 대상 중 TextDiffuser는 템플릿 모드로, DeepFloyd는 1024 해상도로 돌려 조건이 완전히 같지는 않습니다. 위 toy의 attention 맵은 무작위라 실제 모델에서 "sign" 토큰이 처음부터 얼마나 집중되어 있는지는 보여 주지 못합니다.
 

@@ -1,17 +1,25 @@
 ---
-title: "[Face Swapping] Fast Face-swap Using CNNs: 얼굴 교체를 스타일 전이로 보고 다중 이미지 스타일 손실로 풀기"
+title: "[Face Swapping] Fast Face-swap(Fast Face-swap Using Convolutional Neural Networks): 얼굴 교체를 스타일 전이로 보고 다중 이미지 스타일 손실로 풀기"
 date: 2026-08-13 22:34:00 +0900
 categories: [Generative AI, Face Swapping]
 tags: [face-swapping, style-transfer, multi-image-style-loss, patch-loss, lighting-loss, cagenet, korshunova, iccv]
-description: Korshunova, Shi, Dambre, Theis(ICCV 2017)가 얼굴 교체를 "입력의 포즈·표정은 콘텐츠, 목표 인물의 신원은 스타일"로 정의하고, 같은 위치의 패치를 여러 스타일 이미지에서 찾는 다중 이미지 스타일 손실과 조명 네트워크 손실로 순전파 변환망을 학습해 준실시간 교체(CageNet, SwiftNet)를 만든 과정을 정리합니다. 작은 실험으로 다중 이미지 손실과 조명 손실의 필요성을 확인합니다.
+description: "Fast Face-swap Using Convolutional Neural Networks(Korshunova et al., ICCV 2017) 논문 리뷰. 얼굴 교체를 「입력의 포즈·표정은 콘텐츠, 목표 인물의 신원은 스타일」로 정의하고, 같은 위치의 패치를 여러 스타일 이미지에서 찾는 다중 이미지 스타일 손실과 조명 네트워크 손실로 순전파 변환망을 학습해 준실시간 교체(CageNet, SwiftNet)를 만든 과정을 그림·학습 설정·속도와 함께 정리합니다. 작은 실험으로 다중 이미지 손실과 조명 손실의 필요성을 확인합니다."
 math: true
 ---
 
-> [Bitouk 등]({% post_url 2026-05-02-face-swapping-2008 %})의 교체는 출력 신원을 고를 수 없고 입력의 표정이 사라졌습니다. 영상용 방법(Dale 등)은 두 사람의 비슷한 연기 영상이 필요했고, Suwajanakorn 등의 3D 재구성은 수백 장이 필요했습니다. **Fast Face-swap Using Convolutional Neural Networks**(Korshunova, Shi, Dambre, Theis, Twitter·Ghent, ICCV 2017)는 문제를 다르게 정의합니다. 한 장의 입력에서 인물 A의 신원을 B로 바꾸되 **포즈, 표정, 시선, 머리, 조명은 그대로** 두는 것, 그리고 그것을 [Perceptual Losses]({% post_url 2026-08-09-perceptual-losses %})의 순전파 스타일 전이로 푸는 것입니다. 입력의 포즈·표정이 콘텐츠, B의 신원이 스타일입니다. Gram 행렬은 공간 배치를 못 담아 사진에 쓰면 왜곡이 생기므로, Li & Wand의 패치 손실을 **여러 스타일 이미지**로 확장한 것이 핵심입니다.
+> - **논문**: Fast Face-swap Using Convolutional Neural Networks
+> - **저자**: Iryna Korshunova, Wenzhe Shi, Joni Dambre, Lucas Theis (Twitter, IDLab Ghent University)
+> - **학회**: ICCV 2017 · [arXiv:1611.09577](https://arxiv.org/abs/1611.09577)
+{: .prompt-tip }
+
+> [Bitouk 등]({% post_url 2026-05-02-face-swapping-2008 %})의 교체는 출력 신원을 고를 수 없고 입력의 표정이 사라졌습니다. 영상용 방법(Dale 등)은 두 사람의 비슷한 연기 영상이 필요했고, Suwajanakorn 등의 3D 재구성은 수백 장이 필요했습니다. **Fast Face-swap Using Convolutional Neural Networks**는 문제를 다르게 정의합니다. 한 장의 입력에서 인물 A의 신원을 B로 바꾸되 **포즈, 표정, 시선, 머리, 조명은 그대로** 두는 것, 그리고 그것을 [Perceptual Losses]({% post_url 2026-08-09-perceptual-losses %})의 순전파 스타일 전이로 푸는 것입니다. 입력의 포즈·표정이 콘텐츠, B의 신원이 스타일입니다. Gram 행렬은 공간 배치를 못 담아 사진에 쓰면 왜곡이 생기므로, Li & Wand의 패치 손실을 **여러 스타일 이미지**로 확장한 것이 핵심입니다.
 
 ## 1. 시스템
 
-입력 얼굴을 68개 랜드마크(dlib)로 정면 기준 얼굴에 아핀 정렬하고, 변환 네트워크 $$f_W$$로 바꾼 뒤, 다시 정렬을 되돌려 분할 마스크(피부 영역)로 OpenCV의 seamless cloning으로 원본에 붙입니다. 변환 네트워크는 Ulyanov 등의 다중 스케일 구조(128·64·32·16·8 해상도 가지를 최근접 업샘플과 채널 연결로 합침)로 128×128에서 100만 파라미터이고, 256×256은 가지를 하나 더 붙여 나머지를 고정한 채 학습합니다. 스타일 이미지 집합 $$Y = \{y_1, \dots, y_N\}$$은 **학습 때만** 쓰이므로 추론은 순전파 한 번입니다.
+![전체 파이프라인](/assets/img/posts/fast-face-swap/fig2.webp)
+_Figure 2. 입력 → 랜드마크 기반 정렬 → 변환 네트워크 → 정렬 되돌리기 → 피부 분할 마스크로 원본에 붙이기. 위 줄은 정렬에 쓰는 랜드마크와 붙이기에 쓰는 마스크입니다. (출처: Korshunova et al., 2017)_
+
+위 Figure 2처럼 입력 얼굴을 68개 랜드마크(dlib)로 정면 기준 얼굴에 아핀 정렬하고, 변환 네트워크 $$f_W$$로 바꾼 뒤, 다시 정렬을 되돌려 분할 마스크(피부 영역)로 OpenCV의 seamless cloning으로 원본에 붙입니다. 변환 네트워크는 Ulyanov 등의 다중 스케일 구조(128·64·32·16·8 해상도 가지를 최근접 업샘플과 채널 연결로 합침)로 128×128에서 100만 파라미터이고, 256×256은 가지를 하나 더 붙여 나머지를 고정한 채 학습합니다. 스타일 이미지 집합 $$Y = \{y_1, \dots, y_N\}$$은 **학습 때만** 쓰이므로 추론은 순전파 한 번입니다.
 
 ## 2. 손실
 
@@ -27,7 +35,9 @@ Li & Wand는 한 장의 스타일 이미지에서 모든 위치를 뒤졌지만,
 
 **조명**: VGG 손실만으로는 입력의 조명이 보존되지 않습니다. 물체 분류용 VGG는 조명에 둔감하기 때문입니다. 그래서 Extended Yale B(9포즈 × 64조명)로 **샴 네트워크**를 학습해 같은 포즈에서 조명이 같으면 가깝고 다르면 멀도록 만든 뒤, 그 마지막 층 특징 $$\Gamma$$의 L2를 휘도 이미지에 대한 조명 손실로 씁니다. 가중치 $$\beta = 10^{-22}$$라는 극단적 값은 특징 스케일을 맞추기 위한 것입니다.
 
-**총변동**: Johnson 등과 같이 공간 평활화. 총 손실은 $$\mathcal{L}_c + \alpha \mathcal{L}_s + \beta \mathcal{L}_{light} + \gamma \mathcal{L}_{TV}$$이고 $$\alpha$$는 0에서 20까지 서서히 올리며, 가장 중요한 하이퍼파라미터였습니다.
+조명 네트워크는 3×3 합성곱(8채널, ReLU) → 2×2 max pooling → 16유닛 FC의 작은 구조이고, 입력은 모두 변환 네트워크와 같은 기준 얼굴에 정렬합니다. 손실은 출력과 입력의 휘도(단일 채널) 이미지에 대해 계산합니다.
+
+**총변동**: Johnson 등과 같이 공간 평활화. 총 손실은 $$\mathcal{L}_c + \alpha \mathcal{L}_s + \beta \mathcal{L}_{light} + \gamma \mathcal{L}_{TV}$$이고($$\gamma = 0.3$$), $$\alpha$$는 0에서 20까지 서서히 올리며, 가장 중요한 하이퍼파라미터였습니다.
 
 ## 3. 코드로 보기: 같은 위치 다중 이미지 매칭과 조명 손실
 
@@ -86,13 +96,43 @@ side light added: relative change of the VGG-like features 0.181, of the lightin
 
 ## 4. 실험
 
-**CageNet·SwiftNet.** 니콜라스 케이지 사진 약 60장(좌우 반전 포함)을 스타일로, CelebA 20만 장을 콘텐츠로 128×128에서 1만 반복(배치 16, Tesla M40 2.5시간), 256×256 추가 가지 학습까지 12시간, 약 200만 파라미터입니다. 결과는 코, 눈, 눈썹, 입술, 주름을 바꾸면서 시선·포즈·입 모양을 유지합니다. 테일러 스위프트 60장으로도 같은 하이퍼파라미터로 비슷한 품질입니다.
+**CageNet·SwiftNet.** 이 논문에는 정량 지표가 없습니다. 학습 설정은 다음과 같습니다.
 
-**관찰.** 머리 형태 같은 거친 특징은 바뀌지 않아 신원 변화가 약해 보일 때가 있고, 피부색이 다르면 seamless cloning과 VGG의 색 민감성 때문에 중간 톤이 됩니다. 조명 손실을 빼면 결과가 평평하고 그림자가 없습니다(Figure 6). $$\alpha$$를 120으로 올리면 신원은 강해지지만 **표정이 바뀌어** 바람직하지 않습니다(Figure 7). 정면이 측면보다 잘 되는데 데이터 불균형 때문이고, 안경 같은 가림은 지워져 아티팩트가 됩니다(Figure 10).
+| 항목 | 값 |
+|---|---|
+| 스타일 이미지 | 인터넷에서 모은 니콜라스 케이지 사진 약 60장, 좌우 반전으로 두 배 |
+| 콘텐츠 이미지 | CelebA (20만 장 이상) |
+| 1단계 | 128×128, Adam, 1만 반복, 배치 16, lr 0.001 → 0.0001 (수동 스케줄), orthogonal 초기화 |
+| 1단계 시간 | Tesla M40 1장 2.5시간 (Theano + Lasagne) |
+| 2단계 | 256×256 가지를 추가해 나머지는 고정하고 학습, $$\alpha = 80$$, 256×256용 조명 네트워크 |
+| 전체 | 학습 12시간, 약 200만 파라미터(절반은 2단계에서 학습) |
+| 손실 층 | content relu4_2, style relu3_1·relu4_1, 패치 $$k = 1$$, $$N_{best} = 16$$ |
+| 가중치 | $$\alpha$$: 0 → 20 (1단계), 80 (2단계), $$\beta = 10^{-22}$$, $$\gamma = 0.3$$ |
+
+결과는 코, 눈, 눈썹, 입술, 주름을 바꾸면서 시선·포즈·입 모양을 유지합니다(아래 Figure 5). 테일러 스위프트 약 60장으로 학습한 SwiftNet도 같은 하이퍼파라미터로 비슷한 품질입니다.
+
+![CageNet·SwiftNet 결과](/assets/img/posts/fast-face-swap/fig5.webp)
+_Figure 5. (a) 원본. (b) 위: 니콜라스 케이지로 교체, 아래: 테일러 스위프트로 교체. (c) 붙이기 전 변환 네트워크의 원래 출력(위 CageNet, 아래 SwiftNet). (출처: Korshunova et al., 2017)_
+
+**관찰.** 머리 형태 같은 거친 특징은 바뀌지 않아 신원 변화가 약해 보일 때가 있고, 피부색이 다르면 seamless cloning과 VGG의 색 민감성 때문에 중간 톤이 됩니다. 조명 손실을 빼면 결과가 평평하고 그림자가 없습니다(Figure 6). 256×256에서 $$\alpha$$를 80에서 120으로 올리면 입력 신원의 흔적은 더 지워지지만 **표정이 바뀌어** 바람직하지 않습니다(Figure 7).
+
+![스타일 가중치에 따른 변화](/assets/img/posts/fast-face-swap/fig7.webp)
+_Figure 7. 왼쪽부터 원본, $$\alpha = 80$$, $$\alpha = 120$$으로 학습한 256×256 CageNet. 오른쪽 열에서 표정이 바뀝니다. (출처: Korshunova et al., 2017)_
+
+정면이 측면보다 잘 되는데, CelebA와 스타일 이미지 모두 정면 사진이 훨씬 많은 데이터 불균형 때문일 수 있다고 봅니다(Figure 9). 안경 같은 가림은 지워져 아티팩트가 됩니다(Figure 10).
 
 **베이스라인.** 변환 네트워크 대신 랜드마크가 가장 가까운 스타일 이미지를 고르는 Bitouk식 교체는 선명하지만 표정·시선이 바뀌고 블렌딩이 나쁩니다(Figure 8).
 
-**속도.** 256×256 순전파 40ms(Titan X), 분할 5ms, 정렬 5ms(CPU), seamless cloning 35ms. 준실시간입니다.
+**속도.**
+
+| 단계 | 시간 | 장비 |
+|---|---|---|
+| 변환 네트워크 순전파 (256×256) | 40ms | GTX Titan X |
+| 자동 분할 네트워크 | 약 5ms | (논문 결과에는 손으로 만든 마스크 사용) |
+| 얼굴 정렬 (dlib 랜드마크) | 약 5ms | CPU (i7-5500U) |
+| seamless cloning (OpenCV) | 평균 35ms | - |
+
+합치면 한 장에 약 85ms로 준실시간입니다. 추론 때는 스타일 이미지가 필요 없어 메모리도 적게 씁니다.
 
 ## 5. 해석
 
@@ -104,7 +144,7 @@ side light added: relative change of the VGG-like features 0.181, of the lightin
 
 **4. 표정 보존과 신원 강도의 트레이드오프가 처음 명시됐습니다.** $$\alpha$$를 올리면 표정이 바뀐다는 Figure 7의 관찰은, 이후 모든 주체 비의존 방법이 ID 손실과 속성 손실 사이에서 겪는 긴장의 원형입니다. SimSwap의 약한 특징 매칭, HifiFace의 3D 형상 손실은 모두 이 트레이드오프의 다른 해법입니다.
 
-**5. 평가를 읽을 때 주의할 점.** 결과는 두 신원(케이지, 스위프트)에 한정되고 정성적입니다. 분할 마스크는 손으로 만들었습니다. 조명 네트워크는 회색조 실험실 데이터(Yale B)로 학습되어 야외 조명에서 과도하게 측면광을 증폭하는 실패가 보고됩니다. 위 toy의 조명 실험은 논문 주장을 재현하지 못했음을 적어 두었습니다.
+**5. 평가를 읽을 때 주의할 점.** 결과는 두 신원(케이지, 스위프트)에 한정되고 정성적입니다. 분할 마스크는 손으로 만들었습니다. 측면광을 오히려 증폭하는 실패가 보고되는데(Figure 9), 저자들은 조명 네트워크의 학습 데이터(Yale B)에 강한 조명 이미지가 많기 때문일 수 있다고 봅니다. 위 toy의 조명 실험은 논문 주장을 재현하지 못했음을 적어 두었습니다.
 
 ## 6. 정리
 

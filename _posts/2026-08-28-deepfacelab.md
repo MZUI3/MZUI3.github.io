@@ -1,13 +1,18 @@
 ---
-title: "[Face Swapping] DeepFaceLab: 추출·학습·변환 파이프라인과 DF/LIAE 구조로 영화급 교체를 만드는 공개 프레임워크"
+title: "[Face Swapping] DeepFaceLab(Integrated, flexible and extensible face-swapping framework): 추출·학습·변환 파이프라인과 DF/LIAE 구조"
 date: 2026-08-28 21:41:00 +0900
 categories: [Generative AI, Face Swapping]
 tags: [face-swapping, deepfacelab, autoencoder, shared-encoder, liae, trueface, xseg, subject-specific, open-source]
-description: DeepFaceLab(Petrov 등, 2020)이 DeepFakes의 공유 인코더·신원별 디코더 구조를 추출(검출·정렬·분할)·학습(DF/LIAE, DSSIM+MSE, TrueFace)·변환(역정렬, 색 전이, 포아송 블렌딩, 초해상도) 세 단계의 완성된 파이프라인으로 정리한 공개 프레임워크를 다룹니다. 주체 특정 교체가 작동하는 원리와 LIAE가 조명을 더 잘 물려받는 이유, FF++ 정량 비교와 ablation, 그리고 작은 실험으로 공유 인코더가 신원을 흘릴 때 잠재 정렬(TrueFace)이 왜 필요한지 확인합니다.
+description: "DeepFaceLab: Integrated, flexible and extensible face-swapping framework(arXiv 2020) 논문 리뷰. 공유 인코더·신원별 디코더 구조를 추출·학습(DF/LIAE, DSSIM+MSE, TrueFace)·변환(역정렬, 색 전이, 포아송 블렌딩, 초해상도) 파이프라인으로 정리한 공개 프레임워크를, FF++ 정량 비교와 ablation 수치, 학습 설정과 함께 그림으로 정리합니다."
 math: true
 ---
 
-> 2018년 Reddit의 DeepFakes는 두 사람의 영상으로 오토인코더를 학습해 얼굴을 바꾸는 파이프라인을 대중화했지만, 결과는 거칠었고 작업 흐름은 불투명했습니다. **DeepFaceLab**(Petrov, Gao, Chervoniy, Liu 등, 2020, arXiv; 프리랜서·USTC)은 그 파이프라인을 **추출 → 학습 → 변환**의 느슨하게 결합된 모듈로 다시 설계한 공개 프레임워크입니다. 연구 논문이라기보다 시스템 보고서이지만, 영화 VFX와 유튜브(1억 조회)에서 가장 널리 쓰인 교체 도구이고, DFDC 데이터셋의 일부가 이것으로 만들어졌습니다. 저자들의 입장은 "최선의 방어는 공격"으로, 탐지 연구에 고품질 가짜를 공급하고 대중이 딥페이크의 존재를 알게 하는 것이 탐지만큼 중요하다는 것입니다. 이 글은 왜 공유 인코더가 교체를 가능하게 하는지, DF와 LIAE가 무엇이 다른지에 집중합니다.
+> - **논문**: DeepFaceLab: Integrated, flexible and extensible face-swapping framework
+> - **저자**: Ivan Petrov, Daiheng Gao, Nikolay Chervoniy, Kunlin Liu, Sugasa Marangonda, Chris Umé, Jian Jiang, Luis RP, Sheng Zhang, Pingyu Wu, Weiming Zhang (프리랜서, USTC, VFX Chris Ume, 008 Tech)
+> - **학회**: arXiv preprint, 2020 · [arXiv:2005.05535](https://arxiv.org/abs/2005.05535) · [코드](https://github.com/iperov/DeepFaceLab)
+{: .prompt-tip }
+
+> 2018년 Reddit의 DeepFakes는 두 사람의 영상으로 오토인코더를 학습해 얼굴을 바꾸는 파이프라인을 대중화했지만, 결과는 거칠었고 작업 흐름은 불투명했습니다. **DeepFaceLab**은 그 파이프라인을 **추출 → 학습 → 변환**의 느슨하게 결합된 모듈로 다시 설계한 공개 프레임워크입니다. 연구 논문이라기보다 시스템 보고서이지만, 영화 VFX와 유튜브(1억 조회)에서 가장 널리 쓰인 교체 도구이고, DFDC 데이터셋의 일부가 이것으로 만들어졌습니다. 저자들의 입장은 "최선의 방어는 공격"으로, 탐지 연구에 고품질 가짜를 공급하고 대중이 딥페이크의 존재를 알게 하는 것이 탐지만큼 중요하다는 것입니다. 이 글은 왜 공유 인코더가 교체를 가능하게 하는지, DF와 LIAE가 무엇이 다른지에 집중합니다.
 
 ## 1. 추출
 
@@ -17,15 +22,21 @@ math: true
 
 ## 2. 학습: DF와 LIAE
 
+![DF 구조와 LIAE 구조](/assets/img/posts/deepfacelab/fig3.webp)
+_Figure 3. 학습 단계의 두 구조. 위 DF는 Encoder와 Inter를 공유하고 디코더가 신원마다 하나씩, 아래 LIAE는 Encoder와 Decoder를 공유하고 InterAB·InterB 두 개를 둡니다. 판별기는 선택 사항입니다. (출처: Petrov et al., 2020)_
+
 **DF 구조**는 DeepFakes와 같습니다. src와 dst가 **공유하는 Encoder + Inter**, 그리고 **신원별 Decoder** 둘. 각 디코더는 자기 신원만 재구성하도록 학습되므로 표정이 짝지어질 필요가 없습니다. 추론 때 dst 얼굴을 src 디코더에 넣으면 "왜곡된 src"로 착각해 src 신원에 dst 포즈·표정의 얼굴을 냅니다([SimSwap]({% post_url 2026-08-31-simswap %})이 분석하듯 신원 정보가 디코더 가중치에 들어 있어 일반화는 안 됩니다). 약점은 dst의 **조명** 같은 정보를 충분히 물려받지 못한다는 것입니다.
 
-**LIAE 구조**는 Encoder와 Decoder를 공유하고 **Inter를 두 개**(InterAB, InterB) 둡니다. InterAB는 src·dst 모두의 잠재를, InterB는 dst의 잠재만 만들고, src는 $$F^{AB}_{src} \Vert F^{AB}_{src}$$, dst는 $$F^{AB}_{dst} \Vert F^{B}_{dst}$$를 채널 연결해 디코더에 넣습니다. $$F^B_{dst}$$를 붙이는 것은 잠재의 방향을 필요한 클래스 쪽으로 옮기기 위한 것이고, InterAB가 두 신원의 **정렬된 공통 표현**을 갖게 됩니다. Ablation(Figure 6)에서 LIAE가 dst의 얼굴 형태와 조명을 더 잘 물려받습니다.
+**LIAE 구조**는 Encoder와 Decoder를 공유하고 **Inter를 두 개**(InterAB, InterB) 둡니다. InterAB는 src·dst 모두의 잠재를, InterB는 dst의 잠재만 만들고, src는 $$F^{AB}_{src} \Vert F^{AB}_{src}$$, dst는 $$F^{AB}_{dst} \Vert F^{B}_{dst}$$를 채널 연결해 디코더에 넣습니다. $$F^B_{dst}$$를 붙이는 것은 잠재의 방향을 필요한 클래스 쪽으로 옮기기 위한 것이고, InterAB가 두 신원의 **정렬된 공통 표현**을 갖게 됩니다. LIAE를 만든 동기는 DF가 dst의 조명을 충분히 물려받지 못하는 문제였고, ablation(Figure 6)에서는 LIAE가 dst의 얼굴 형태를 더 잘 물려받아 DF의 얼굴형 불일치 문제를 줄인다는 것을 보여 줍니다.
 
 **손실과 기법**: DSSIM + MSE 혼합(DSSIM은 얼굴을 빨리 일반화하고 MSE는 선명도), 눈 영역에 가중치를 둔 마스크 SSIM, GAN 옵션(세부·주름·점이 살아남), **TrueFace**(LIAE에서 $$F^{AB}_{src} \approx F^{AB}_{dst}$$, DF에서 $$F_{src} \approx F_{dst}$$가 되도록 강제해 변환 결과가 dst를 더 닮게 함), 합성곱 인식 초기화, 학습률 드롭아웃. 다중 GPU, 반정밀도, 2GB VRAM에서도 동작합니다.
 
 ## 3. 변환
 
 생성된 얼굴과 마스크를 Umeyama 역변환으로 원래 위치에 놓고, 피부톤을 맞추는 **색 전이 알고리즘 5종**(RCT, IDT 등) 중 하나를 적용한 뒤 **포아송 블렌딩**으로 경계를 잇고, 마지막으로 사전학습 얼굴 **초해상도** 네트워크로 선명하게 합니다. 저자들은 현존 방법의 결과가 대체로 매끈하고 세부(점, 주름)가 없다는 점에서 이 단계가 무시되어 왔다고 지적합니다.
+
+![변환 단계](/assets/img/posts/deepfacelab/fig4.webp)
+_Figure 4. 변환 단계. 정렬된 얼굴을 공유 Encoder·Inter와 반대쪽 신원의 Decoder에 통과시키고, Umeyama 역변환으로 원위치에 놓은 뒤 블렌딩과 선명화를 거칩니다. (출처: Petrov et al., 2020)_
 
 ## 4. 코드로 보기: 공유 인코더 교체와 잠재 정렬
 
@@ -83,15 +94,48 @@ with latent alignment (TrueFace):
 
 ## 5. 평가
 
-FaceForensics++의 500영상 × 100프레임에서 DeepFakes, Nirkin 등과 비교합니다. 공정성을 위해 96×96 출력의 경량 DF 구조(Quick96, GAN·TrueFace 없음), 1080Ti 1장에서 평균 3시간 학습입니다.
+FaceForensics++의 처음 500개 영상에서 시간축으로 균등하게 100프레임씩 뽑아 DeepFakes, Nirkin 등과 비교합니다. 실험 설정은 다음과 같습니다.
+
+| 항목 | 값 |
+|---|---|
+| 모델 | Quick96: DF 구조 기반 경량 모델, 출력 96×96, GAN·TrueFace 없음 |
+| Optimizer | Adam, lr 5e-5, $$\beta_1 = 0.5$$, $$\beta_2 = 0.999$$ |
+| 학습 시간 | 평균 3시간으로 제한 |
+| 하드웨어 | GTX 1080Ti 1장, Intel Core i7-8700 |
+| 지표 | SSIM, 지각 손실, dlib 얼굴 검증 거리(신원), 2DFAN 랜드마크 거리(표정), FSA-Net 오일러 각 거리(포즈) |
+
+아래 Figure 5는 FF++에 실린 기존 방법들과의 정성 비교입니다.
+
+![FF++ 정성 비교](/assets/img/posts/deepfacelab/fig5.webp)
+_Figure 5(a). FaceForensics++ 얼굴에서 DeepFakes, FaceSwap, Face2Face와 DFL의 결과 비교. 맨 왼쪽이 source, 두 번째가 destination입니다. (출처: Petrov et al., 2020)_
+
+정량 결과(Table 1, 평균만 옮김)입니다.
 
 | 방법 | SSIM ↑ | 지각 손실 ↓ | 검증 거리 ↓ | 랜드마크 ↓ | 포즈 ↓ |
 |---|---|---|---|---|---|
 | DeepFakes | 0.71 | 0.41 | 0.69 | 1.15 | 4.75 |
-| Nirkin 등 | 0.65 | 0.50 | 0.66 | 0.35 | 6.01 |
-| DFL | 0.73 | 0.39 | 0.61 | 0.73 | 1.12 |
+| Nirkin 등 | 0.65 | 0.50 | 0.66 | **0.35** | 6.01 |
+| DFL | **0.73** | **0.39** | **0.61** | 0.73 | **1.12** |
 
-포즈와 신원(dlib 검증 거리)에서 가장 좋고 랜드마크는 Nirkin 등이 좋습니다. Ablation(표 2)에서 DF → DFHD → LIAE → LIAEHD로 갈수록 SSIM이 0.73 → 0.80으로 오르고, GAN은 단독으로 지표를 조금 해치지만 TrueFace와 함께 쓰면 최고(LIAEHD+GAN+TrueFace SSIM 0.80, 포즈 0.83)입니다. 저자들은 초해상도로 살아난 눈·치아 같은 세부가 SSIM류 지표에 반영되지 않는다고 적습니다.
+포즈와 신원(dlib 검증 거리)에서 가장 좋고 랜드마크는 Nirkin 등이 좋습니다. 본문은 "DFL이 포즈와 표정을 더 잘 유지한다"고 쓰지만, 표정 지표인 랜드마크 거리는 Nirkin 등(0.35)이 DFL(0.73)보다 낫습니다. 포즈 오차의 표준편차도 1.07로 평균(1.12)과 비슷해 영상마다 편차가 큽니다.
+
+Ablation(Table 2)은 같은 설정에서 구조만 바꿨습니다. DFHD와 LIAEHD는 특징 추출 층과 residual block을 더한 버전입니다.
+
+| 구조 | SSIM ↑ | 검증 거리 ↓ | 랜드마크 ↓ | 포즈 ↓ |
+|---|---|---|---|---|
+| DF | 0.73 | 0.61 | 0.73 | 1.12 |
+| DFHD | 0.75 | 0.61 | 0.71 | 1.06 |
+| DFHD (GAN) | 0.72 | 0.61 | 0.79 | 1.33 |
+| DFHD (GAN + TrueFace) | 0.77 | 0.61 | 0.70 | 0.99 |
+| LIAE | 0.76 | 0.58 | 0.66 | 0.91 |
+| LIAEHD | 0.78 | 0.58 | 0.65 | 0.90 |
+| LIAEHD (GAN) | 0.79 | 0.58 | 0.69 | 1.00 |
+| **LIAEHD (GAN + TrueFace)** | **0.80** | **0.58** | **0.65** | **0.83** |
+
+- GAN 없이 DF → DFHD → LIAE → LIAEHD로 가면 SSIM이 0.73 → 0.78로 오릅니다. 검증 거리는 구조 계열 안에서는 같고(DF 계열 0.61, LIAE 계열 0.58), LIAE 쪽이 더 낮습니다.
+- GAN만 더하면 랜드마크·포즈 오차가 커지고, DFHD에서는 SSIM도 0.75 → 0.72로 떨어집니다. TrueFace를 함께 쓰면 GAN의 불안정이 줄어 두 계열 모두 가장 좋은 값이 나옵니다(최고 SSIM 0.80, 포즈 0.83).
+
+저자들은 초해상도로 살아난 눈·치아 같은 세부가 얼굴에서 차지하는 면적이 작아 SSIM류 지표에 반영되지 않는다고 적습니다.
 
 ## 6. 해석
 
@@ -113,7 +157,7 @@ FaceForensics++의 500영상 × 100프레임에서 DeepFakes, Nirkin 등과 비�
 | 추출 | S3FD 검출, 2DFAN/PRNet 랜드마크 + 시간 평활화, Umeyama 정렬, TernausNet/XSeg 분할 |
 | 학습 | DF(공유 Enc+Inter, 디코더 2) / LIAE(공유 Enc+Dec, InterAB+InterB), DSSIM+MSE, 눈 가중 마스크, GAN, TrueFace |
 | 변환 | 역정렬, 색 전이 5종, 포아송 블렌딩, 얼굴 초해상도 |
-| 결과 | FF++에서 포즈 1.12, 검증 0.61로 DeepFakes·Nirkin보다 우수, LIAEHD+GAN+TrueFace SSIM 0.80 |
+| 결과 | FF++에서 포즈 1.12, 검증 0.61로 DeepFakes·Nirkin보다 우수(랜드마크는 Nirkin이 우세), LIAEHD+GAN+TrueFace SSIM 0.80 |
 | 한계 | 인물마다 학습, 대량 데이터 필요, 거친 지표, 공개의 양면성 |
 
 ## References

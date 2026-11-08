@@ -1,13 +1,18 @@
 ---
-title: "[RL] Anti-Exploration: 탐험 보너스를 뒤집어 Offline RL 하기"
+title: "[RL] Anti-Exploration(Offline Reinforcement Learning as Anti-Exploration): 탐험 보너스를 뒤집어 Offline RL 하기"
 date: 2026-09-29 19:30:00 +0900
 categories: [Reinforcement Learning, Offline RL]
 tags: [reinforcement-learning, offline-rl, anti-exploration, bonus, cvae, td3, ood-action, kl-regularization]
-description: Online RL의 탐험 보너스를 뒤집어 데이터에 없는 행동에 벌점을 주는 Anti-Exploration의 아이디어와 policy regularization과의 관계, CVAE 재구성 오차를 보너스로 쓰는 TD3-CVAE를 실험 코드와 함께 정리합니다.
+description: "Offline Reinforcement Learning as Anti-Exploration(AAAI 2022) 논문 리뷰. Online RL의 탐험 보너스를 뒤집어 데이터에 없는 행동에 벌점을 주는 아이디어와 KL 규제와의 관계, CVAE 재구성 오차를 보너스로 쓰는 TD3-CVAE를 D4RL 수치·구현 디테일·실험 코드와 함께 정리합니다."
 math: true
 ---
 
-> Online RL에서 탐험 보너스는 **불확실한 곳으로 가도록** 보상을 더해 줍니다. *Offline Reinforcement Learning as Anti-Exploration*(Rezaeifar et al., AAAI 2022)은 이를 거꾸로 써서, offline RL에서는 **불확실한(데이터에 없는) 행동을 피하도록** 보너스를 **빼 줍니다.** [Exploration 카테고리]({% post_url 2026-08-26-count-based-exploration %})에서 본 보너스 설계를 offline RL로 옮겨 온 연구입니다.
+> - **논문**: Offline Reinforcement Learning as Anti-Exploration
+> - **저자**: Shideh Rezaeifar, Robert Dadashi, Nino Vieillard, Léonard Hussenot, Olivier Bachem, Olivier Pietquin, Matthieu Geist (University of Geneva, Google Research Brain Team 외)
+> - **학회**: AAAI 2022 · [arXiv:2106.06431](https://arxiv.org/abs/2106.06431)
+{: .prompt-tip }
+
+> Online RL에서 탐험 보너스는 **불확실한 곳으로 가도록** 보상을 더해 줍니다. 이 논문은 이를 거꾸로 써서, offline RL에서는 **불확실한(데이터에 없는) 행동을 피하도록** 보너스를 **빼 줍니다.** [Exploration 카테고리]({% post_url 2026-08-26-count-based-exploration %})에서 본 보너스 설계를 offline RL로 옮겨 온 연구입니다.
 
 ## 1. Offline RL과 Online RL의 차이
 
@@ -34,55 +39,76 @@ Offline RL은 정책 최적화에 **고정된 데이터셋**을 씁니다. 불�
 
 Count-based든 prediction-based([RND]({% post_url 2026-09-02-random-network-distillation %}) 등)든, 보너스 $$b(s, a)$$는 **데이터에서 자주 본 상태–행동일수록 작고, 처음 보는 것일수록 큽니다.** Online에서는 이를 보상에 더하지만, offline의 성격상 더하는 것은 타당하지 않습니다.
 
-데이터셋에 있는 상태–행동 쌍이라면 보너스가 항상 0에 가까울 것이므로, **모르는 상태–행동 쌍에 대해서만** 가치에서 보너스를 **빼면** 됩니다.
+### 보상에서 빼면 안 되는 이유
 
-### 두 가지 Anti-Exploration 식
+가장 단순한 방법은 보상에서 보너스를 빼는 것($$r - b$$)입니다. 그런데 offline에서는 이것이 거의 효과가 없습니다. TD target $$r - b(s, a) + \gamma \max_{a'} Q(s', a')$$에서 $$(s, a)$$는 **반드시 데이터셋에서 온** 쌍이라 $$b(s, a) \approx 0$$이기 때문입니다. 정작 문제가 되는 것은 bootstrap에 쓰이는 $$a'$$, 즉 정책이 고른 **데이터 밖일 수도 있는 행동**입니다.
 
-**(1) Critic의 bootstrap 값에서 빼기**
+### Bootstrap 값과 greedy step에서 빼기
 
-$$
-Q(s, a) \leftarrow r + \gamma\,\mathbb{E}_{a' \sim \pi(\cdot \mid s')}\big[Q(s', a') - b(s', a')\big]
-$$
-
-**(2) Actor의 목적에서 빼기**
+그래서 논문은 보너스를 **bootstrap하는 가치**와 **정책을 고르는 greedy step**에서 뺍니다.
 
 $$
-\pi \leftarrow \arg\max_\pi\ \mathbb{E}_{s \sim \mathcal{D},\ a \sim \pi}\big[Q(s, a) - b(s, a)\big]
+\pi_{k+1} = \arg\max_\pi\ \mathbb{E}_{a \sim \pi}\big[Q_k(s, a) - b(s, a)\big]
 $$
 
-두 방식 모두 결국 다음 기댓값을 최대화하도록 수렴합니다.
-
 $$
-\mathbb{E}\Big[\sum_t \gamma^t\big(r(s_t, a_t) - b(s_t, a_t)\big)\Big]
+Q_{k+1}(s, a) = r(s, a) + \gamma\,\mathbb{E}_{s'}\mathbb{E}_{a' \sim \pi_{k+1}(\cdot \mid s')}\big[Q_k(s', a') - b(s', a')\big]
 $$
 
-데이터에서 벗어난 행동일수록 **벌점**을 받으니, 정책은 데이터 근처에서 가장 좋은 행동을 고르게 됩니다.
+이렇게 하면 처음 보는 $$(s', a')$$의 가치를 bootstrap할 때 벌점이 들어갑니다. 흥미로운 점은, Q와 정책을 모든 상태–행동에 대해 정확히 계산하는 dynamic programming 관점에서는 이 방식이 $$r - b$$로 보상을 바꾼 value iteration과 **같은 정책 열을 만든다**는 것입니다($$Q' = Q + b$$로 바꿔 쓰면 같은 식이 됩니다). 둘 다 결국 다음 기댓값을 최대화하는 정책으로 수렴합니다.
+
+$$
+\mathbb{E}_\pi\Big[\sum_t \gamma^t\big(r(s_t, a_t) - b(s_t, a_t)\big)\Big]
+$$
+
+다만 이 동치는 정확한 DP에서만 성립하고, 함수 근사를 쓰는 offline 설정에서는 성립하지 않습니다. 실제 알고리즘은 bootstrap 쪽에 보너스를 넣는 형태를 씁니다. 데이터에서 벗어난 행동일수록 **벌점**을 받으니, 정책은 데이터 근처에서 가장 좋은 행동을 고르게 됩니다.
 
 ## 4. Policy Regularization과의 관계
 
 최근의 많은 offline RL 연구는 **behavior policy를 기준으로 정책을 규제**해서 데이터 분포에서 크게 벗어나지 않게 합니다(behavior-regularized offline RL). Behavior policy와 학습된 정책의 차이에 페널티를 주는 방식입니다.
 
-논문은 Anti-exploration도 **policy regularization과 연결**된다는 것을 보입니다. 보너스로 상태별 행동 분포를 모델링할 수 있으므로, 보너스가 정의하는 정책 $$\pi_b(a \mid s) \propto \exp(-b(s, a))$$와의 **KL divergence**로 규제하는 방식에서 온도(temperature)를 0으로 보낸 극한에 해당합니다.
+논문은 Anti-exploration도 **policy regularization과 연결**된다는 것을 보입니다. 보너스가 데이터 안에서 낮고 밖에서 높다는 가정만 있으면, 보너스로 "데이터를 흉내 낸" 행동 분포를 만들 수 있습니다. scale $$\beta > 0$$, 온도 $$\tau > 0$$에 대해
 
 $$
-\max_\pi\ \mathbb{E}\big[Q(s, a)\big] - \lambda\,D_{KL}\big(\pi(\cdot \mid s)\ \|\ \pi_b(\cdot \mid s)\big)
+\pi_b(\cdot \mid s) = \text{softmax}\Big(-\frac{\beta}{\tau}\, b(s, \cdot)\Big)
 $$
 
-즉 anti-exploration은 **KL-regularized value iteration**의 극한으로 정리되며, 이를 통해 policy regularization 계열 방법들과 연결됩니다.
+로 두고, 이 정책과의 **KL divergence**로 규제하는 value iteration을 생각합니다.
+
+$$
+\pi_{k+1} = \arg\max_\pi\ \Big(\mathbb{E}_{a \sim \pi}\big[Q_k(s, a)\big] - \tau\,\text{KL}\big(\pi(\cdot \mid s)\ \|\ \pi_b(\cdot \mid s)\big)\Big)
+$$
+
+식을 풀면 이는 $$Q_k - \Delta b$$에 entropy 규제를 더한 형태가 되고, $$\tau \to 0$$이면 $$\Delta b \to \beta\big(b(s, a) - \min_{a'} b(s, a')\big)$$가 됩니다. 잘 학습된 보너스라면 데이터에 있는 상태마다 보너스가 0인 행동이 하나는 있으므로 $$\min_{a'} b = 0$$이고, 결국 앞 절의 anti-exploration 식과 같아집니다.
+
+즉 anti-exploration은 **보너스로 만든 behavior policy 쪽으로 당기는 KL-regularized value iteration에서 온도를 0으로 보낸 극한**이고, 이를 통해 policy regularization 계열 방법들과 연결됩니다. 논문은 이를 regularization 계열과 uncertainty 계열 방법 사이의 다리로 봅니다.
 
 ## 5. 실용적인 방법: TD3 + CVAE
 
-보너스로 무엇을 쓸까요? 논문은 **CVAE(Conditional Variational Autoencoder)**의 **재구성 오차**를 씁니다.
+보너스로 무엇을 쓸까요? 탐험 문헌에서 가장 자연스러운 후보는 [RND]({% post_url 2026-09-02-random-network-distillation %})지만, 논문 실험에서 RND는 연속 행동 공간에서 데이터 안팎을 잘 구분하지 못했습니다(아래 6장 실험 1). 그래서 논문은 **CVAE(Conditional Variational Autoencoder)**의 **재구성 오차**를 씁니다.
 
-- 데이터셋의 $$(s, a)$$를 encoder로 잠재 표현 $$z$$로 바꾸고
-- $$(s, z)$$를 decoder로 다시 행동 $$\hat{a}$$로 복원
+![RND와 CVAE 보너스](/assets/img/posts/anti-exploration/fig1.webp)
+_Figure 1. 위: RND는 고정된 무작위 네트워크의 출력을 다른 네트워크가 따라 하도록 학습하고, 예측 오차를 보너스로 씁니다. 아래: CVAE는 $$(s, a)$$를 잠재 변수로 encoding한 뒤 상태와 함께 행동을 복원하고, 복원 오차를 보너스로 씁니다. (출처: Rezaeifar et al., 2022)_
+
+- 데이터셋의 $$(s, a)$$를 encoder $$\Phi$$로 잠재 표현 $$z$$로 바꾸고
+- $$(s, z)$$를 decoder $$\Psi$$로 다시 행동 $$\hat{a}$$로 복원
 - 데이터에 있는 행동은 잘 복원되고, 데이터에 없는 행동은 복원 오차가 큼
 
 $$
-b(s, a) = \big\lVert a - D\big(s, E(s, a)\big)\big\rVert^2
+b(s, a) = \beta\,\big\lVert a - \Psi\big(s, \Phi(s, a)\big)\big\rVert_2^2
 $$
 
-이 보너스를 **TD3**의 critic과 actor에 위의 방식으로 넣은 것이 **TD3-CVAE**입니다.
+$$\beta$$는 보너스 크기를 맞추는 scale입니다. 이 보너스를 **TD3**의 actor loss와 critic target에 넣은 것이 **TD3-CVAE**입니다. 먼저 CVAE를 데이터셋으로 학습해 고정하고(Algorithm 1), 그다음 TD3를 학습하면서 매 batch마다 보너스를 계산합니다(Algorithm 2).
+
+$$
+J_{\text{actor}}(\theta) = \hat{\mathbb{E}}_{s \in \mathcal{D}}\Big[Q(s, \mu_\theta(s) + \epsilon) - b(s, \mu_\theta(s) + \epsilon)\Big]
+$$
+
+$$
+J_{\text{critic}}(\omega) = \hat{\mathbb{E}}_{\mathcal{D}}\Big[\big(r + \gamma\,Q_{\bar\omega}(s', a') - b(s', a') - Q_\omega(s, a)\big)^2\Big],\quad a' \sim \pi_\theta(\cdot \mid s')
+$$
+
+실제로는 actor와 critic에 서로 다른 scale $$\beta_a$$, $$\beta_c$$를 씁니다. TD3가 actor와 critic에서 서로 다른 noise를 쓰는 것과 같은 발상으로, 결과가 조금 더 좋았다고 합니다.
 
 ```python
 import torch
@@ -145,7 +171,7 @@ print(model.bonus(S[test], torch.rand(1000, 1) * 2 - 1).mean().item())      # ra
 
 ### 실험 환경 (D4RL)
 
-**Locomotion**: Hopper, Walker2D, Ant, HalfCheetah에서 이동 거리를 최대화
+**Locomotion**: Hopper, Walker2D, HalfCheetah에서 이동 거리를 최대화
 
 | 데이터셋 | 수집 정책 |
 |---|---|
@@ -154,7 +180,7 @@ print(model.bonus(S[test], torch.rand(1000, 1) * 2 - 1).mean().item())      # ra
 | Medium | 중간 성능의 sub-optimal 정책 |
 | Medium-expert | Medium + near-optimal 정책 혼합 |
 
-**Hand manipulation (Adroit)**: 못 박기(Hammer), 문 열기(Door), 공 옮기기(Relocate), 펜 돌리기(Pen)
+**Hand manipulation (Adroit)**: 24자유도 로봇 손으로 못 박기(Hammer), 문 열기(Door), 공 옮기기(Relocate), 펜 돌리기(Pen)
 
 | 데이터셋 | 수집 방법 |
 |---|---|
@@ -170,13 +196,53 @@ Walker2d-medium에서 데이터셋의 $$(s, a)$$로부터 세 종류의 OOD 행�
 - **Random**: 무작위 행동
 - **Dataset + noise**: 데이터의 행동에 가우시안 노이즈를 더함
 
-**CVAE**는 세 경우 모두에서 데이터 행동과 OOD 행동을 잘 구분했지만, **RND**는 데이터 행동과 OOD 행동의 보너스 차이가 크지 않아 OOD 행동을 잘 잡지 못했습니다. 상태에 **조건부인** 행동 분포를 모델링하는 것이 중요하다는 뜻입니다.
+![CVAE와 RND 보너스 히스토그램](/assets/img/posts/anti-exploration/fig2.webp)
+_Figure 2. walker2d-medium 전체 데이터에 대한 보너스 히스토그램. 파랑: 데이터 행동, 주황: shuffled, 초록: random, 빨강·보라: 데이터 행동 + Gaussian noise(표준편차 0.25, 0.5). 왼쪽 CVAE, 오른쪽 RND(가로축 단위 $$10^{-7}$$). (출처: Rezaeifar et al., 2022)_
+
+Figure 2 왼쪽처럼 **CVAE**는 데이터 행동의 보너스가 0 근처에 몰려 있고, shuffled·random 행동은 0.5~2 근처로 확실히 떨어져 있으며, 더한 noise가 클수록 보너스도 커집니다. 오른쪽 **RND**는 다섯 분포가 거의 겹쳐 OOD 행동을 잘 잡지 못했습니다. 상태에 **조건부인** 행동 분포를 모델링하는 것이 중요하다는 뜻입니다. 부록에서는 halfcheetah-medium, hopper-medium에서도 같은 경향을 보입니다.
 
 ### 2. D4RL 성능
 
-Locomotion과 hand manipulation의 각 데이터셋에서 model-free offline RL 알고리즘들(BC, BCQ, BEAR, BRAC, AWR, CQL)과 비교했습니다. TD3-CVAE는 단순한 구조로 locomotion에서 평균적으로 **CQL과 비슷하고** 나머지 방법보다 좋았으며, hand manipulation에서는 **평균 성능이 가장 높았습니다**.
+Locomotion과 hand manipulation의 각 데이터셋에서 model-free offline RL 알고리즘들(BC, BCQ, BEAR, BRAC, AWR, CQL)과 비교했습니다. baseline 수치는 D4RL 논문 값(3 seed)이고, TD3-CVAE는 10 seed × 10 에피소드 평균입니다(Table 1, normalized score 일부).
 
-## 7. 정리
+| 데이터셋 | BC | BEAR | BCQ | CQL | **TD3-CVAE** |
+|---|---|---|---|---|---|
+| halfcheetah-medium | 36.1 | 41.7 | 40.7 | 44.4 | 43.2 ± 0.4 |
+| walker2d-medium | 6.6 | 59.1 | 53.1 | 79.2 | 68.2 ± 18.7 |
+| hopper-medium | 29.0 | 52.1 | 54.5 | 58.0 | 55.9 ± 11.4 |
+| halfcheetah-med-exp | 35.8 | 53.4 | 64.7 | 62.4 | **86.1 ± 9.7** |
+| walker2d-med-exp | 6.4 | 40.1 | 57.5 | **111.0** | 84.9 ± 20.9 |
+| hopper-med-exp | **111.9** | 96.3 | 110.9 | 98.7 | 111.6 ± 2.3 |
+| **Locomotion 평균 (12개)** | 25.0 | 39.8 | 40.4 | **52.3** | 50.3 ± 8.3 |
+| pen-human | 34.4 | -1.0 | **68.9** | 37.5 | 59.2 ± 14.3 |
+| door-human | 0.5 | -0.3 | -0.0 | **9.9** | 0.0 ± 0.0 |
+| hammer-expert | 125.6 | 127.3 | 107.2 | 86.7 | **128.9 ± 1.5** |
+| door-expert | 34.9 | **103.4** | 99.0 | 101.5 | 59.4 ± 34.7 |
+| **Hand 평균 (12개)** | 36.7 | 38.3 | 39.6 | 40.3 | **42.6 ± 8.6** |
+
+- Locomotion 평균은 50.3으로 CQL(52.3)과 비슷하고 나머지보다 좋습니다. halfcheetah-med-exp(86.1)에서는 모든 baseline보다 높은 반면, walker2d-med-rep(15.4 vs CQL 26.7)처럼 약한 곳도 있습니다.
+- Hand manipulation 평균은 42.6으로 가장 높습니다. 다만 human·cloned 데이터의 hammer, door, relocate는 대부분의 방법이 0 근처라 평균 차이는 주로 expert 데이터와 pen에서 나옵니다. door-expert(59.4 ± 34.7)처럼 seed 간 편차가 큰 과제도 있습니다.
+- 논문은 비교 대상이 모두 model-free이고, model-based 방법은 locomotion에서 더 좋은 결과를 낸다고 밝힙니다. anti-exploration 아이디어 자체는 model-based와도 결합할 수 있다고 봅니다.
+
+## 7. 구현 디테일
+
+| 항목 | 값 |
+|---|---|
+| 보상 전처리 | 환경마다 $$[0, 1]$$로 min-max 정규화 (보너스 scale $$\beta$$를 과제와 덜 무관하게 하려는 목적) |
+| CVAE | encoder·decoder 모두 hidden 750 2층, ReLU, latent 12 |
+| CVAE 학습 | Adam, lr $$10^{-4}$$, batch 100, 50,000 step, KL 가중치 $$\eta = 0.5$$ |
+| TD3 actor·critic | hidden 256 2층 (첫 층 tanh, 둘째 층 elu), 출력 tanh를 행동 범위로 scale |
+| TD3 학습 | Adam, lr $$3 \cdot 10^{-4}$$, batch 256, 그 밖에는 TD3 기본값 |
+| 보너스 scale 탐색 | $$\beta_a, \beta_c \in \{0.1, 0.5, 1, 5, 10\}$$, 과제마다가 아니라 도메인마다 한 쌍만 고름 |
+| 선택된 scale | locomotion $$\beta_a = 5, \beta_c = 1$$, hand $$\beta_a = \beta_c = 10$$ |
+| 평가 | 10 seed × 10 에피소드 |
+
+> TD3 학습 step 수는 본문(6장)에는 $$10^6$$ step, 부록 A에는 500,000 step으로 적혀 있어 서로 다릅니다.
+{: .prompt-warning }
+
+부록 Figure 4에서는 학습이 진행될수록 actor·critic의 평균 보너스가 부드럽게 줄어듭니다. 정책이 점점 OOD 행동을 피한다는 뜻이고, 동시에 return도 오르므로 단순히 보너스만 줄이는(=BC처럼 행동하는) 것이 아니라 보상도 최대화하고 있음을 보여 줍니다.
+
+## 8. 정리
 
 | | Online 탐험 보너스 | Anti-exploration 보너스 |
 |---|---|---|

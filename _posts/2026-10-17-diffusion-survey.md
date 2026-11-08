@@ -1,17 +1,28 @@
 ---
-title: "[Generative AI] Diffusion Models: A Comprehensive Survey — DDPM·SGM·Score SDE 세 공식과 효율적 샘플링·우도·특수 구조 데이터의 지도"
+title: "[Generative AI] Diffusion Models: A Comprehensive Survey of Methods and Applications — DDPM·SGM·Score SDE 세 공식과 연구 지형의 지도"
 date: 2026-10-17 15:12:00 +0900
 categories: [Generative AI, Diffusion]
 tags: [diffusion-models, survey, ddpm, score-matching, sde, efficient-sampling, likelihood, taxonomy]
-description: Yang 등(ACM Computing Surveys 2023)의 디퓨전 모델 서베이를 정리합니다. DDPM, 점수 기반 생성 모델, Score SDE가 같은 원리의 세 공식임을 보이고, 효율적 샘플링(학습 없는 SDE/ODE 솔버와 학습 기반 이산화·절단·증류), 우도 개선(잡음 스케줄·역방향 분산·정확한 우도), 특수 구조 데이터(이산·불변·다양체), 다른 생성 모델과의 연결, 응용, 미래 방향을 지도처럼 그립니다. 작은 실험으로 신호 대 잡음비 스케줄과 점수-잡음 등가, VP/VE의 분산 차이를 확인합니다.
+description: "Diffusion Models: A Comprehensive Survey of Methods and Applications(ACM Computing Surveys 2023) 리뷰. DDPM·SGM·Score SDE가 같은 원리의 세 공식임을 보이고, 효율적 샘플링·우도 개선·특수 구조 데이터의 세 축, 다른 생성 모델과의 연결, 응용, 미래 방향을 분류도와 함께 정리합니다. 작은 실험으로 SNR 스케줄, 점수-잡음 등가, VP/VE의 분산 차이를 확인합니다."
 math: true
 ---
 
-> 이 블로그에서 [잠재 디퓨전]({% post_url 2026-07-03-latent-diffusion-models %}), [잠재 일관성 모델]({% post_url 2026-07-26-latent-consistency-model %}), [Diffuser]({% post_url 2026-09-19-diffuser %}), [Diffusion Policy]({% post_url 2026-10-25-diffusion-policy %}), [Motion Planning Diffusion]({% post_url 2026-09-22-motion-planning-diffusion %})까지 디퓨전 모델을 여러 각도에서 다뤘습니다. 각 논문은 전체 지형의 한 점이고, 그 지형을 한 장으로 그린 것이 **Diffusion Models: A Comprehensive Survey of Methods and Applications**(Yang, Zhang, Song, Hong, Xu, Zhao, Zhang, Cui, Yang, 북경대·OpenAI·UCLA·CMU·UC Merced, ACM Computing Surveys 2023, arXiv v12 2024)입니다. 세 가지 공식(DDPM, SGM, Score SDE)이 같은 원리임을 자족적으로 설명한 뒤, 연구를 **효율적 샘플링, 우도 개선, 특수 구조 데이터**의 세 축으로 분류하고, 다른 생성 모델과의 연결과 여섯 응용 분야를 훑습니다. 이 글은 그 지도를 따라가되, 개별 방법보다 **분류의 논리**에 집중합니다.
+> - **논문**: Diffusion Models: A Comprehensive Survey of Methods and Applications
+> - **저자**: Ling Yang, Zhilong Zhang, Yang Song, Shenda Hong, Runsheng Xu, Yue Zhao, Wentao Zhang, Bin Cui, Ming-Hsuan Yang (Peking University, OpenAI, UCLA, CMU, UC Merced)
+> - **학회**: ACM Computing Surveys 2023 · [arXiv:2209.00796](https://arxiv.org/abs/2209.00796) · [DOI](https://doi.org/10.1145/3626235) · [논문 목록 GitHub](https://github.com/YangLing0818/Diffusion-Models-Papers-Survey-Taxonomy)
+{: .prompt-tip }
+
+> 이 블로그에서 [잠재 디퓨전]({% post_url 2026-07-03-latent-diffusion-models %}), [잠재 일관성 모델]({% post_url 2026-07-26-latent-consistency-model %}), [Diffuser]({% post_url 2026-09-19-diffuser %}), [Diffusion Policy]({% post_url 2026-10-25-diffusion-policy %}), [Motion Planning Diffusion]({% post_url 2026-09-22-motion-planning-diffusion %})까지 디퓨전 모델을 여러 각도에서 다뤘습니다. 각 논문은 전체 지형의 한 점이고, 그 지형을 한 장으로 그린 것이 **Diffusion Models: A Comprehensive Survey of Methods and Applications**입니다(이 글은 2024년 2월의 arXiv v12, 51쪽 기준). 세 가지 공식(DDPM, SGM, Score SDE)이 같은 원리임을 자족적으로 설명한 뒤, 연구를 **효율적 샘플링, 우도 개선, 특수 구조 데이터**의 세 축으로 분류하고, 다른 생성 모델과의 연결과 여섯 응용 분야를 훑습니다. 이 글은 그 지도를 따라가되, 개별 방법보다 **분류의 논리**에 집중합니다.
+
+![디퓨전 모델 분류도](/assets/img/posts/diffusion-survey/fig1.webp)
+_Figure 1. 서베이 전체의 분류도. 알고리즘(효율적 샘플링, 우도 개선, 특수 구조 데이터), 다른 생성 모델과의 연결, 응용, 미래 방향의 네 갈래로 나뉩니다. (출처: Yang et al., 2023)_
 
 ## 1. 기초: 세 공식, 하나의 원리
 
-공통 원리는 데이터를 점점 강한 잡음으로 **망가뜨리는 순방향 과정**과, 그것을 **되돌리는 법을 배우는 역방향 과정**입니다. 역방향의 각 단계는 결국 데이터 밀도가 높은 쪽을 가리키는 **점수** $$\nabla_x \log q(x)$$를 추정하는 일입니다.
+공통 원리는 데이터를 점점 강한 잡음으로 **망가뜨리는 순방향 과정**과, 그것을 **되돌리는 법을 배우는 역방향 과정**입니다. 역방향의 각 단계는 결국 데이터 밀도가 높은 쪽을 가리키는 **점수** $$\nabla_x \log q(x)$$를 추정하는 일입니다(아래 Figure 2).
+
+![순방향과 역방향 과정](/assets/img/posts/diffusion-survey/fig2.webp)
+_Figure 2. 위: 데이터에 잡음을 더해 망가뜨리는 순방향 과정. 아래: 잡음에서 디노이징으로 표본을 만드는 역방향 과정. 오른쪽은 한 디노이징 단계가 점수 함수(밀도가 높아지는 방향)를 따라 움직이는 모습입니다. (출처: Yang et al., 2023)_
 
 **DDPM.** 손으로 설계한 순방향 마르코프 체인 $$q(x_t \mid x_{t-1}) = \mathcal{N}(\sqrt{1 - \beta_t}\, x_{t-1}, \beta_t I)$$는 닫힌 형태의 주변 분포 $$q(x_t \mid x_0) = \mathcal{N}(\sqrt{\bar\alpha_t}\, x_0, (1 - \bar\alpha_t) I)$$를 주고($$\bar\alpha_t = \prod_s (1 - \beta_s)$$), 역방향 전이 $$p_\theta(x_{t-1} \mid x_t)$$를 신경망으로 학습합니다. 변분 하한을 단순화하면 **잡음 예측** 손실 $$\mathbb{E}\lVert \epsilon - \epsilon_\theta(x_t, t) \rVert^2$$이 됩니다.
 
@@ -84,7 +95,7 @@ SDE view: VP (DDPM) keeps the total variance near 1, VE (NCSN) lets it explode
 - **ODE 솔버.** 확률 흐름 ODE는 잡음이 없어 큰 스텝이 가능합니다. DDIM은 비마르코프 순방향을 통해 결정적 샘플러를 얻고, DPM-Solver와 DEIS는 ODE의 반선형 구조를 이용한 지수 적분기로 10~20스텝을 달성합니다. 학습 없이 사전학습 모델에 바로 적용된다는 것이 장점입니다.
 - **최적화된 이산화.** 어떤 시점들을 쓸지 학습합니다.
 - **절단된 디퓨전.** 순방향을 끝까지 돌리지 않고 중간에서 멈추어, 그 지점의 분포를 다른 생성 모델(VAE, GAN)로 생성한 뒤 짧은 역방향만 돕니다.
-- **지식 증류.** 여러 스텝의 교사를 한 스텝의 학생으로 증류합니다(점진적 증류, 일관성 모델). 이 블로그의 [LCM]({% post_url 2026-07-26-latent-consistency-model %})과 [ADD]({% post_url 2026-07-29-adversarial-diffusion-distillation %})가 여기 속합니다.
+- **지식 증류.** 교사의 샘플링 과정을 스텝 수가 절반인 학생으로 증류하고, 이를 반복해 스텝을 계속 줄입니다(점진적 증류). 서베이(v12)는 일관성 모델을 다루지 않지만, 이 블로그의 [LCM]({% post_url 2026-07-26-latent-consistency-model %})과 [ADD]({% post_url 2026-07-29-adversarial-diffusion-distillation %}) 같은 1~4스텝 증류도 이 갈래에 놓을 수 있습니다.
 
 ## 4. 우도 개선
 
@@ -100,7 +111,7 @@ DDPM의 단순화 손실은 우도를 직접 최대화하지 않습니다. 세 �
 
 ## 7. 응용과 조건부 생성
 
-조건부 디퓨전의 기제(분류기 가이던스, 분류기 없는 가이던스, 교차 attention)를 먼저 정리하고, 라벨·텍스트·이미지·의미 맵·그래프 조건을 다룹니다. 응용은 컴퓨터 비전(초해상도·인페인팅·복원·편집, 분할, 비디오, 점군, 이상 탐지), 자연어 생성, 멀티모달(텍스트→이미지·3D·모션·비디오·오디오), 시계열(대체·예측·파형), 강건 학습(적대적 정화), 학제 간(약물·단백질 설계, 재료, 의료 영상 복원)입니다. [영상 복원 서베이]({% post_url 2026-08-03-restoration-survey %})는 이 중 한 칸을 깊게 파고든 것입니다.
+조건부 디퓨전의 기제를 네 가지(연결 concatenation, 분류기 기울기 같은 gradient 기반, 교차 attention, DiT식 adaptive LayerNorm)로 먼저 정리하고, 라벨·분류기(분류기 가이던스, 분류기 없는 가이던스)·텍스트·이미지·의미 맵·그래프 조건을 다룹니다. 응용은 컴퓨터 비전(초해상도·인페인팅·복원·편집, 분할, 비디오, 점군, 이상 탐지), 자연어 생성, 멀티모달(텍스트→이미지·3D·모션·비디오·오디오), 시계열(대체·예측·파형), 강건 학습(적대적 정화), 학제 간(약물·단백질 설계, 재료, 의료 영상 복원)입니다. [영상 복원 서베이]({% post_url 2026-08-03-restoration-survey %})는 이 중 한 칸을 깊게 파고든 것입니다.
 
 ## 8. 미래 방향
 
@@ -110,7 +121,7 @@ DDPM의 단순화 손실은 우도를 직접 최대화하지 않습니다. 세 �
 
 **1. 세 공식의 통일이 서베이의 가장 유용한 부분입니다.** DDPM 논문만 읽으면 "잡음 예측"으로, NCSN만 읽으면 "점수 매칭"으로 보이는 것이 Score SDE에서 같은 대상의 이산화임을 알면, 샘플러(ODE 솔버), 가이던스(점수에 기울기 더하기), 증류(ODE 궤적 압축)가 모두 하나의 틀 안에 놓입니다. 위 toy의 "점수 = 잡음/스케일" 확인이 그 핵심입니다.
 
-**2. 분류의 축이 "무엇이 부족한가"입니다.** 느리다(샘플링), 우도가 낮다(우도), 가우시안이 안 맞는다(특수 구조)라는 세 결핍으로 연구를 나누는 방식은 실용적입니다. 다만 2023~2024년의 큰 흐름인 **흐름 매칭·정류 흐름**, 디퓨전 Transformer(DiT), 비디오 모델은 서베이 범위에서 얕게 다뤄지거나 빠져 있어, 지도의 가장자리는 스스로 그려야 합니다.
+**2. 분류의 축이 "무엇이 부족한가"입니다.** 느리다(샘플링), 우도가 낮다(우도), 가우시안이 안 맞는다(특수 구조)라는 세 결핍으로 연구를 나누는 방식은 실용적입니다. 다만 2023~2024년의 큰 흐름 중 **흐름 매칭·정류 흐름**은 서베이에 나오지 않고, 디퓨전 Transformer(DiT)는 adaLN 조건 기제로 한 번 언급될 뿐입니다. 비디오 생성은 응용 절에서 다루지만 대표 사례 소개 수준이라, 지도의 가장자리는 스스로 그려야 합니다.
 
 **3. "잠재 표현이 약하다"는 지적이 흥미롭습니다.** VAE·GAN과 달리 디퓨전의 잠재는 잡음과 같은 차원이라 의미 축을 찾기 어렵고, 이것이 편집에 반전(inversion)이나 attention 조작 같은 우회로가 필요한 이유입니다. 잠재 디퓨전이 오토인코더의 잠재 공간을 빌리는 것도 부분적 답입니다.
 

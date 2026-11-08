@@ -1,13 +1,18 @@
 ---
-title: "[Lightweight] MobileNetV2: Inverted Residual과 Linear Bottleneck, 왜 얇은 곳에서는 ReLU를 빼는가"
+title: "[Lightweight] MobileNetV2(Inverted Residuals and Linear Bottlenecks): 왜 얇은 곳에서는 ReLU를 빼는가"
 date: 2026-07-22 14:37:00 +0900
 categories: [Neural Network, Lightweight]
 tags: [lightweight, mobilenetv2, inverted-residual, linear-bottleneck, depthwise-separable, relu6, ssdlite, deeplabv3, on-device]
-description: MobileNetV2(Sandler et al., CVPR 2018)의 두 가지 설계 원칙인 linear bottleneck과 inverted residual을 "ReLU는 저차원에서 정보를 파괴한다"는 관찰에서부터 따라가고, 메모리 효율적 추론, ImageNet·COCO·VOC 결과와 ablation을 정리합니다. 작은 실험으로 ReLU의 차원별 정보 손실과 블록의 연산량·메모리를 확인합니다.
+description: "MobileNetV2: Inverted Residuals and Linear Bottlenecks(CVPR 2018) 논문 리뷰. linear bottleneck과 inverted residual을 'ReLU는 저차원에서 정보를 파괴한다'는 관찰에서부터 따라가고, 메모리 효율적 추론, 학습 설정, ImageNet·COCO·VOC 수치와 ablation을 그림과 함께 정리합니다. 작은 실험으로 ReLU의 차원별 정보 손실과 블록의 연산량·메모리를 확인합니다."
 math: true
 ---
 
-> [MobileNet V1]({% post_url 2026-05-30-mobilenet %})은 depthwise separable convolution으로 연산량을 8~9배 줄였습니다. **MobileNetV2**(Sandler, Howard, Zhu, Zhmoginov, Chen, Google, CVPR 2018)는 그 위에 블록 구조를 다시 설계합니다. 핵심은 두 가지입니다. 채널이 적은 **bottleneck 층에서는 비선형성을 빼고**(linear bottleneck), 잔차 연결은 넓은 층이 아니라 **얇은 bottleneck 사이에 건다**(inverted residual). 같은 정확도에서 V1보다 연산량과 메모리를 함께 줄였고, SSDLite·DeepLabv3와 결합해 검출과 분할까지 모바일에서 돌아가게 만든 논문입니다.
+> - **논문**: MobileNetV2: Inverted Residuals and Linear Bottlenecks
+> - **저자**: Mark Sandler, Andrew Howard, Menglong Zhu, Andrey Zhmoginov, Liang-Chieh Chen (Google)
+> - **학회**: CVPR 2018 · [arXiv:1801.04381](https://arxiv.org/abs/1801.04381)
+{: .prompt-tip }
+
+> [MobileNet V1]({% post_url 2026-05-30-mobilenet %})은 depthwise separable convolution으로 연산량을 8~9배 줄였습니다. **MobileNetV2**는 그 위에 블록 구조를 다시 설계합니다. 핵심은 두 가지입니다. 채널이 적은 **bottleneck 층에서는 비선형성을 빼고**(linear bottleneck), 잔차 연결은 넓은 층이 아니라 **얇은 bottleneck 사이에 건다**(inverted residual). 같은 정확도에서 V1보다 연산량과 메모리를 함께 줄였고, SSDLite·DeepLabv3와 결합해 검출과 분할까지 모바일에서 돌아가게 만든 논문입니다.
 
 ## 1. 관찰: ReLU는 저차원에서 정보를 파괴한다
 
@@ -16,7 +21,12 @@ math: true
 - ReLU 출력이 0이 아닌 영역에서 ReLU는 **선형 변환**입니다. 즉 비선형성은 0으로 잘리는 부분에서만 나옵니다.
 - 입력 매니폴드가 ReLU 출력 공간의 저차원 부분공간에 놓이려면, 그 매니폴드는 입력 공간의 **저차원 부분공간에 들어 있어야** 합니다. 채널이 적은 공간에서 ReLU를 거치면 잘려 나간 정보는 복구되지 않습니다.
 
-Figure 1의 실험이 이를 보여 줍니다. 2차원 나선을 임의의 행렬 $$T$$로 $$n$$차원에 올려 ReLU를 통과시킨 뒤 $$T^{-1}$$로 되돌리면, $$n$$이 2~5일 때는 나선이 심하게 망가지고 $$n$$이 15~30이면 모양이 대체로 보존됩니다. 결론은 둘입니다. **비선형성은 채널이 많은 곳에 두고, 채널이 적은 bottleneck에는 선형 층만 둔다.**
+아래 Figure 1의 실험이 이를 보여 줍니다. 2차원 나선을 임의의 행렬 $$T$$로 $$n$$차원에 올려 ReLU를 통과시킨 뒤 $$T^{-1}$$로 되돌리면, $$n = 2, 3$$일 때는 나선의 여러 점이 한데 뭉개져 정보가 사라지고, $$n = 15 \sim 30$$이면 변환은 강하게 비볼록하지만 나선의 모양은 대체로 남습니다.
+
+![ReLU를 거친 2차원 나선](/assets/img/posts/mobilenetv2/fig1.webp)
+_Figure 1. 2차원 나선을 n차원으로 올려 ReLU를 적용한 뒤 다시 2차원으로 되돌린 결과. 차원이 낮을수록 점들이 겹쳐 정보가 사라집니다. (출처: Sandler et al., 2018)_
+
+결론은 둘입니다. **비선형성은 채널이 많은 곳에 두고, 채널이 적은 bottleneck에는 선형 층만 둔다.**
 
 ## 2. 방법
 
@@ -32,17 +42,38 @@ V2의 기본 블록은 입력 $$k$$채널, 확장 비율 $$t$$에 대해 세 층
 
 곱셈-덧셈 수는 $$h \cdot w \cdot k \cdot t \,(k + d^2 + k')$$입니다. 확장 때문에 1×1 항이 하나 더 붙지만, depthwise 층이 저렴해서 전체는 V1보다 작은 입력·출력 채널로 같은 표현력을 냅니다. 논문은 $$t = 6$$을 기본으로 쓰고, 5~10 사이에서는 성능이 비슷하며 작은 네트워크일수록 작은 $$t$$가 약간 낫다고 보고합니다.
 
-잔차 연결은 **bottleneck끼리**, 즉 얇은 $$k$$채널 텐서 사이에 겁니다. 기존 [ResNet]({% post_url 2026-05-28-resnet %}) bottleneck은 넓은 층을 입출력으로 두고 가운데를 좁히는 반면, 여기서는 얇은 층이 입출력이고 가운데가 넓습니다. 그래서 "inverted"입니다. 이렇게 하면 다음 블록으로 넘어가는 텐서가 얇아서 **메모리**가 줄고, 블록 내부의 넓은 텐서는 블록 안에서만 살다가 사라집니다.
+잔차 연결은 **bottleneck끼리**, 즉 얇은 $$k$$채널 텐서 사이에 겁니다. 기존 [ResNet]({% post_url 2026-05-28-resnet %}) bottleneck은 넓은 층을 입출력으로 두고 가운데를 좁히는 반면, 여기서는 얇은 층이 입출력이고 가운데가 넓습니다. 그래서 "inverted"입니다(아래 Figure 3).
+
+![Residual block과 inverted residual block](/assets/img/posts/mobilenetv2/fig3.webp)
+_Figure 3. (a) 기존 residual block은 넓은 층끼리 잇고, (b) inverted residual block은 빗금 친 얇은 선형 bottleneck끼리 잇습니다. 빗금은 비선형성이 없는 층입니다. (출처: Sandler et al., 2018)_
+
+이렇게 하면 다음 블록으로 넘어가는 텐서가 얇아서 **메모리**가 줄고, 블록 내부의 넓은 텐서는 블록 안에서만 살다가 사라집니다.
 
 비선형성으로는 ReLU6($$\min(\max(x, 0), 6)$$)을 씁니다. 저정밀 연산에서 값의 범위를 고정해 주기 때문입니다.
 
 ### 아키텍처
 
-첫 층은 32채널 일반 3×3 conv, 그 뒤 **19개의 residual bottleneck 블록**($$t = 1$$인 첫 블록을 빼면 모두 $$t = 6$$), 1×1 conv로 1280채널, average pooling, 분류기입니다. 기본 모델은 224×224 입력에서 **3.4M 파라미터, 300M MAdds**이고, width multiplier 0.35~1.4와 입력 해상도 96~224로 크기를 조절합니다. 1.4 배율에서는 585M MAdds, 74.7%까지 올라갑니다.
+첫 층은 32채널 일반 3×3 conv(stride 2), 그 뒤 residual bottleneck 블록들($$t = 1$$인 첫 블록을 빼면 모두 $$t = 6$$), 1×1 conv로 1280채널, 7×7 average pooling, 1×1 conv 분류기입니다(Table 2).
+
+| 입력 | 연산 | $$t$$ | 출력 채널 $$c$$ | 반복 $$n$$ | stride $$s$$ |
+|---|---|---|---|---|---|
+| 224²×3 | conv2d 3×3 | - | 32 | 1 | 2 |
+| 112²×32 | bottleneck | 1 | 16 | 1 | 1 |
+| 112²×16 | bottleneck | 6 | 24 | 2 | 2 |
+| 56²×24 | bottleneck | 6 | 32 | 3 | 2 |
+| 28²×32 | bottleneck | 6 | 64 | 4 | 2 |
+| 14²×64 | bottleneck | 6 | 96 | 3 | 1 |
+| 14²×96 | bottleneck | 6 | 160 | 3 | 2 |
+| 7²×160 | bottleneck | 6 | 320 | 1 | 1 |
+| 7²×320 | conv2d 1×1 | - | 1280 | 1 | 1 |
+| 7²×1280 | avgpool 7×7 | - | - | 1 | - |
+| 1×1×1280 | conv2d 1×1 | - | 클래스 수 | - | - |
+
+본문은 "19개의 residual bottleneck 층"이라고 쓰지만, 위 표의 반복 수 $$n$$을 더하면 bottleneck 블록은 17개입니다. 기본 모델은 224×224 입력에서 **3.4M 파라미터, 300M MAdds**이고, width multiplier 0.35~1.4와 입력 해상도 96~224로 크기를 조절합니다(파라미터 1.7M~6.9M). 1.4 배율에서는 585M MAdds, 74.7%까지 올라갑니다. V1과 달리 배율이 1보다 작을 때도 마지막 1×1 conv(1280채널)에는 배율을 적용하지 않아 작은 모델의 성능을 지킵니다.
 
 ### 메모리 효율적 추론
 
-추론 때 메모리를 지배하는 것은 각 연산의 입력과 출력 텐서의 합입니다. V2는 블록 사이를 지나는 텐서가 얇은 bottleneck이라 이 값이 작습니다. 블록 내부의 넓은 $$tk$$ 텐서는 depthwise 연산이 채널별로 독립이라는 점을 이용해 **채널을 $$t$$조각으로 나눠 순차 계산**할 수 있습니다. 1×1 확장 → depthwise → 1×1 투영을 한 조각씩 처리하고 결과를 누적하면, 넓은 텐서를 한 번에 메모리에 올릴 필요가 없습니다. 논문은 이 방식으로 추론 때 필요한 최대 텐서가 V1의 1600K에서 V2의 400K(16비트 기준 활성값 수)로 줄었다고 보고합니다. 다만 조각이 많아지면 캐시 효율이 떨어져 실제로는 2~5조각 정도가 적당합니다.
+추론 때 메모리를 지배하는 것은 각 연산의 입력과 출력 텐서의 합입니다. V2는 블록 사이를 지나는 텐서가 얇은 bottleneck이라 이 값이 작습니다. 블록 내부의 넓은 $$tk$$ 텐서는 depthwise 연산이 채널별로 독립이라는 점을 이용해 **채널을 $$t$$조각으로 나눠 순차 계산**할 수 있습니다. 1×1 확장 → depthwise → 1×1 투영을 한 조각씩 처리하고 결과를 누적하면, 넓은 텐서를 한 번에 메모리에 올릴 필요가 없습니다. 이렇게 블록 하나를 연산 하나로 보면 메모리는 블록 안의 큰 텐서가 아니라 bottleneck 텐서 크기가 지배합니다. 논문 Table 3은 해상도별로 반드시 메모리에 올려야 하는 텐서를 비교하는데, 16비트 활성값 기준으로 최댓값이 V1 1600Kb, ShuffleNet(2x, g=3) 600Kb, V2 400Kb입니다. 조각을 나눠도 곱셈-덧셈 수는 변하지 않지만, 행렬곱 하나를 여러 개로 쪼개면 캐시 miss가 늘어 실제로는 2~5조각 정도가 적당합니다.
 
 ## 3. 코드로 보기: ReLU의 차원별 정보 손실과 블록의 비용
 
@@ -114,13 +145,62 @@ memory-efficient inference: split the expanded 384x56x56 tensor into t=6 slices
 
 ## 4. 실험
 
-**ImageNet 분류.** 기본 MobileNetV2는 top-1 72.0%, 300M MAdds, 3.4M 파라미터, Pixel 1 단일 코어에서 75ms입니다. MobileNetV1(70.6%, 569M, 113ms), ShuffleNet 1.5(71.5%, 292M), NASNet-A(74.0%, 564M, 183ms)와 비교하면 V1·ShuffleNet보다는 정확하고, NASNet-A보다는 정확도가 2%p 낮지만 연산량은 절반 수준이고 지연은 2.4배 짧습니다. 1.4 배율 모델은 74.7%, 585M, 143ms로 NASNet-A보다 정확하면서 빠릅니다.
+### 학습·평가 설정
 
-**COCO 검출.** SSD의 예측 층을 depthwise separable로 바꾼 **SSDLite**를 붙이면 MobileNetV2 + SSDLite는 22.1 mAP, 4.3M 파라미터, 0.8B MAdds, Pixel 1에서 200ms입니다. YOLOv2(21.6 mAP, 50.7M, 17.5B)보다 20배 적은 연산과 10배 적은 파라미터로 더 높은 mAP를 냅니다.
+| 항목 | 값 |
+|---|---|
+| ImageNet 학습 | TensorFlow, RMSProp(decay 0.9, momentum 0.9), 모든 층 뒤 BN, dropout, weight decay 0.00004 |
+| Learning rate | 초기 0.045, epoch마다 0.98배 감소 |
+| 병렬화 | 비동기 GPU worker 16개, batch 96 |
+| 지연 측정 | Google Pixel 1의 큰 코어 1개, TF-Lite |
+| COCO 검출 | TensorFlow Object Detection API, 입력 320×320, trainval35k 학습 / test-dev 평가. SSDLite 첫 층은 15번째 층의 확장 출력(output stride 16), 나머지는 마지막 층(output stride 32)에 연결 |
+| VOC 분할 | PASCAL VOC 2012 + 추가 라벨, COCO로 사전학습, 512×512 입력, mIOU |
 
-**VOC 분할.** DeepLabv3 헤드를 마지막 층(1280채널) 대신 **마지막에서 두 번째 feature map(320채널)** 위에 올리고, ASPP를 제거하고, output stride 16을 쓰면 75.32% mIOU에 2.75B MAdds입니다. ResNet-101 기반(output stride 8에 다중 스케일·좌우 반전 추론까지 쓴 설정에서 mIOU 82.70, 4870.6B MAdds)과 비교하면 천 배 넘게 가벼운 온디바이스 후보입니다.
+### ImageNet 분류 (Table 4)
 
-**Ablation.** bottleneck에 ReLU6를 넣은 모델보다 **선형 bottleneck**이 더 정확합니다. 선형 층은 표현력이 엄밀히는 더 작은데도 성능이 좋다는 것이 "비선형성이 저차원에서 정보를 파괴한다"는 가설의 근거입니다. 잔차 연결은 확장 층 사이보다 **bottleneck 사이**에 거는 쪽이 낫습니다.
+| 네트워크 | Top-1 | 파라미터 | MAdds | CPU (Pixel 1) |
+|---|---|---|---|---|
+| MobileNetV1 | 70.6 | 4.2M | 575M | 113ms |
+| ShuffleNet (1.5) | 71.5 | 3.4M | 292M | - |
+| ShuffleNet (x2) | 73.7 | 5.4M | 524M | - |
+| NASNet-A | 74.0 | 5.3M | 564M | 183ms |
+| **MobileNetV2** | 72.0 | 3.4M | 300M | 75ms |
+| **MobileNetV2 (1.4)** | 74.7 | 6.9M | 585M | 143ms |
+
+기본 MobileNetV2는 V1보다 1.4%p 정확하면서 MAdds는 약 절반, 지연은 113ms → 75ms입니다. NASNet-A보다는 정확도가 2%p 낮지만 연산량은 절반 수준이고 지연은 2.4배 짧습니다. 1.4 배율 모델은 NASNet-A보다 정확하면서 빠릅니다. ShuffleNet은 그룹 합성곱과 shuffle이 TF-Lite에서 효율적으로 지원되지 않아 지연을 재지 않았습니다.
+
+### COCO 검출 (Table 6)
+
+SSD의 예측 층을 depthwise separable로 바꾼 **SSDLite**는 MobileNetV2 백본에서 SSD 대비 파라미터 14.8M → 2.1M, MAdds 1.25B → 0.35B입니다(Table 5).
+
+| 네트워크 | mAP | 파라미터 | MAdds | CPU |
+|---|---|---|---|---|
+| SSD300 | 23.2 | 36.1M | 35.2B | - |
+| SSD512 | 26.8 | 36.1M | 99.5B | - |
+| YOLOv2 | 21.6 | 50.7M | 17.5B | - |
+| MNet V1 + SSDLite | 22.2 | 5.1M | 1.3B | 270ms |
+| **MNet V2 + SSDLite** | 22.1 | 4.3M | 0.8B | 200ms |
+
+MobileNetV2 + SSDLite는 YOLOv2보다 20배 적은 연산과 10배 적은 파라미터로 더 높은 mAP를 냅니다.
+
+### VOC 분할 (Table 7, 일부)
+
+| 백본 | Output stride | ASPP | 다중 스케일·반전 | mIOU | 파라미터 | MAdds |
+|---|---|---|---|---|---|---|
+| MNet V1 | 16 | ✓ | | 75.29 | 11.15M | 14.25B |
+| MNet V2\* | 16 | ✓ | | 75.70 | 4.52M | 5.8B |
+| **MNet V2\*** | 16 | | | **75.32** | 2.11M | **2.75B** |
+| ResNet-101 | 16 | ✓ | | 80.49 | 58.16M | 81.0B |
+| ResNet-101 | 8 | ✓ | ✓ | 82.70 | 58.16M | 4870.6B |
+
+MNet V2\*는 DeepLabv3 헤드를 마지막 층(1280채널) 대신 **마지막에서 두 번째 feature map(320채널)** 위에 올린 모델입니다. 여기서 ASPP까지 빼면 75.32% mIOU에 2.75B MAdds로, 논문이 온디바이스 후보로 꼽은 설정입니다. 다중 스케일·좌우 반전 추론은 MAdds를 수십~수백 배 늘려 모바일에는 맞지 않습니다.
+
+### Ablation (Figure 6)
+
+![선형 bottleneck과 shortcut 위치 ablation](/assets/img/posts/mobilenetv2/fig6.webp)
+_Figure 6. 왼쪽: bottleneck에 비선형성을 넣었을 때(ReLU6)와 선형으로 둘 때의 ImageNet top-1 학습 곡선. 오른쪽: shortcut을 bottleneck 사이, 확장 층 사이에 걸거나 빼었을 때. (출처: Sandler et al., 2018)_
+
+bottleneck에 ReLU6를 넣은 모델보다 **선형 bottleneck**이 더 정확합니다(그래프상 약 71%대 대 70%대). 선형 층은 표현력이 엄밀히는 더 작은데도 성능이 좋다는 것이 "비선형성이 저차원에서 정보를 파괴한다"는 가설의 근거입니다. 잔차 연결은 확장 층 사이보다 **bottleneck 사이**에 거는 쪽이 낫고, 잔차가 없으면 가장 나쁩니다. 정확한 수치는 그래프로만 제시됩니다.
 
 ## 5. 해석
 
@@ -132,7 +212,7 @@ memory-efficient inference: split the expanded 384x56x56 tensor into t=6 slices
 
 **4. 백본만이 아니라 헤드도 바꿨습니다.** SSDLite와 DeepLabv3 헤드의 경량화는 "백본이 가벼워도 헤드가 무거우면 소용없다"는 당연하지만 자주 잊히는 점을 짚습니다. 특히 분할에서 ASPP 제거와 320채널 feature 사용이 MAdds를 지배적으로 줄입니다.
 
-**5. 평가를 읽을 때 주의할 점.** 지연 시간은 Pixel 1 단일 큰 코어, TF-Lite 기준이라 다른 기기·런타임에서는 순위가 바뀔 수 있습니다. 메모리 효율적 추론의 400K는 조각 분할을 구현한 경우의 수치이고, 일반 프레임워크는 확장 텐서를 통째로 올립니다. 위 toy의 나선 오차는 무작위 $$T$$에 대한 평균이라 특정 학습된 변환의 거동과는 다릅니다.
+**5. 평가를 읽을 때 주의할 점.** 지연 시간은 Pixel 1 단일 큰 코어, TF-Lite 기준이라 다른 기기·런타임에서는 순위가 바뀔 수 있습니다. 메모리 효율적 추론의 400Kb는 bottleneck 블록을 연산 하나로 처리(조각 분할)하는 구현을 전제로 한 수치이고, 일반 프레임워크는 확장 텐서를 통째로 올립니다. 위 toy의 나선 오차는 무작위 $$T$$에 대한 평균이라 특정 학습된 변환의 거동과는 다릅니다.
 
 ## 6. 정리
 

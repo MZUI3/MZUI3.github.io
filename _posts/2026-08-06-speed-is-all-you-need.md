@@ -1,17 +1,25 @@
 ---
-title: "[Generative AI] Speed Is All You Need: 모바일 GPU에서 Stable Diffusion을 12초 안에 돌리는 커널 최적화"
+title: "[Generative AI] Speed Is All You Need(On-Device Acceleration of Large Diffusion Models via GPU-Aware Optimizations): 모바일 GPU에서 Stable Diffusion을 12초 안에"
 date: 2026-08-06 09:54:00 +0900
 categories: [Generative AI, Diffusion]
 tags: [diffusion, stable-diffusion, on-device, mobile-gpu, fused-softmax, flashattention, winograd, group-norm, gelu, lightweight, edge-ai]
-description: 모델을 바꾸지 않고 GPU 커널만 손봐 Samsung S23 Ultra에서 Stable Diffusion 1.4의 512×512 이미지 생성(20 step)을 12초 아래로 끌어내린 Speed Is All You Need(Chen et al., Google, CVPR 2023 Workshop)의 네 가지 최적화와 그 효과를 정리하고, Winograd와 partially fused softmax를 코드로 확인합니다.
+description: "Speed Is All You Need: On-Device Acceleration of Large Diffusion Models via GPU-Aware Optimizations(CVPR 2023 Workshop) 논문 리뷰. 모델을 바꾸지 않고 GPU 커널만 손봐 Samsung S23 Ultra에서 Stable Diffusion 1.4의 512×512 생성(20 step)을 11.5초로 줄인 네 가지 최적화와 단계별 지연·메모리 수치를 그림과 함께 정리하고, Winograd와 partially fused softmax를 코드로 확인합니다."
 math: true
 ---
 
-> [Latent Diffusion Model]({% post_url 2026-07-03-latent-diffusion-models %})은 10억 개가 넘는 파라미터를 가진 모델입니다. 이를 서버가 아니라 **휴대폰에서** 돌리면 서버 비용이 들지 않고, 오프라인에서 동작하며, 데이터가 기기를 떠나지 않습니다. 문제는 연산과 메모리입니다. **Speed Is All You Need**(Chen, Sarokin et al., Google, CVPR 2023 Workshop)는 모델 구조나 양자화 없이 **GPU 커널 구현만으로** Stable Diffusion 1.4의 UNet 한 iteration 지연을 Samsung S23 Ultra에서 52%, iPhone 14 Pro Max에서 33% 줄이고, 512×512 이미지 20 step 생성을 **12초 아래**로 끌어내렸습니다. 5쪽짜리 짧은 논문이지만 [Edge AI]({% post_url 2026-06-19-edge-ai-hardware %})에서 다룬 "하드웨어를 아는 구현"이 무엇인지 보여 주는 좋은 사례입니다.
+> - **논문**: Speed Is All You Need: On-Device Acceleration of Large Diffusion Models via GPU-Aware Optimizations
+> - **저자**: Yu-Hui Chen, Raman Sarokin, Juhyun Lee, Jiuqiang Tang, Chuo-Ling Chang, Andrei Kulik, Matthias Grundmann (Google)
+> - **학회**: CVPR 2023 Workshop · [arXiv:2304.11267](https://arxiv.org/abs/2304.11267)
+{: .prompt-tip }
+
+> [Latent Diffusion Model]({% post_url 2026-07-03-latent-diffusion-models %})은 10억 개가 넘는 파라미터를 가진 모델입니다. 이를 서버가 아니라 **휴대폰에서** 돌리면 서버 비용이 들지 않고, 오프라인에서 동작하며, 데이터가 기기를 떠나지 않습니다. 문제는 연산과 메모리입니다. **Speed Is All You Need**는 모델 구조나 양자화 없이 **GPU 커널 구현만으로** Stable Diffusion 1.4의 UNet 한 iteration 지연을 Samsung S23 Ultra에서 52%, iPhone 14 Pro Max에서 33% 줄이고, 512×512 이미지 20 step 생성을 **11.5초**로 끌어내렸습니다(INT8 양자화 없이). 5쪽짜리 짧은 논문이지만 [Edge AI]({% post_url 2026-06-19-edge-ai-hardware %})에서 다룬 "하드웨어를 아는 구현"이 무엇인지 보여 주는 좋은 사례입니다.
 
 ## 1. Stable Diffusion의 네 부품
 
-텍스트에서 이미지를 만드는 추론은 네 부품을 거칩니다.
+텍스트에서 이미지를 만드는 추론은 아래 Figure 1의 네 부품을 거칩니다.
+
+![Stable Diffusion의 네 부품](/assets/img/posts/speed-is-all-you-need/fig1.webp)
+_Figure 1. Text embedder와 noise generation이 UNet에 조건과 시작 latent를 주고, UNet이 latent를 반복해서 갱신한 뒤 image decoder가 RGB로 복원합니다. (출처: Chen et al., 2023)_
 
 | 부품 | 역할 |
 |---|---|
@@ -54,7 +62,10 @@ $$
 
 2. **원소별 연산**: $$L$$과 $$S$$로 $$A$$를 정규화
 
-큰 행렬 $$A$$ 전체에 softmax를 돌리는 대신, 축소 연산만 shader로 계산해 크기 **$$N \times 2$$**의 텐서를 만들고, 원소별 정규화는 **뒤따르는 $$V$$와의 행렬곱에 융합**합니다. 중간 텐서의 메모리와 전체 지연이 크게 줄어듭니다.
+큰 행렬 $$A$$ 전체에 softmax를 돌리는 대신, 축소 연산만 shader로 계산해 크기 **$$N \times 2$$**의 텐서를 만들고, 원소별 정규화는 **뒤따르는 $$V$$와의 행렬곱에 융합**합니다. 아래 Figure 2의 빨간 부분이 바뀐 모듈입니다. 중간 텐서의 메모리와 전체 지연이 크게 줄어듭니다.
+
+![partially fused softmax](/assets/img/posts/speed-is-all-you-need/fig2.webp)
+_Figure 2. 위: $$QK^\top/\sqrt d$$ 전체에 softmax를 적용하는 원래 구현. 아래: 축소 연산으로 $$[L, S]$$만 만들고 원소별 정규화를 $$V$$와의 MatMul에 합친 구현(빨간색). (출처: Chen et al., 2023)_
 
 $$A$$에서 $$L, S$$로 가는 축소는 출력이 입력보다 훨씬 작아 병렬성이 제한됩니다. 그래서 $$A$$의 원소를 블록으로 묶어 블록마다 계산한 뒤 최종 결과로 다시 축소하는 **다단계** 구조로 병렬성을 높였고, 스레딩과 메모리 캐시를 세심하게 관리해 이 다단계도 GPU 명령 한 번에 끝냅니다.
 
@@ -127,7 +138,20 @@ softmax 중간 텐서: 원래 N×M = 1,048,576개 → 융합 후 N×2 = 2,048개
 
 ## 4. 결과
 
-UNet 한 iteration, 512×512 해상도, OpenCL 커널 기준입니다. 각 행은 이전 행의 최적화를 모두 포함합니다.
+### 실험 설정
+
+| 항목 | 값 |
+|---|---|
+| 모델 | Stable Diffusion 1.4 (10억 개 이상 파라미터), INT8 양자화 없음 |
+| 기기 (GPU) | Samsung S23 Ultra (Adreno 740), iPhone 14 Pro Max (A16) |
+| 주 측정 | UNet 한 iteration 지연, 512×512 해상도 |
+| 메모리 측정 | 실행 중 중간 텐서(버퍼 재사용 메모리 관리자 적용), 초기화 시 가중치 |
+| Baseline | 공개 CompVis/stable-diffusion 구현을 저자들의 내부 OpenCL 커널로 옮긴 것(최적화 없음) |
+| End-to-end | 텍스트 입력부터 디코딩된 이미지까지, 20 step, S23 Ultra에서만 측정 |
+
+### 단계별 지연과 메모리 (Table 1)
+
+각 행은 이전 행의 최적화를 모두 포함합니다.
 
 | 단계 | S23 Ultra 지연(ms) | 중간 텐서(MB) | 가중치(MB) | iPhone 14 Pro Max 지연(ms) |
 |---|---|---|---|---|
@@ -140,7 +164,8 @@ UNet 한 iteration, 512×512 해상도, OpenCL 커널 기준입니다. 각 행�
 - S23 Ultra(Adreno 740)에서 **52.2%**, iPhone 14 Pro Max(A16)에서 **32.9%** 지연 감소입니다.
 - 가장 큰 단일 효과는 S23에서는 Opt. Softmax(1098→908ms), iPhone에서는 Winograd(1309→1043ms)입니다. Winograd는 S23에서도 660→525ms로 지연을 줄였지만, 가중치 메모리가 1,640MB에서 2,093MB로 늘었습니다. 변환된 커널이 커지기 때문입니다.
 - 전용 커널(GN/GELU)은 중간 텐서를 105MB에서 85MB로 줄이며 속도도 올립니다. 중간 텐서를 만들지 않는 효과입니다.
-- 끝에서 끝까지(텍스트 입력부터 디코딩된 이미지까지) S23 Ultra에서 20 step, 512×512 생성이 **12초 미만**입니다.
+- 끝에서 끝까지(텍스트 입력부터 디코딩된 이미지까지) S23 Ultra에서 20 step, 512×512 생성이 **11.5초**로, 논문 초록의 표현으로는 "12초 미만"입니다.
+- iPhone 14 Pro Max의 중간 텐서·가중치 메모리는 모든 행에서 S23 Ultra와 같은 값(105→84MB, 1640→2093MB)입니다.
 
 ## 5. 해석
 
@@ -163,7 +188,7 @@ UNet 한 iteration, 512×512 해상도, OpenCL 커널 기준입니다. 각 행�
 | Fused softmax | 행별 최댓값·지수합($$N \times 2$$)만 계산하고 정규화는 $$V$$ 행렬곱에 융합. 축소는 블록별 다단계로 병렬화 |
 | FlashAttention | 레지스터 부담 때문에 $$d = 40$$인 attention에만 선택 적용 |
 | Winograd | 3×3 합성곱에 4×4 타일(FLOPs 4배 절감, 가중치 4배 증가), 이득이 나는 곳에만 |
-| 결과 | UNet iteration 지연 S23 Ultra 1098→525ms(-52.2%), iPhone 14 Pro Max 1554→1043ms(-32.9%). 20 step 512×512 생성 12초 미만 |
+| 결과 | UNet iteration 지연 S23 Ultra 1098→525ms(-52.2%), iPhone 14 Pro Max 1554→1043ms(-32.9%). 20 step 512×512 생성 11.5초 |
 | 비용 | Winograd로 가중치 메모리 1640→2093MB |
 
 ## References
