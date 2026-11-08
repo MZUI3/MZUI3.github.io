@@ -1,13 +1,18 @@
 ---
-title: "[RL] Phasic Policy Gradient: 정책과 가치 함수의 학습을 단계로 나눠 feature는 공유하되 간섭은 끊기"
+title: "[RL] PPG(Phasic Policy Gradient): 정책과 가치 함수의 학습을 단계로 나눠 feature는 공유하되 간섭은 끊기"
 date: 2026-09-16 09:32:00 +0900
 categories: [Reinforcement Learning, Model-Free]
 tags: [reinforcement-learning, model-free, ppo, phasic-policy-gradient, ppg, actor-critic, auxiliary-task, sample-reuse, procgen, representation-learning]
-description: actor-critic에서 정책과 가치 함수가 네트워크를 공유하면 feature는 나누지만 목표가 간섭하고, 분리하면 간섭은 없지만 feature를 못 나눈다는 딜레마를, 정책 단계와 보조 단계를 번갈아 두는 것으로 푼 Phasic Policy Gradient(Cobbe et al., ICML 2021)의 알고리즘, Procgen 결과, 샘플 재사용 분석을 정리하고 보조 단계의 동작을 코드로 확인합니다.
+description: "Phasic Policy Gradient(PPG, ICML 2021) 논문 리뷰. 정책과 가치 함수의 네트워크 공유 딜레마를 정책 단계와 보조 단계를 번갈아 두는 것으로 푼 알고리즘, Procgen 결과, 샘플 재사용 분석, 하이퍼파라미터를 그림과 함께 정리하고 보조 단계의 동작을 코드로 확인합니다."
 math: true
 ---
 
-> [PPO]({% post_url 2026-07-05-trpo-to-ppo %}) 같은 actor-critic 방법을 구현할 때 늘 마주치는 선택이 있습니다. 정책과 가치 함수가 **네트워크를 공유**할 것인가, **따로** 둘 것인가. 공유하면 한쪽이 배운 feature를 다른 쪽이 쓰지만, 두 목표의 가중치를 정해야 하고 서로 간섭합니다. 따로 두면 간섭은 없지만 feature를 나누지 못합니다. **Phasic Policy Gradient**(PPG, Cobbe, Hilton, Klimov, Schulman, OpenAI, ICML 2021)는 둘의 장점만 취합니다. 학습을 **정책 단계**와 **보조 단계**로 나눠, 정책 단계에서는 분리된 네트워크로 PPO를 돌리고, 보조 단계에서는 가치 함수의 feature를 정책 네트워크로 증류합니다. 덤으로 가치 함수를 정책보다 훨씬 많이 재사용해 학습할 수 있게 되어 Procgen에서 샘플 효율이 크게 올랐습니다.
+> - **논문**: Phasic Policy Gradient
+> - **저자**: Karl Cobbe, Jacob Hilton, Oleg Klimov, John Schulman (OpenAI)
+> - **학회**: ICML 2021 · [arXiv:2009.04416](https://arxiv.org/abs/2009.04416) · [코드](https://github.com/openai/phasic-policy-gradient)
+{: .prompt-tip }
+
+> [PPO]({% post_url 2026-07-05-trpo-to-ppo %}) 같은 actor-critic 방법을 구현할 때 늘 마주치는 선택이 있습니다. 정책과 가치 함수가 **네트워크를 공유**할 것인가, **따로** 둘 것인가. 공유하면 한쪽이 배운 feature를 다른 쪽이 쓰지만, 두 목표의 가중치를 정해야 하고 서로 간섭합니다. 따로 두면 간섭은 없지만 feature를 나누지 못합니다. **Phasic Policy Gradient**(PPG)는 둘의 장점만 취합니다. 학습을 **정책 단계**와 **보조 단계**로 나눠, 정책 단계에서는 분리된 네트워크로 PPO를 돌리고, 보조 단계에서는 가치 함수의 feature를 정책 네트워크로 증류합니다. 덤으로 가치 함수를 정책보다 훨씬 많이 재사용해 학습할 수 있게 되어 Procgen에서 샘플 효율이 크게 올랐습니다.
 
 ## 1. 문제: 공유의 두 가지 비용
 
@@ -20,9 +25,12 @@ PPG로 밝힌 두 관찰이 이 비용이 실재함을 보여 줍니다. 공유 
 
 ## 2. 알고리즘
 
+![PPG 네트워크 구조](/assets/img/posts/phasic-policy-gradient/fig1.webp)
+_Figure 1. PPG는 정책 네트워크와 가치 네트워크를 분리합니다. 정책 네트워크에는 정책 head 옆에 보조 가치 head $$V_{\theta_\pi}$$가 붙어 있습니다. (출처: Cobbe et al., 2021)_
+
 ### 정책 단계
 
-정책 네트워크와 가치 네트워크를 **분리**해서 PPO를 돌립니다. 정책은 clipped surrogate에 엔트로피 보너스를 더한 목표로,
+위 Figure 1처럼 정책 네트워크와 가치 네트워크를 **분리**해서 PPO를 돌립니다. 정책은 clipped surrogate에 엔트로피 보너스를 더한 목표로,
 
 $$
 L^{\text{clip}} = \hat{\mathbb{E}}_t\Big[\min\big(r_t(\theta) \hat A_t,\ \text{clip}(r_t(\theta), 1 - \epsilon, 1 + \epsilon) \hat A_t\big)\Big],\qquad r_t(\theta) = \frac{\pi_\theta(a_t \mid s_t)}{\pi_{\theta_{\text{old}}}(a_t \mid s_t)}
@@ -69,7 +77,21 @@ phase = 1, 2, ... 반복
 | $$E_{\text{aux}}$$ | 보조 단계에서 버퍼 전체를 도는 epoch 수 | 6 |
 | $$\beta_{\text{clone}}$$ | 정책 보존 강도 | 1 |
 
-가치 함수의 샘플 재사용을 늘릴 때는 $$E_V$$가 아니라 보통 $$E_{\text{aux}}$$를 늘립니다. 그 밖에 $$\gamma = 0.999$$, $$\lambda = 0.95$$, rollout 256 step, 클립 0.2, 엔트로피 0.01, 보상 정규화, 학습률 $$5 \times 10^{-4}$$, 환경 64개 × worker 4개, 총 1억 step입니다.
+가치 함수의 샘플 재사용을 늘릴 때는 $$E_V$$가 아니라 보통 $$E_{\text{aux}}$$를 늘립니다. 보조 단계의 가치 목표 $$\hat V^{\text{targ}}$$는 정책 단계에서 계산한 값을 그대로 고정해 씁니다.
+
+### 구현 디테일 (부록 A)
+
+| 항목 | 값 |
+|---|---|
+| Optimizer | Adam, 학습률 $$5 \times 10^{-4}$$ |
+| 할인·GAE | $$\gamma = 0.999$$, $$\lambda = 0.95$$ |
+| Rollout | worker 4개 × worker당 환경 64개, rollout당 256 timestep |
+| Minibatch | 정책 단계 epoch당 8개, 보조 단계 epoch당 $$N_\pi$$마다 16개 |
+| PPO 설정 | clip $$\epsilon = 0.2$$, 엔트로피 계수 $$\beta_S = 0.01$$, 보상 정규화 사용 |
+| PPG 설정 | $$N_\pi = 32$$, $$E_\pi = 1$$, $$E_V = 1$$, $$E_{\text{aux}} = 6$$, $$\beta_{\text{clone}} = 1$$ |
+| 기타 | LSTM 없음, frame stack 없음, 총 1억(100M) timestep |
+
+분리 네트워크라 파라미터 수는 PPO 기준선의 약 두 배입니다.
 
 ## 3. 코드로 보기: 보조 단계는 feature를 바꾸고 정책은 남긴다
 
@@ -139,9 +161,12 @@ print(f"β_clone = 0이면 KL = {kl_free:.5f}  (가치 손실이 정책을 끌�
 
 ## 4. 실험: Procgen
 
-16개 환경의 Procgen Benchmark에서 하이퍼파라미터를 충분히 조정한 PPO 구현(sample reuse 3, 가치·정책 손실 가중치 최적)과 비교했습니다. 3회 실행의 표준편차를 함께 그렸습니다.
+16개 환경의 Procgen Benchmark에서 하이퍼파라미터를 충분히 조정한 PPO 구현(sample reuse 3, 가치·정책 손실 가중치 최적)과 비교했습니다. 가능한 경우 3회 실행의 표준편차를 함께 그렸습니다. 이 논문의 결과는 모두 학습 곡선이고 수치 표는 없습니다.
 
-- **PPO 대비**: 거의 모든 환경에서 PPG의 샘플 효율이 유의하게 좋습니다.
+![PPG와 PPO의 Procgen 학습 곡선](/assets/img/posts/phasic-policy-gradient/fig2.webp)
+_Figure 2. Procgen 16개 환경의 점수(왼쪽)와 평균 정규화 점수(오른쪽). 주황색이 PPG, 파란색이 PPO입니다. (출처: Cobbe et al., 2021)_
+
+- **PPO 대비**: 거의 모든 환경에서 PPG의 샘플 효율이 유의하게 좋습니다(Figure 2). 평균 정규화 점수는 그래프로 읽으면 100M step 끝에서 PPG가 약 0.75, PPO가 약 0.58입니다. BigFish, Dodgeball, Chaser처럼 차이가 큰 환경이 있고 CoinRun, Jumper, Ninja처럼 차이가 작은 환경도 있습니다.
 - **표현 공유의 중요성은 환경에 따라 다릅니다.** Procgen에서는 정책과 가치의 파라미터 공유가 결정적이지만(부록 B: 분리 네트워크 PPO는 훨씬 나쁨), 저차원 입력 환경에서는 종종 불필요합니다. 입력이 고차원(시각)일수록 PPG가 PPO를 이길 가능성이 크다고 봅니다.
 
 ### 정책의 샘플 재사용
@@ -150,7 +175,12 @@ PPO에서 epoch 수를 늘리면 정책과 가치가 함께 더 학습되어 효
 
 ### 가치의 샘플 재사용
 
-$$E_{\text{aux}}$$를 1에서 9까지 바꾸면 늘릴수록 대체로 좋아지다가 6 근처에서 포화합니다. 이득의 출처는 두 가지입니다. $$L^{\text{joint}}$$로 더 잘 학습된 feature가 정책에 공유되는 것과, $$L^{\text{value}}$$로 더 정확해진 가치 함수가 다음 정책 단계의 기울기 분산을 줄이는 것입니다. Procgen에서는 전자가 더 중요해 보입니다. 부록 C에서 보조 단계의 $$L^{\text{value}}$$ 최적화를 빼고 대신 정책 단계의 $$E_V$$를 늘려도 거의 같은 성능이 나와, 보조 단계에서 가치 네트워크를 더 학습하는 것은 편리하지만 필수는 아닙니다.
+$$E_{\text{aux}}$$를 1에서 9까지 바꾸면 늘릴수록 대체로 좋아지다가 6 근처에서 포화합니다(Figure 4). 그래프에서는 $$E_{\text{aux}} = 9$$가 6보다 조금 더 위에 있어 완전히 멈추지는 않지만, 1에서 3으로 늘릴 때의 이득에 비하면 작습니다.
+
+![보조 단계 epoch 수에 따른 성능](/assets/img/posts/phasic-policy-gradient/fig4.webp)
+_Figure 4. 보조 단계의 epoch 수 $$E_{\text{aux}}$$를 1, 2, 3, 6, 9로 바꾼 결과. 가치 쪽은 정책과 달리 데이터를 여러 번 돌릴수록 좋아집니다. (출처: Cobbe et al., 2021)_
+
+ 이득의 출처는 두 가지입니다. $$L^{\text{joint}}$$로 더 잘 학습된 feature가 정책에 공유되는 것과, $$L^{\text{value}}$$로 더 정확해진 가치 함수가 다음 정책 단계의 기울기 분산을 줄이는 것입니다. Procgen에서는 전자가 더 중요해 보입니다. 부록 C에서 보조 단계의 $$L^{\text{value}}$$ 최적화를 빼고 대신 정책 단계의 $$E_V$$를 늘려도 기본 PPG보다 약간 낮은 정도의 성능이 나와, 보조 단계에서 가치 네트워크를 더 학습하는 것은 편리하지만 필수는 아닙니다.
 
 ### 보조 단계의 빈도와 목표 함수
 

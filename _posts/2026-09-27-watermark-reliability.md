@@ -1,13 +1,18 @@
 ---
-title: "[LLM] LLM 워터마크는 바꿔 써도 남는가: 사람·GPT의 paraphrase와 Copy-Paste 공격에 대한 신뢰성"
+title: "[LLM] On the Reliability of Watermarks for Large Language Models: 바꿔 쓰기와 Copy-Paste 뒤에도 워터마크는 남는가"
 date: 2026-09-27 19:02:00 +0900
 categories: [Transformer, LLM]
 tags: [llm, watermark, ai-text-detection, green-list, z-score, paraphrase-attack, winmax, detectgpt, retrieval]
-description: 초록·빨강 목록 워터마크(Kirchenbauer et al., 2023)가 사람과 GPT-3.5의 바꿔 쓰기, 긴 문서에 일부만 끼워 넣는 Copy-Paste 공격 뒤에도 검출되는지 살핀 On the Reliability of Watermarks for LLMs(Kirchenbauer et al., 2023)의 해싱 설계, WinMax 검출, 사람 실험, 다른 검출기와의 비교를 정리하고 작은 워터마크 구현으로 핵심 성질을 확인합니다.
+description: "On the Reliability of Watermarks for Large Language Models(arXiv 2023) 논문 리뷰. 초록·빨강 목록 워터마크가 사람과 GPT-3.5의 바꿔 쓰기, 긴 문서에 일부만 끼워 넣는 Copy-Paste 공격 뒤에도 검출되는지를 해싱 설계, WinMax 검출, 사람 실험, 다른 검출기와의 비교 수치로 그림과 함께 정리하고 작은 워터마크 구현으로 핵심 성질을 확인합니다."
 math: true
 ---
 
-> LLM이 만든 글이 스팸, 가짜 리뷰, 다음 세대 학습 데이터의 오염으로 이어질 수 있어, 기계가 쓴 글을 가려내는 일이 중요해졌습니다. **워터마크**는 생성 때 눈에 띄지 않는 통계적 패턴을 심어 두고 나중에 확인하는 방법입니다. 이상적인 조건에서는 잘 되지만, 실제로는 사람이 고쳐 쓰고, 다른 모델로 바꿔 쓰고, 긴 문서에 일부만 끼워 넣습니다. **On the Reliability of Watermarks for Large Language Models**(Kirchenbauer, Geiping et al., University of Maryland, 2023)는 그런 "야생"에서 워터마크가 얼마나 살아남는지를 체계적으로 쟀습니다. 결론은 **토큰이 충분히 많으면 사람의 바꿔 쓰기도 결국 검출된다**는 것입니다.
+> - **논문**: On the Reliability of Watermarks for Large Language Models
+> - **저자**: John Kirchenbauer, Jonas Geiping, Yuxin Wen, Manli Shu, Khalid Saifullah, Kezhi Kong, Kasun Fernando, Aniruddha Saha, Micah Goldblum, Tom Goldstein (University of Maryland 외)
+> - **학회**: arXiv preprint 2023 · [arXiv:2306.04634](https://arxiv.org/abs/2306.04634) · [코드](https://github.com/jwkirchenbauer/lm-watermarking)
+{: .prompt-tip }
+
+> LLM이 만든 글이 스팸, 가짜 리뷰, 다음 세대 학습 데이터의 오염으로 이어질 수 있어, 기계가 쓴 글을 가려내는 일이 중요해졌습니다. **워터마크**는 생성 때 눈에 띄지 않는 통계적 패턴을 심어 두고 나중에 확인하는 방법입니다. 이상적인 조건에서는 잘 되지만, 실제로는 사람이 고쳐 쓰고, 다른 모델로 바꿔 쓰고, 긴 문서에 일부만 끼워 넣습니다. **On the Reliability of Watermarks for Large Language Models**는 그런 "야생"에서 워터마크가 얼마나 살아남는지를 체계적으로 쟀습니다. 결론은 **토큰이 충분히 많으면 사람의 바꿔 쓰기도 결국 검출된다**는 것입니다.
 
 ## 1. 기계 생성 텍스트 검출의 세 갈래
 
@@ -49,6 +54,9 @@ $$
 
 여기에 생성할 토큰 자신도 해시 입력에 넣는 **SelfHash**(원 논문의 Algorithm 3)를 결합하면 문맥 폭이 사실상 1 늘어 무차별 대입이 더 어려워집니다.
 
+![문맥 폭에 따른 견고함과 다양성](/assets/img/posts/watermark-reliability/fig2.webp)
+_Figure 2. 왼쪽: GPT paraphrase 공격 후 ROC-AUC, 오른쪽: 생성 텍스트의 log diversity를 문맥 폭 $$h$$에 따라 비교. 검은 원이 Additive-LeftHash $$h = 1$$, 갈색 원이 Min-SelfHash $$h = 4$$입니다. 이 그림만 $$(\gamma, \delta) = (0.25, 4.0)$$입니다. (출처: Kirchenbauer et al., 2023)_
+
 Figure 2의 결과는 분명합니다. 작은 $$h$$가 기계 paraphrase에 가장 견고하고, $$h$$가 커지면 Additive는 무너지지만 Skip과 Min은 버팁니다. 대신 Min은 텍스트의 다양성(log diversity)이 낮습니다. 절충점으로 **$$h = 4$$의 Min-SelfHash**는 $$h = 1$$의 Additive-LeftHash와 같은 다양성을 내면서 더 견고합니다. 이후 실험에서 이 둘을 각각 "SelfHash"와 "LeftHash"로 부릅니다.
 
 ### 검출: WinMax
@@ -70,6 +78,21 @@ $$
 
 그래서 논문은 paraphrase가 워터마크를 **지우는** 것이 아니라 **검출에 필요한 토큰 수를 늘리는** 것이라고 봅니다. 실험은 LLaMA-7B(사람 실험은 Vicuna)로 C4 프롬프트에서 온도 0.7로 생성하고, 기본은 LeftHash, $$(\gamma, \delta) = (0.25, 2.0)$$입니다. 텍스트 길이 $$T$$가 결과를 좌우하므로 길이를 ±25토큰 범위로 엄격히 통제하고, 각 측정은 500개 이상의 양성·음성 샘플로 뒷받침했습니다.
 
+### 실험 설정
+
+| 항목 | 값 |
+|---|---|
+| 생성 모델 | LLaMA-7B (사람 실험은 Vicuna) |
+| 프롬프트 | C4 (사람 실험은 LFQA, Reddit ELI5) |
+| 샘플링 | multinomial, 온도 0.7, 모든 실험 공통 |
+| 기본 워터마크 | Additive-LeftHash, $$h = 1$$, $$(\gamma, \delta) = (0.25, 2.0)$$ |
+| 비교 워터마크 | Min-SelfHash, $$h = 4$$ ("SelfHash") |
+| 길이 통제 | 목표 $$T$$의 ±25토큰 범위만 사용 |
+| 표본 수 | ROC 측정마다 양성·음성 각각 500개 초과 |
+| 기계 공격 | gpt-3.5-turbo(프롬프트 탐색 후 최선 사용), Dipper 11B |
+| 비교 검출기 | retrieval(Krishna et al., BM25), DetectGPT(T5-3B로 perturbation 100개, normalized perturbation discrepancy) |
+| 사람 실험 | 대학원생 14명, LabelStudio 인터페이스, P-SP로 paraphrase 품질 확인 |
+
 ### 기계 paraphrase
 
 gpt-3.5-turbo(ChatGPT)와 전용 paraphrase 모델 Dipper 11B로 전문을 다시 쓰게 했습니다. GPT는 긴 입력을 받으면 사실상 요약해 길이를 절반 넘게 줄이기도 합니다.
@@ -78,11 +101,17 @@ gpt-3.5-turbo(ChatGPT)와 전용 paraphrase 모델 Dipper 11B로 전문을 다�
 - 공격 전 $$T = 600$$이면 Dipper와 GPT가 길이를 500, 300으로 줄여도 손실이 0.1 미만입니다.
 - 공격 없는 설정에서는 AUC가 항상 0.999를 넘습니다.
 
-**AUC @ T** 그래프(접두사 길이별 AUC)를 보면 200~300토큰에서는 공격이 성공한 것처럼 보여도 600토큰이면 AUC가 0.9 위로 회복합니다.
+**AUC @ T** 그래프(접두사 길이별 AUC)를 보면 200~300토큰에서는 공격이 성공한 것처럼 보여도 600토큰이면 AUC가 0.9 위로 회복합니다. 논문의 기여 요약 기준으로는 GPT·Dipper paraphrase 뒤 $$T = 200$$에서 AUC 0.85 이상, $$T = 600$$에서 0.9 이상입니다.
+
+![토큰 수에 따른 AUC](/assets/img/posts/watermark-reliability/fig4.webp)
+_Figure 4. 왼쪽: 공격이 없을 때 토큰 수에 따른 ROC-AUC. 오른쪽: paraphrase와 Copy-Paste 공격 뒤. 공격은 신호를 희석하지만 토큰이 늘수록 AUC가 다시 오릅니다. GPT·Dipper 곡선은 공격 후 평균 길이(약 300, 500토큰)부터 반투명하게 그렸습니다. (출처: Kirchenbauer et al., 2023)_
 
 ### Copy-Paste
 
-워터마크 텍스트 조각을 사람이 쓴 문서 안에 끼워 넣는 합성 공격입니다. "CP-3-10%"는 전체의 10%만 워터마크이고 그것이 3군데로 나뉘어 있다는 뜻입니다. 25%가 남은 경우 기계 paraphrase보다 타격이 커서 200토큰에서 AUC 0.7 미만, 600토큰에서 0.85 미만입니다. 그래도 토큰이 늘면 검출력은 꾸준히 오릅니다.
+워터마크 텍스트 조각을 사람이 쓴 문서 안에 끼워 넣는 합성 공격입니다. "CP-3-10%"는 전체의 10%만 워터마크이고 그것이 3군데로 나뉘어 있다는 뜻입니다. 예를 들어 원문이 1,000토큰이고 CP-3-10%면 33토큰짜리 워터마크 조각 3개가 사람 글 안에 들어갑니다. 본문은 25%가 남은 경우 기계 paraphrase보다 타격이 커서 200토큰에서 AUC 0.7 미만, 600토큰에서 0.85 미만이라고 적습니다. 그래도 토큰이 늘면 검출력은 꾸준히 오릅니다.
+
+> 이 수치는 논문 안에서 완전히 일치하지 않습니다. 기여 요약에는 "사람 글 600토큰에 워터마크 150토큰(25%)을 넣으면 AUC 0.95 이상"이라고 적혀 있고, 위 Figure 4 오른쪽에서도 25% 설정 곡선은 600토큰에서 0.95 근처까지 오르며 0.85 미만에 머무는 것은 10% 설정 곡선입니다. 어느 설정(해시, 조각 수)을 가리키는지 본문만으로는 확정하기 어렵습니다.
+{: .prompt-warning }
 
 ### 사람의 paraphrase
 
@@ -187,6 +216,11 @@ Copy-Paste(25%): 전체 z-score 5.9 | WinMax 12.2 | 일반 텍스트 WinMax 3.5
 
 retrieval이 Copy-Paste에서 밀리는 이유는 분명합니다. $$T$$가 늘수록 원문(DB에 저장된 생성물)이 차지하는 비율이 줄어 유사도가 떨어집니다. 워터마크만 **모든 공격에서 토큰이 늘수록 꾸준히 강해졌습니다**.
 
+![검출기별 AUC @ T 비교](/assets/img/posts/watermark-reliability/fig9.webp)
+_Figure 9. 위: Dipper·GPT paraphrase, 가운데: Copy-Paste 25%(조각 1개, 3개), 아래: Copy-Paste 10%. 보라가 z-score, 청록이 WinMax, 초록이 retrieval, 노랑이 DetectGPT입니다. (출처: Kirchenbauer et al., 2023)_
+
+위 Figure 9의 가장 어려운 설정(CP-3-10%, 아래 오른쪽)에서 1,000토큰일 때 WinMax는 약 0.97, z-score는 약 0.88, retrieval은 0.65 안팎입니다(그래프에서 읽은 근삿값). DetectGPT는 Dipper 공격에서 토큰이 늘수록 AUC가 0.5 아래로 내려갑니다. 비교 실험의 공격 후 평균 길이는 Dipper 약 800토큰, GPT 약 300토큰이고, Copy-Paste는 1,000 ± 25토큰을 유지합니다.
+
 ### White-box라면
 
 비밀 키가 유출되거나 워터마크가 공개된 경우, 공격자는 Dipper 같은 강한 paraphrase 모델의 생성 때 $$\delta$$를 **빼는** anti-watermark를 걸고 초록 비율이 정확히 $$\gamma T$$가 되도록 조절해 신호를 완전히 지울 수 있습니다. 이를 막으려면 $$h$$를 충분히 키워 키를 추측하기 어렵게 하거나 여러 키를 동시에 써야 합니다. 논문은 모든 사용 사례가 적대적이지는 않으며, 생성물의 확산을 추적하거나 다음 학습 데이터에서 걸러 내는 선의의 용도에서는 불완전한 워터마크도 충분히 가치 있다고 봅니다.
@@ -218,7 +252,7 @@ Sadasivan et al.(2023)은 LLM이 사람의 언어 분포를 완벽히 흉내 내
 | 목표 | 초록·빨강 목록 워터마크가 바꿔 쓰기와 섞어 넣기 뒤에도 검출되는지 측정 |
 | 생성 | 직전 $$h$$개 토큰으로 초록 목록을 만들고 logit에 $$\delta$$ 가산. Min-SelfHash $$h = 4$$가 다양성과 견고함의 절충점 |
 | 검출 | $$z = (\lvert s\rvert - \gamma T)/\sqrt{\gamma(1-\gamma)T}$$, 긴 문서 안의 조각은 WinMax로 최대 z 구간 탐색 |
-| 결과 | GPT·Dipper paraphrase 후 600토큰에서 AUC 0.9 이상, 사람 paraphrase는 약 800토큰에 검출, CP 25%는 AUC 0.95 이상 |
+| 결과 | GPT·Dipper paraphrase 후 600토큰에서 AUC 0.9 이상, 사람 paraphrase는 약 800토큰에 검출, CP 25%는 기여 요약 기준 AUC 0.95 이상(본문 서술과는 차이 있음) |
 | 비교 | DetectGPT는 공격 아래 실패, retrieval은 paraphrase에 강하지만 Copy-Paste와 긴 문서에서 약함. 워터마크만 토큰이 늘수록 꾸준히 강해짐 |
 | 한계 | 키가 알려지면 anti-watermark로 제거 가능, 짧은 글은 강한 사람 공격자가 피할 수 있음 |
 

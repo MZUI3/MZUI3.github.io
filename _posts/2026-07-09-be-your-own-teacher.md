@@ -1,26 +1,34 @@
 ---
-title: "[Distillation] Be Your Own Teacher: 깊은 층이 얕은 층을 가르치는 자기 증류와 깊이 조절 추론"
+title: "[Distillation] Be Your Own Teacher(Improve the Performance of Convolutional Neural Networks via Self Distillation): 깊은 층이 얕은 층을 가르치는 자기 증류"
 date: 2026-07-09 18:26:00 +0900
 categories: [Neural Network, Lightweight]
 tags: [knowledge-distillation, self-distillation, be-your-own-teacher, deep-supervision, early-exit, adaptive-inference, flat-minima, bottleneck, lightweight]
-description: 네트워크를 깊이에 따라 여러 구간으로 나누고 구간마다 분류기를 붙여, 가장 깊은 분류기가 얕은 분류기들을 KL과 feature hint로 가르치는 self distillation(Zhang et al., ICCV 2019)의 세 가지 손실, CIFAR-100·ImageNet 결과, 깊이 조절 추론과 flat minima 분석을 정리하고 작은 예제로 분류기 간 일치율을 확인합니다.
+description: "Be Your Own Teacher: Improve the Performance of Convolutional Neural Networks via Self Distillation(ICCV 2019) 논문 리뷰. 네트워크를 깊이별 구간으로 나눠 가장 깊은 분류기가 얕은 분류기들을 KL과 feature hint로 가르치는 self distillation의 손실, CIFAR-100·ImageNet 수치, 깊이 조절 추론과 flat minima 분석을 그림과 작은 예제로 정리합니다."
 math: true
 ---
 
-> 전통적인 knowledge distillation은 교사를 먼저 학습하고 학생에게 옮기는 두 단계입니다. 교사 설계에 실험이 많이 들고, 학생이 교사의 지식을 다 흡수하지도 못합니다. **Be Your Own Teacher**(Zhang et al., Tsinghua·IIISCT, ICCV 2019)는 교사와 학생을 **한 네트워크 안**에 둡니다. ResNet을 깊이에 따라 4구간으로 나누고 구간마다 분류기를 붙인 뒤, 가장 깊은 분류기(교사)가 얕은 분류기들(학생)을 가르칩니다. CIFAR-100에서 평균 2.65%p가 오르고, 학습 시간은 전통 증류의 1/4.6이며, 학습이 끝나면 **원하는 깊이에서 추론을 멈출 수** 있습니다. [SRDL]({% post_url 2026-06-30-self-referenced-deep-learning %})이 시간 축의 자기 증류라면 이 논문은 깊이 축입니다.
+> - **논문**: Be Your Own Teacher: Improve the Performance of Convolutional Neural Networks via Self Distillation
+> - **저자**: Linfeng Zhang, Jiebo Song, Anni Gao, Jingwei Chen, Chenglong Bao, Kaisheng Ma (Tsinghua University, IIISCT, Hisilicon)
+> - **학회**: ICCV 2019 · [arXiv:1905.08094](https://arxiv.org/abs/1905.08094)
+{: .prompt-tip }
+
+> 전통적인 knowledge distillation은 교사를 먼저 학습하고 학생에게 옮기는 두 단계입니다. 교사 설계에 실험이 많이 들고, 학생이 교사의 지식을 다 흡수하지도 못합니다. **Be Your Own Teacher**는 교사와 학생을 **한 네트워크 안**에 둡니다. ResNet을 깊이에 따라 4구간으로 나누고 구간마다 분류기를 붙인 뒤, 가장 깊은 분류기(교사)가 얕은 분류기들(학생)을 가르칩니다. CIFAR-100에서 평균 2.65%p가 오르고, 학습 시간은 전통 증류의 1/4.6이며, 학습이 끝나면 **원하는 깊이에서 추론을 멈출 수** 있습니다. [SRDL]({% post_url 2026-06-30-self-referenced-deep-learning %})이 시간 축의 자기 증류라면 이 논문은 깊이 축입니다.
 
 ## 1. 문제: 전통 증류의 두 걸림돌
 
 - **지식 전달 효율**: 학생이 교사의 지식을 거의 다 쓰지 못하고, 교사를 넘는 학생은 드뭅니다.
 - **교사 설계와 학습**: 좋은 교사 구조를 찾는 데 많은 실험이 필요하고, 과하게 큰 교사를 학습하는 시간이 깁니다.
 
-ResNet-50·CIFAR-100 기준으로 전통 증류는 26.98시간에 79.33%였는데, self distillation은 5.87시간에 81.04%입니다.
+ResNet-50·CIFAR-100 기준으로 전통 증류는 26.98시간(ResNet152 교사 학습 14.67시간 + 증류 12.31시간)에 79.33%였는데, self distillation은 5.87시간에 81.04%입니다.
 
 ## 2. 방법
 
 ### 구조
 
 대상 네트워크를 깊이와 원래 구조에 따라 **구간**으로 나눕니다(ResNet-50은 ResBlock 단위로 4구간). 각 얕은 구간 뒤에 **bottleneck 층 + FC 분류기**를 붙입니다. bottleneck은 구간별 분류기끼리의 간섭을 줄이고, feature hint의 L2 손실을 계산할 자리를 만듭니다. 이 추가 부분은 학습에만 쓰고 추론 때는 떼어 냅니다. 떼지 않으면 깊이 조절 추론의 선택지가 됩니다.
+
+![self distillation 구조](/assets/img/posts/be-your-own-teacher/fig2.webp)
+_Figure 2. ResNet에 self distillation을 적용한 구조. 점선 아래(bottleneck, FC, softmax)가 학습 때만 추가되는 부분이고, 세 가지 손실(라벨의 CE, 깊은 분류기의 KL, feature hint의 L2)이 각 얕은 분류기로 들어갑니다. (출처: Zhang et al., 2019)_
 
 ### 세 가지 손실
 
@@ -34,7 +42,20 @@ $$
 2. **가장 깊은 분류기와의 KL**: 교사(가장 깊은 분류기)의 softmax를 각 얕은 분류기가 따라 하게 합니다. 교사의 영향이 네트워크 전체에 퍼집니다.
 3. **feature hint의 L2**: 가장 깊은 분류기의 feature map과 얕은 분류기의 bottleneck feature 사이의 L2 거리입니다. 크기가 다른 feature를 맞추기 위해 FitNet처럼 합성곱 한 층을 쓰는 대신 bottleneck 구조를 씁니다.
 
-가장 깊은 분류기는 $$\alpha = \lambda = 0$$으로 라벨만 봅니다. 전체 손실은 분류기별 손실의 합입니다.
+가장 깊은 분류기는 $$\alpha = \lambda = 0$$으로 라벨만 봅니다. 전체 손실은 분류기별 손실의 합입니다. softmax에는 온도 $$T$$가 들어가는데 논문은 "보통 1"이라고만 적었습니다.
+
+### 구현 디테일
+
+논문이 밝힌 설정은 많지 않습니다. 재현할 때 비어 있는 값이 무엇인지도 함께 적었습니다.
+
+| 항목 | 값 |
+|---|---|
+| 구간 나누기 | ResNet은 ResBlock 단위 4구간, 분류기 4개(1/4 ~ 4/4) |
+| 얕은 분류기 | bottleneck 층 + FC 층 + softmax (학습 전용) |
+| 데이터 | CIFAR-100(32×32, 학습 5만·테스트 1만, 작은 입력에 맞게 커널 크기와 stride 조정), ImageNet 2012(256×256으로 resize, validation 정확도 보고) |
+| 학습 | PyTorch, learning rate decay, L2 정규화, 단순 data augmentation |
+| 앙상블 | 각 분류기 softmax 출력의 가중합 |
+| 보고되지 않은 값 | $$\alpha$$, $$\lambda$$, optimizer, lr, batch, epoch 수 |
 
 ### Deeply supervised net과의 차이
 
@@ -161,13 +182,19 @@ self distillation : 정확도 1/4 73.7 | 2/4 73.1 | 3/4 73.0 | 4/4 73.0 || 4/4�
 | ResNet101 | 68.17 / 9.00× | 75.43 / 4.27× | 80.98 / 1.11× | 81.01 / 1.00× | 81.72 / 0.96× |
 | ResNet152 | 68.84 / 13.36× | 78.22 / 4.29× | 81.43 / 1.07× | 81.61 / 1.00× | 82.29 / 0.98× |
 
-한 backbone을 공유하므로 응답 시간이 중요할 때는 얕은 분류기를, 정확도가 중요할 때는 깊은 분류기를 씁니다. 3/4 분류기는 평균 1.2배 가속에 baseline 이상이고, 2/4는 3.16배 가속에 3.3%p 손실입니다. 깊은 세 분류기의 앙상블은 0.05%의 추가 연산으로 평균 0.67%p를 더합니다.
+한 backbone을 공유하므로 응답 시간이 중요할 때는 얕은 분류기를, 정확도가 중요할 때는 깊은 분류기를 씁니다. 3/4 분류기는 평균 1.2배 가속이고 ResNet 네 개 중 세 개에서 baseline 이상입니다(ResNet50은 74.54로 baseline 77.68보다 낮음). 2/4는 3.16배 가속에 3.3%p 손실입니다. 깊은 세 분류기의 앙상블은 0.05%의 추가 연산으로 평균 0.67%p를 더합니다.
+
+> 이 표(논문 Table 5)의 ResNet18·50·101 정확도는 Table 1의 self distillation 값이 아니라 Table 4의 **DSN 값과 같습니다**(예: ResNet18 1/4 67.23은 Table 4의 DSN 값, Table 1은 67.85). ResNet152 줄만 Table 1과 거의 같습니다(2/4만 78.22 대 78.72). 논문 원문 그대로 옮겼지만 표 작성 과정의 혼동일 수 있으니 정확도는 Table 1을 기준으로 보는 편이 안전합니다.
+{: .prompt-warning }
 
 ## 5. 왜 되는가
 
 논문은 세 가지 설명을 제시하고 각각 실험으로 뒷받침합니다.
 
 - **Flat minima**: 파라미터에 가우시안 노이즈를 더하며 학습 정확도와 손실을 재면, 자기 증류로 학습한 ResNet-18은 노이즈가 커져도 정확도를 유지하는 반면 일반 학습 모델은 급격히 떨어집니다. 더 평평한 최솟값에 수렴해 일반화가 좋다는 해석으로, [SRDL]({% post_url 2026-06-30-self-referenced-deep-learning %})의 최솟값 폭 분석과 같은 결론입니다.
+
+![가우시안 노이즈에 대한 민감도](/assets/img/posts/be-your-own-teacher/fig4.webp)
+_Figure 4. CIFAR-100으로 학습한 ResNet-18 두 개의 파라미터에 표준편차 $$\sigma$$의 가우시안 노이즈를 더했을 때 학습 정확도(a)와 학습 손실(b). $$\sigma = 0.007$$에서 일반 학습 모델의 정확도는 50% 아래로 떨어지지만 자기 증류 모델은 90% 이상입니다. 자기 증류 쪽은 4/4 분류기로 쟀습니다. (출처: Zhang et al., 2019)_
 - **Vanishing gradient 완화**: 여러 깊이에 감독이 들어가므로 DSN처럼 기울기 소실을 줄입니다. 층별 기울기 크기를 재면 특히 첫 두 ResBlock에서 자기 증류 모델의 기울기가 큽니다.
 - **더 판별적인 feature**: WRN28-12의 분류기별 feature를 PCA로 보면 깊을수록 클러스터가 조밀하고, SSE/SSB(클러스터 내 분산 ÷ 클러스터 간 분산)가 19.21 → 7.54 → 6.08 → 5.73으로 줄어듭니다. 좋은 얕은 분류기가 더 판별적인 feature를 만들고, 그것이 다시 깊은 분류기를 돕는 순환입니다.
 
@@ -191,7 +218,7 @@ self distillation : 정확도 1/4 73.7 | 2/4 73.1 | 3/4 73.0 | 4/4 73.0 || 4/4�
 | 구조 | 네트워크를 깊이별 구간으로 나누고 구간마다 bottleneck + FC 분류기(학습 전용, 추론 시 제거 가능) |
 | 손실 | 각 얕은 분류기에 $$(1-\alpha)$$CE + $$\alpha$$KL(깊은 분류기) + $$\lambda$$L2(feature hint). 깊은 분류기는 CE만 |
 | 결과 | CIFAR-100 평균 +2.65%p(10개 구조), ImageNet 평균 +2.02%p, 전통 증류(KD·FitNet·AT·DML)와 DSN보다 좋음 |
-| 추론 | 3/4 분류기로 평균 1.2배 가속에 손실 없음, 2/4로 3.16배에 -3.3%p, 깊은 분류기 앙상블 +0.67%p |
+| 추론 | 3/4 분류기로 평균 1.2배 가속(ResNet 4개 중 3개가 baseline 이상), 2/4로 3.16배에 -3.3%p, 깊은 분류기 앙상블 +0.67%p |
 | 설명 | flat minima, 기울기 소실 완화, 깊을수록 판별적인 feature |
 
 ## References

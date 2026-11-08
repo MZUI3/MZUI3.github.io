@@ -1,13 +1,18 @@
 ---
-title: "[RL] Decision Transformer: 원하는 return을 프롬프트로 주고 행동을 생성하는 시퀀스 모델링"
+title: "[RL] Decision Transformer(Reinforcement Learning via Sequence Modeling): 원하는 return을 프롬프트로 주고 행동을 생성하기"
 date: 2026-10-24 20:48:00 +0900
 categories: [Reinforcement Learning, Model-Based]
 tags: [reinforcement-learning, offline-rl, decision-transformer, sequence-modeling, transformer, gpt, return-to-go, credit-assignment, d4rl, atari]
-description: 가치 함수도 policy gradient도 없이, (return-to-go, 상태, 행동) 시퀀스를 GPT로 학습하고 원하는 return을 조건으로 행동을 생성하는 Decision Transformer(Chen, Lu et al., NeurIPS 2021)의 표현, 학습·평가 절차, Atari·D4RL·Key-to-Door 결과와 %BC 비교를 정리하고, 논문의 최단 경로 예제를 코드로 재현합니다.
+description: "Decision Transformer: Reinforcement Learning via Sequence Modeling(NeurIPS 2021) 논문 리뷰. 가치 함수도 policy gradient도 없이 (return-to-go, 상태, 행동) 시퀀스를 GPT로 학습하는 표현과 학습·평가 절차, Atari·D4RL·Key-to-Door 결과와 %BC 비교를 그림·수치와 함께 정리하고, 논문의 최단 경로 예제를 코드로 재현합니다."
 math: true
 ---
 
-> [Trajectory Transformer]({% post_url 2026-08-24-trajectory-transformer %})가 강화학습을 하나의 시퀀스 모델링 문제로 보고 beam search로 계획했다면, 같은 시기의 **Decision Transformer**(DT, Chen, Lu et al., UC Berkeley·FAIR·Google Brain, NeurIPS 2021)는 더 단순한 길을 택합니다. 궤적을 (return-to-go, 상태, 행동)의 토큰 열로 쓰고 GPT로 **행동만** 예측하게 학습한 뒤, 평가 때 **원하는 return**을 첫 토큰으로 주면 그 return을 달성하는 행동이 나옵니다. 부트스트래핑도, 할인도, 가치 함수도 없습니다. 그런데도 Atari, D4RL, Key-to-Door에서 CQL 같은 offline RL 최고 수준과 맞먹거나 넘습니다. [π*0.6]({% post_url 2026-10-23-pi-star-0-6 %})의 advantage conditioning이나 [Gato]({% post_url 2026-10-20-gato %})가 모두 이 계보 위에 있습니다.
+> - **논문**: Decision Transformer: Reinforcement Learning via Sequence Modeling
+> - **저자**: Lili Chen, Kevin Lu, Aravind Rajeswaran, Kimin Lee, Aditya Grover, Michael Laskin, Pieter Abbeel, Aravind Srinivas, Igor Mordatch (UC Berkeley, Facebook AI Research, UCLA, OpenAI, Google Brain)
+> - **학회**: NeurIPS 2021 · [arXiv:2106.01345](https://arxiv.org/abs/2106.01345) · [코드](https://sites.google.com/berkeley.edu/decision-transformer)
+{: .prompt-tip }
+
+> [Trajectory Transformer]({% post_url 2026-08-24-trajectory-transformer %})가 강화학습을 하나의 시퀀스 모델링 문제로 보고 beam search로 계획했다면, 같은 시기의 **Decision Transformer**(DT)는 더 단순한 길을 택합니다. 궤적을 (return-to-go, 상태, 행동)의 토큰 열로 쓰고 GPT로 **행동만** 예측하게 학습한 뒤, 평가 때 **원하는 return**을 첫 토큰으로 주면 그 return을 달성하는 행동이 나옵니다. 부트스트래핑도, 할인도, 가치 함수도 없습니다. 그런데도 Atari, D4RL, Key-to-Door에서 CQL 같은 offline RL 최고 수준과 맞먹거나 넘습니다. [π*0.6]({% post_url 2026-10-23-pi-star-0-6 %})의 advantage conditioning이나 [Gato]({% post_url 2026-10-20-gato %})가 모두 이 계보 위에 있습니다.
 
 ## 1. 발상: TD 대신 시퀀스 모델링
 
@@ -22,7 +27,10 @@ return을 조건으로 지도학습하는 upside-down RL과 발상은 비슷하�
 
 ### 최단 경로 예제
 
-방향 그래프에서 목표 노드에 도달하면 보상 0, 그 밖에는 -1입니다. **무작위 보행** 데이터만으로 GPT를 학습하고, 평가 때 각 노드에서 가능한 가장 높은 return을 조건으로 주면 **최적 경로**가 생성됩니다. 전문가 시연 없이, dynamic programming 없이, hindsight return 정보와 시퀀스 모델링만으로 정책 개선이 일어나는 것입니다.
+방향 그래프에서 목표 노드에 도달하면 보상 0, 그 밖에는 -1입니다. **무작위 보행** 데이터만으로 GPT를 학습하고, 평가 때 각 노드에서 가능한 가장 높은 return을 조건으로 주면 **최적 경로**가 생성됩니다(아래 Figure 2). 전문가 시연 없이, dynamic programming 없이, hindsight return 정보와 시퀀스 모델링만으로 정책 개선이 일어나는 것입니다.
+
+![최단 경로 예제](/assets/img/posts/decision-transformer/fig2.webp)
+_Figure 2. 왼쪽: 그래프, 가운데: 무작위 보행 궤적과 노드별 return-to-go(목표에 못 간 궤적은 -∞), 오른쪽: 시작 노드에서 가능한 가장 높은 return을 조건으로 생성한 최단 경로. (출처: Chen et al., 2021)_
 
 ## 2. 방법
 
@@ -36,7 +44,10 @@ $$
 
 ### 구조
 
-마지막 $$K$$ timestep을 넣으므로 토큰은 $$3K$$개입니다. modality마다 선형 임베딩(이미지는 합성곱 인코더)과 LayerNorm을 거치고, **timestep 임베딩**을 더합니다. 보통의 위치 임베딩과 달리 한 timestep의 세 토큰이 같은 임베딩을 공유합니다. 그다음은 causal mask를 쓴 GPT입니다.
+마지막 $$K$$ timestep을 넣으므로 토큰은 $$3K$$개입니다. modality마다 선형 임베딩(이미지는 합성곱 인코더)과 LayerNorm을 거치고, **timestep 임베딩**을 더합니다. 보통의 위치 임베딩과 달리 한 timestep의 세 토큰이 같은 임베딩을 공유합니다. 그다음은 causal mask를 쓴 GPT입니다. 이미지 입력(Atari)은 선형 층 대신 합성곱 인코더로 상태를 임베딩합니다.
+
+![Decision Transformer 구조](/assets/img/posts/decision-transformer/fig1.webp)
+_Figure 1. Decision Transformer 구조. return-to-go, 상태, 행동을 modality별 선형 임베딩과 timestep 임베딩을 거쳐 causal Transformer에 넣고, 상태 토큰 자리의 출력에서 선형 decoder로 행동을 예측합니다. (출처: Chen et al., 2021)_
 
 ### 학습과 평가
 
@@ -160,7 +171,7 @@ print(f"낮은 return(-{T})을 목표로 준 DT: {hits2}개 도달, 평균 경�
 | Pong | 106.1 ± 8.1 | **111.9** | 20.0 | 39.1 | 85.2 ± 20.0 |
 | Seaquest | **2.4 ± 0.7** | 1.7 | 1.4 | 1.0 | 2.1 ± 0.3 |
 
-문맥 $$K = 30$$(Pong은 50). 4개 중 3개에서 CQL과 대등하고 나머지 기준선은 모두 넘습니다. 문맥 길이 1의 MLP는 Transformer보다 못했습니다.
+문맥 $$K = 30$$(Pong은 50). 점수는 프로 게이머 100, 무작위 정책 0으로 정규화한 값이고 3 seed 평균입니다. 4개 중 3개에서 CQL과 대등하고, REM·QR-DQN보다는 네 게임 모두 높습니다. BC와는 Qbert(15.1 대 17.3, 분산 범위 안)를 빼면 DT가 높습니다. CQL·REM·QR-DQN 수치는 CQL 논문에서 가져왔습니다. 문맥 길이 1의 MLP는 Transformer보다 못했습니다.
 
 ### D4RL (OpenAI Gym)
 
@@ -177,15 +188,26 @@ print(f"낮은 return(-{T})을 목표로 준 DT: {hits2}개 도달, 평균 경�
 | Medium-Replay | Walker | **66.6** | 26.7 | 19.2 | 0.9 | 15.5 | 36.9 |
 | 평균 (Reacher 제외) | | **74.7** | 63.9 | 48.2 | 36.9 | 34.3 | 46.4 |
 
-대부분의 작업에서 최고이고 나머지에서도 경쟁력이 있습니다. 특히 품질이 섞인 Medium-Replay에서 BC와의 차이가 큽니다.
+D4RL 정규화 점수(전문가 정책 100)입니다. DT의 ± 값(3 seed)은 대부분 0.1~3.0이고 Medium-Replay Hopper만 7.0입니다. 대부분의 작업에서 최고이고 나머지에서도 경쟁력이 있습니다. 특히 품질이 섞인 Medium-Replay에서 BC와의 차이가 큽니다. 논문이 따로 만든 sparse 보상의 goal-conditioned 환경 Reacher까지 넣은 평균은 DT 69.2, CQL 54.2, BC 47.7입니다.
 
 ### DT는 상위 데이터의 BC인가
 
-return 상위 X%의 timestep만으로 BC를 하는 **%BC**와 비교했습니다. 데이터가 풍부한 D4RL에서는 %BC가 다른 offline RL과 맞먹고, DT는 최선의 %BC와 비슷합니다. 즉 DT는 전체 분포로 학습한 뒤 특정 부분집합에 **집중**할 수 있습니다. 반면 데이터가 적은 Atari(1%)에서는 %BC가 약하고 DT가 모든 %BC를 크게 넘습니다(Breakout 267.5 대 10%BC 28.5, 100%BC 138.9). 데이터가 적을 때는 목표 return과 다른 궤적까지 **모두 써서 일반화**하는 것이 낫습니다. 어느 부분집합이 최적인지 고르는 것보다 원하는 return을 지정하는 것이 사람에게 자연스럽다는 점도 장점입니다.
+return 상위 X%의 timestep만으로 BC를 하는 **%BC**와 비교했습니다. 데이터가 풍부한 D4RL에서는 %BC가 다른 offline RL과 맞먹고, DT는 최선의 %BC와 비슷합니다. 즉 DT는 전체 분포로 학습한 뒤 특정 부분집합에 **집중**할 수 있습니다. D4RL(Medium, Medium-Replay 8개 설정) 평균은 다음과 같습니다(Table 3).
+
+| DT | 10%BC | 25%BC | 40%BC | 100%BC | CQL |
+|---|---|---|---|---|---|
+| 56.1 | **56.7** | 52.7 | 49.4 | 39.5 | 43.5 |
+
+반면 데이터가 적은 Atari(1%)에서는 %BC가 약하고 DT가 모든 %BC를 크게 넘습니다(Breakout 267.5 대 10%BC 28.5, 100%BC 138.9). 데이터가 적을 때는 목표 return과 다른 궤적까지 **모두 써서 일반화**하는 것이 낫습니다. 어느 부분집합이 최적인지 고르는 것보다 원하는 return을 지정하는 것이 사람에게 자연스럽다는 점도 장점입니다.
 
 ### Return을 이해하는가
 
-목표 return을 넓은 범위로 바꾸면 실제 달성 return이 **높은 상관**을 보입니다. Pong, HalfCheetah, Walker에서는 oracle 선과 거의 겹치고, Seaquest에서는 데이터셋의 최대 return보다 높은 목표를 줘도 따라가 **외삽**이 일어나기도 합니다.
+목표 return을 넓은 범위로 바꾸면 실제 달성 return이 **높은 상관**을 보입니다(Figure 4). Pong, HalfCheetah, Walker에서는 oracle 선과 거의 겹치고, Seaquest에서는 데이터셋의 최대 return보다 높은 목표를 줘도 따라가 **외삽**이 일어나기도 합니다.
+
+![목표 return과 달성 return](/assets/img/posts/decision-transformer/fig4.webp)
+_Figure 4. 목표 return(가로축)을 바꿔 가며 얻은 실제 return. 위: Atari, 아래: D4RL medium-replay. 초록 점선은 목표를 정확히 달성하는 oracle, 주황 점선은 데이터셋 최고 궤적의 return입니다. (출처: Chen et al., 2021)_
+
+그림을 보면 Qbert와 Reacher처럼 목표를 거의 따라가지 못하는 작업도 있고, Pong·HalfCheetah·Walker는 데이터셋 최고 return 근처를 넘어서면 달성 return이 더 오르지 않고 평평해지거나 떨어집니다.
 
 ### 긴 credit assignment: Key-to-Door
 
@@ -200,7 +222,29 @@ hindsight return을 쓰는 DT와 %BC(성공 에피소드만)는 무작위 보행
 
 ### 희소 보상
 
-D4RL 보상을 에피소드 끝에 몰아주는 지연 보상 설정에서 TD 학습은 무너지지만 DT와 %BC는 거의 영향을 받지 않습니다. 보상의 밀도에 대한 가정이 최소이기 때문입니다.
+D4RL 보상을 에피소드 끝에 몰아주는 지연 보상 설정에서 TD 학습은 무너지지만 DT와 %BC는 거의 영향을 받지 않습니다. 보상의 밀도에 대한 가정이 최소이기 때문입니다(Table 6, Hopper).
+
+| 데이터셋 | DT (지연) | CQL (지연) | BC | %BC | DT (원래) | CQL (원래) |
+|---|---|---|---|---|---|---|
+| Medium-Expert | **107.3 ± 3.5** | 9.0 | 59.9 | 102.6 | 107.6 | 111.0 |
+| Medium | 60.7 ± 4.5 | 5.2 | 63.9 | **65.9** | 67.6 | 58.0 |
+| Medium-Replay | **78.5 ± 3.7** | 2.0 | 27.6 | 70.6 | 82.7 | 48.6 |
+
+BC와 %BC는 보상을 쓰지 않거나 에피소드 return만 쓰므로 지연 여부와 무관합니다. CQL은 111.0에서 9.0으로 떨어지는데 DT는 107.6에서 107.3으로 거의 그대로입니다.
+
+### 실험 설정
+
+논문 본문에 나온 설정만 모았습니다(세부 하이퍼파라미터는 별도 supplementary에 있습니다).
+
+| 항목 | 값 |
+|---|---|
+| Atari 데이터 | DQN-replay의 1% (온라인 DQN이 본 5,000만 transition 중 50만), 게임 4개, 3 seed |
+| Atari 문맥 길이 | $$K = 30$$ (Pong은 50), 상태는 합성곱 인코더로 임베딩 |
+| D4RL 데이터 | Medium 100만 step, Medium-Replay 약 2.5만~40만 step, Medium-Expert 100만 + 100만 step |
+| Key-to-Door 문맥 | 에피소드 전체 |
+| 손실 | 이산 행동 cross-entropy, 연속 행동 MSE (timestep 평균) |
+| 평가 | 목표 return(예: 최대 가능 return)으로 시작, 받은 보상만큼 빼며 생성 |
+| BC 기준선 | DT와 같은 구조·하이퍼파라미터, return 조건만 제거 |
 
 ## 5. 해석
 

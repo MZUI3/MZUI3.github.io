@@ -1,13 +1,18 @@
 ---
-title: "[Robotics] Motion Planning Diffusion: 디퓨전 사전 분포에서 비용 가이던스로 로봇 궤적을 바로 샘플링하기"
+title: "[Robotics] MPD(Motion Planning Diffusion: Learning and Planning of Robot Motions with Diffusion Models): 비용 가이던스로 궤적 샘플링"
 date: 2026-09-22 22:54:00 +0900
 categories: [Robotics, Motion Planning]
 tags: [motion-planning, diffusion-model, planning-as-inference, guidance, trajectory-optimization, gpmp, panda, imitation-learning]
-description: Motion Planning Diffusion(Carvalho et al., IROS 2023)이 전문가 궤적으로 학습한 디퓨전 모델을 사전 분포로 삼고, 계획을 추론으로 보는 관점에서 충돌·평활·관절 한계 비용의 기울기를 디노이징 과정에 가이던스로 넣어 사후 분포에서 궤적을 직접 샘플링하는 방법을 정리합니다. 2D·3D 점질량과 7자유도 Panda 환경에서 CVAE·GPMP·RRTConnect와의 비교, 미지 장애물 일반화를 다루고, 작은 실험으로 가이던스의 효과를 확인합니다.
+description: "Motion Planning Diffusion: Learning and Planning of Robot Motions with Diffusion Models(IROS 2023) 논문 리뷰. 전문가 궤적으로 학습한 디퓨전 사전에 충돌·평활·관절 한계 비용의 기울기를 가이던스로 넣어 사후 분포에서 궤적을 바로 뽑는 방법, 2D·3D 점질량과 7자유도 Panda 실험 수치, 구현 디테일을 그림과 작은 실험으로 정리합니다."
 math: true
 ---
 
-> [Diffuser]({% post_url 2026-09-19-diffuser %})는 오프라인 RL에서 궤적 전체를 디퓨전으로 생성했고, [Diffusion Policy]({% post_url 2026-10-25-diffusion-policy %})는 시각운동 정책을 디노이징으로 만들었습니다. **Motion Planning Diffusion**(MPD, Carvalho, Le, Baierl, Koert, Peters, TU Darmstadt, IROS 2023)은 디퓨전 모델을 **고전 모션 플래닝의 사전 분포**로 가져옵니다. 최적 플래너가 만든 충돌 없는 궤적으로 디퓨전 모델을 학습해 두고, 새 계획 문제에서는 충돌·평활·관절 한계 같은 표준 비용의 기울기를 디노이징 단계마다 더해 **사후 분포에서 궤적을 바로 뽑습니다**. 사전 분포에서 뽑은 뒤 따로 최적화하는 방식보다 성공률이 높고 다양하며, 학습 때 없던 장애물이 있는 환경에서도 동작합니다.
+> - **논문**: Motion Planning Diffusion: Learning and Planning of Robot Motions with Diffusion Models
+> - **저자**: João Carvalho, An T. Le, Mark Baierl, Dorothea Koert, Jan Peters (TU Darmstadt, DFKI, Hessian.AI)
+> - **학회**: IROS 2023 · [arXiv:2308.01557](https://arxiv.org/abs/2308.01557) · [프로젝트 페이지](https://sites.google.com/view/mp-diffusion)
+{: .prompt-tip }
+
+> [Diffuser]({% post_url 2026-09-19-diffuser %})는 오프라인 RL에서 궤적 전체를 디퓨전으로 생성했고, [Diffusion Policy]({% post_url 2026-10-25-diffusion-policy %})는 시각운동 정책을 디노이징으로 만들었습니다. **Motion Planning Diffusion**(MPD)은 디퓨전 모델을 **고전 모션 플래닝의 사전 분포**로 가져옵니다. 최적 플래너가 만든 충돌 없는 궤적으로 디퓨전 모델을 학습해 두고, 새 계획 문제에서는 충돌·평활·관절 한계 같은 표준 비용의 기울기를 디노이징 단계마다 더해 **사후 분포에서 궤적을 바로 뽑습니다**. 사전 분포에서 뽑은 뒤 따로 최적화하는 방식보다 성공률이 높고 다양하며, 학습 때 없던 장애물이 있는 환경에서도 동작합니다.
 
 ## 1. 문제: 샘플링 플래너는 비효율적이고, 최적화 플래너는 초기값에 묶인다
 
@@ -110,7 +115,7 @@ MPD: prior + cost-gradient guidance  collision-free  99.0%   left-mode share 43.
 
 ## 4. 실험
 
-**환경.** PointMass2D Dense(구·상자 무작위), PointMass3D Maze Boxes(좁은 통로), Panda Spheres(7자유도, 무작위 구), Panda Shelf(작업대와 선반, 실제 로봇 검증). 각 환경에 학습 때 없던 장애물을 더한 "Extra Obstacles" 버전으로 일반화를 봅니다. 지표는 100개의 시작·목표 문맥 × 100개 궤적에 대한 계산 시간, 성공률(S), 궤적 내 충돌 비율(I), 경로 길이(PL), 궤적 분산(VAR).
+**환경.** PointMass2D Dense(구·상자 무작위), PointMass3D Maze Boxes(좁은 통로), Panda Spheres(7자유도, 무작위 구), Panda Shelf(작업대와 선반, 실제 로봇 검증). 각 환경에 학습 때 없던 장애물을 더한 "Extra Obstacles" 버전으로 일반화를 봅니다. 지표는 100개의 시작·목표 문맥 × 100개 궤적에 대한 계산 시간, 성공률(S), 충돌 강도(I, 충돌한 waypoint 비율), 경로 길이(PL), 궤적 분산(VAR, 같은 시점 waypoint 간 거리 분산의 합으로 다봉성의 척도). 성공률은 문맥마다 100개 중 하나라도 충돌이 없으면 1로 셉니다.
 
 **비교.** GPU 병렬화한 RRTConnect, 정보 없는 직선 초기값의 GPMP, CVAE 사전(같은 U-Net 인코더·디코더), CVAE 사전 후 최적화(CPost), 각 사전을 초기값으로 쓴 GPMP, 디퓨전 사전(DPrior), MPD.
 
@@ -134,7 +139,44 @@ MPD: prior + cost-gradient guidance  collision-free  99.0%   left-mode share 43.
 - 디퓨전 사전을 GPMP의 초기값으로 주면 GPMP의 성공률이 단독일 때의 42%에서 100%로 오릅니다. 좋은 사전이 최적화 플래너의 지역 최소 문제를 푼다는 뜻입니다. 다만 GPMP는 수백 초가 걸립니다.
 - RRTConnect는 항상 성공하지만 느리고(궤적 100개 순차), 경로가 길고 거칩니다.
 
-**실제 로봇.** Panda Shelf에서 선반 안으로 들어가는 두 모드의 궤적이 같은 시작·목표에서 샘플링되고, 학습 때 없던 상자 장애물이 있는 실제 환경에서 실행됩니다. 엔드이펙터 방향을 유지하는 SE(3) 비용을 추가로 넣었습니다.
+네 환경 전체의 성공률(%)을 모으면 다음과 같습니다. 각 칸은 "학습 환경 / Extra Obstacles"입니다(Table I).
+
+| 환경 | CVAE 사전 | 디퓨전 사전 | GPMP | CVAE 사후 | 디퓨전 사전 → GPMP | MPD |
+|---|---|---|---|---|---|---|
+| PointMass2D Dense | 46 / 14 | 98 / 60 | 52 / 49 | 88 / 78 | 99 / **92** | **99** / 79 |
+| PointMass3D Maze Boxes | 8 / 4 | 54 / 51 | 16 / 19 | 50 / 52 | 39 / 43 | **85 / 82** |
+| Panda Spheres | 36 / 10 | 88 / 78 | 42 / 28 | 70 / 45 | **100** / 82 | **100 / 93** |
+| Panda Shelf | 92 / 68 | **100 / 100** | 88 / 82 | 93 / 83 | **100** / 98 | **100** / 99 |
+
+- 좁은 통로가 있는 3D 미로에서 차이가 가장 큽니다. 사전만으로는 54%, CVAE 사후 최적화는 50%인데 MPD는 85%입니다.
+- MPD가 항상 1등은 아닙니다. PointMass2D Dense의 추가 장애물 버전에서는 MPD가 79%로 CVAE 사후(78%)와 비슷하고, 디퓨전 사전을 GPMP 초기값으로 쓴 쪽(92%)이 더 높습니다. 대신 그쪽은 시간이 27초로 MPD(0.3초)의 약 90배입니다.
+- Panda Shelf에서는 디퓨전 사전만으로도 추가 장애물에서 100%를 유지하지만, 충돌 강도가 3.6%에서 5.9%로 늘어납니다.
+
+![디노이징 단계별 MPD 궤적과 CVAE 사후 결과](/assets/img/posts/motion-planning-diffusion/fig3.webp)
+_Figure 3. PointMass2D Dense - Extra Obstacles에서 궤적 100개를 MPD로 디노이징하는 과정((a)~(d), 25 step)과 CVAE 사후 최적화 결과(e). 빨간 장애물은 학습 때 없던 것이고, 주황색이 충돌 없는 궤적, 검은색이 충돌 궤적입니다. (출처: Carvalho et al., 2023)_
+
+위 Figure 3에서 잡음이 여러 갈래의 매끄러운 궤적으로 정리되는 과정과, CVAE 쪽이 한 갈래로 몰리는 모습을 비교할 수 있습니다.
+
+**실제 로봇.** Panda가 병을 옮기면서, 학습 때 없던 장애물(상자 모델로 근사)을 피하고 엔드이펙터 방향을 일정하게 유지하는 과제입니다. 방향 유지를 위해 SE(3) 비용을 추가로 넣었습니다. 시작 자세 3개와 목표 자세 1개를 기록하고, 시작·목표 쌍마다 MPD로 궤적 10개를 뽑아 충돌하는 것을 걸러 낸 25개를 고르지 않고 그대로 joint impedance 제어기로 실행했습니다. 그중 **19/25개가 실제로 충돌 없이** 실행됐고, 나머지 6개는 로봇을 구로 근사한 충돌 모델의 오차 때문으로 봅니다.
+
+![실제 Panda Shelf 환경에서 실행한 두 모드의 궤적](/assets/img/posts/motion-planning-diffusion/fig1.webp)
+_Figure 1. 같은 시작·목표 자세에서 MPD로 뽑은 두 궤적(파랑, 빨강)이 서로 다른 모드로 장애물을 돌아갑니다. 상자 장애물은 학습 환경에 없던 것입니다. (출처: Carvalho et al., 2023)_
+
+### 구현 디테일
+
+| 항목 | 값 |
+|---|---|
+| 전문가 데이터 | 환경마다 시작·목표 문맥 500개 × 문맥당 궤적 20개 |
+| 데이터 생성 | RRTConnect로 초기 해 → B-spline으로 평활화 → Stochastic-GPMP로 오래 최적화 (오프라인 1회) |
+| 검증 분할 | 데이터의 5% |
+| 궤적 표현 | $$H 	imes d$$, Panda는 $$H = 64$$, $$d = 14$$ (관절 위치 7 + 속도 7) |
+| 네트워크 | Diffuser의 시간 U-Net. CVAE 기준선도 같은 인코더·디코더 사용 |
+| 디퓨전 step | 25, exponential noise schedule (linear보다 좋았음) |
+| 학습 종료 | validation loss 기준 early stopping |
+| 구현 | 환경·알고리즘·비용 모두 PyTorch GPU 구현, 미분 가능 순기구학 |
+| 하드웨어 | AMD EPYC 7453 (28코어), NVIDIA GeForce RTX 3090 |
+
+Panda 환경에서 MPD의 시간(1.0~1.1초)이 디퓨전 사전(0.3초)보다 긴 것은 디노이징 자체보다 **비용 기울기 계산**(순기구학과 충돌 구) 때문이라고 논문은 설명합니다. 같은 이유로 CVAE 사후 최적화(0.8초)와도 시간이 비슷합니다.
 
 ## 5. 해석
 
@@ -156,7 +198,7 @@ MPD: prior + cost-gradient guidance  collision-free  99.0%   left-mode share 43.
 | 핵심 | 전문가 궤적으로 학습한 디퓨전 사전 + 계획-추론 관점의 사후 샘플링(비용 기울기 가이던스) |
 | 샘플링 | 매 단계 $$\mu_t \leftarrow \mu_t - \sum_i \tilde\lambda_i \nabla c_i$$, 시작·목표 하드 셋 |
 | 비용 | 충돌(구 + SDF), 자기 충돌, 관절·속도 한계, SE(3) 엔드이펙터, GP 평활 |
-| 결과 | Panda Spheres 성공률 MPD 100%(디퓨전 사전 88%, CVAE 사후 70%, GPMP 42%), 추가 장애물 93%, 분산 수백 배 |
+| 결과 | Panda Spheres 성공률 MPD 100%(디퓨전 사전 88%, CVAE 사후 70%, GPMP 42%), 추가 장애물 93%, 분산 수백 배, 실제 로봇 19/25 성공 |
 | 관계 | Diffuser의 가이던스를 고전 비용으로, GPMP의 사전을 비용으로 재사용 |
 
 ## References

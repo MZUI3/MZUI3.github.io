@@ -1,14 +1,19 @@
 ---
-title: "[VLA] Gemini Robotics 1.5: 행동하기 전에 생각하는 VLA와 Motion Transfer, 그리고 로봇 에이전트"
+title: "[VLA] Gemini Robotics 1.5(Pushing the Frontier of Generalist Robots with Advanced Embodied Reasoning, Thinking, and Motion Transfer): 생각하는 VLA와 로봇 에이전트"
 date: 2026-10-22 21:37:00 +0900
 categories: [Transformer, VLA]
 tags: [vla, gemini-robotics, thinking-vla, motion-transfer, cross-embodiment, embodied-reasoning, agentic-system, google-deepmind, robot-safety]
-description: 행동 사이사이에 자연어로 생각하는 Thinking VLA, 여러 로봇의 데이터로 학습해 로봇별 후학습 없이 세 로봇을 제어하고 기술을 zero-shot으로 옮기는 Motion Transfer, 계획과 도구 사용을 맡는 Gemini Robotics-ER 1.5를 묶은 에이전트 시스템을 제안한 Gemini Robotics 1.5(Google DeepMind, 2025)를 정리하고 해석합니다.
+description: "Gemini Robotics 1.5: Pushing the Frontier of Generalist Robots with Advanced Embodied Reasoning, Thinking, and Motion Transfer(Google DeepMind 기술 보고서, 2025) 리뷰. 행동 전에 생각하는 Thinking VLA, 세 로봇을 한 체크포인트로 제어하는 Motion Transfer, ER 1.5와 묶은 에이전트 시스템을 일반화·ablation·긴 작업 수치와 그림으로 정리합니다."
 math: true
 mermaid: true
 ---
 
-> [VLA 총정리 글]({% post_url 2026-10-19-vision-language-action-models %})의 열두 번째 모델입니다. [Gemini Robotics 1.0]({% post_url 2026-10-21-gemini-robotics %})은 공간 이해를 강화한 VLM 위에 VLA를 만들었지만, 새 로봇마다 fine-tuning이 필요했고 긴 작업은 따로 특화해야 했습니다. **Gemini Robotics 1.5**(*Pushing the Frontier of Generalist Robots with Advanced Embodied Reasoning, Thinking, and Motion Transfer*, Google DeepMind, 2025)는 세 가지로 답합니다. **행동하기 전에 생각하는 VLA**, **여러 로봇을 하나의 체크포인트로 제어하는 Motion Transfer**, 그리고 계획을 맡는 ER 모델과 VLA를 묶은 **에이전트 시스템**입니다.
+> - **논문**: Gemini Robotics 1.5: Pushing the Frontier of Generalist Robots with Advanced Embodied Reasoning, Thinking, and Motion Transfer
+> - **저자**: Gemini Robotics Team (Google DeepMind)
+> - **학회**: 기술 보고서, 2025 · [arXiv:2510.03342](https://arxiv.org/abs/2510.03342)
+{: .prompt-tip }
+
+> [VLA 총정리 글]({% post_url 2026-10-19-vision-language-action-models %})의 열두 번째 모델입니다. [Gemini Robotics 1.0]({% post_url 2026-10-21-gemini-robotics %})은 공간 이해를 강화한 VLM 위에 VLA를 만들었지만, 새 로봇마다 fine-tuning이 필요했고 긴 작업은 따로 특화해야 했습니다. **Gemini Robotics 1.5**는 세 가지로 답합니다. **행동하기 전에 생각하는 VLA**, **여러 로봇을 하나의 체크포인트로 제어하는 Motion Transfer**, 그리고 계획을 맡는 ER 모델과 VLA를 묶은 **에이전트 시스템**입니다.
 
 ## 1. 두 모델과 에이전트 시스템
 
@@ -16,6 +21,22 @@ mermaid: true
 |---|---|
 | **Gemini Robotics-ER 1.5** (VLM) | Gemini의 추론과 도구 사용 능력을 유지하면서 공간 이해, 작업 계획, 진행 상황 판단을 강화한 모델. 에이전트의 **orchestrator** |
 | **Gemini Robotics 1.5** (VLA) | 중·단기 지시를 로봇 행동으로 옮기는 모델. 행동 전에 생각할 수 있고, 여러 로봇을 직접 제어. 에이전트의 **행동 모델** |
+
+![Gemini Robotics 1.5 모델 구성](/assets/img/posts/gemini-robotics-1-5/fig1.webp)
+_Figure 1. 위: ER 1.5는 음성·텍스트·이미지를 받아 생각한 뒤 가리키기, 궤적, 상태·진행도 추정 같은 텍스트 출력을 내고 검색·코드 실행 같은 도구를 부릅니다. 아래: GR 1.5는 로봇 상태·이미지·지시를 받아 다음 단계와 동작 설명을 생각한 뒤, 세 로봇에서 실행되는 행동을 냅니다. (출처: Gemini Robotics Team, 2025)_
+
+공개된 구현 정보는 많지 않습니다. 보고서의 model card(Table 2)에 있는 내용은 다음과 같습니다.
+
+| 항목 | 내용 |
+|---|---|
+| 기반 | 최신 세대 Gemini. ER 1.5는 Gemini의 추론·도구 사용 능력을 그대로 유지 |
+| 입력 / 출력 | 텍스트와 이미지(로봇 카메라) / ER 1.5는 텍스트(좌표 포함), GR 1.5는 연속 행동 값과 생각 모드일 때 텍스트 |
+| 로봇 데이터 | ALOHA, 양팔 Franka, Apptronik Apollo에서 모은 수천 개 작업 + 인터넷 텍스트·이미지·영상 |
+| 데이터 전처리 | 민감 정보 필터링, Gemini와 FlexCap으로 만든 합성 캡션 |
+| 하드웨어 / 소프트웨어 | TPU v4, v5p, v6e / JAX, ML Pathways |
+| 평가 | 같은 작업 공간에서 모델을 번갈아 실행하는 A/B/n 실제 평가, 진행 점수의 평균과 표준오차 |
+
+모델 크기, 행동 표현 방식, 학습 step 같은 세부는 공개되지 않았습니다.
 
 둘을 묶으면 이런 구조가 됩니다.
 
@@ -51,7 +72,18 @@ GR 1.5는 지시와 현재 장면을 보고 **자연어로 생각(thinking trace
 1. 복잡한 지시 → "그리퍼를 왼쪽으로 옮겨 옷에 가까이 간다" 같은 짧고 구체적인 문장. VLM backbone의 시각·언어 능력이 잘하는 일입니다.
 2. 짧은 문장 → 행동. 더 단순한 대응만 배우면 됩니다.
 
-여러 단계로 된 작업(옷 색깔별 분류 등)에서 생각을 켜면 세 로봇 모두에서 진행 점수가 크게 올랐습니다. 정량적인 이득 말고도 세 가지 장점이 관찰됐습니다.
+여러 단계로 된 작업(옷 색깔별 분류 등) 벤치마크에서 생각을 켜고 끈 결과는 다음과 같습니다(Figure 6, 부록 Figure 37).
+
+| 로봇 | 진행 점수: 생각 끔 → 켬 | 성공률: 생각 끔 → 켬 |
+|---|---|---|
+| ALOHA | 0.26 → **0.55** | 0.09 → **0.38** |
+| 양팔 Franka | 0.55 → **0.60** | 0.42 → **0.44** |
+| Apollo 휴머노이드 | 0.51 → **0.67** | 0.26 → **0.40** |
+
+ALOHA와 휴머노이드에서는 이득이 크고, 양팔 Franka에서는 작습니다. 정량적인 이득 말고도 세 가지 장점이 관찰됐습니다.
+
+![Thinking VLA 실행 예](/assets/img/posts/gemini-robotics-1-5/fig7.webp)
+_Figure 7. Apollo 휴머노이드가 물건을 흰 가방에 담는 과정. 각 장면 위에 "next step"과 "motion description" 형태의 생각이 겹쳐 있습니다. 위 줄은 공을 잡은 뒤 목표가 저절로 바뀌는 모습(암묵적 성공 감지), 아래 두 줄은 물병을 놓친 뒤 반대 손으로 다시 계획하는 모습입니다. (출처: Gemini Robotics Team, 2025)_
 
 - **해석 가능성**: 생각을 화면에 띄우면 로봇이 다음에 무엇을 하려는지 미리 알 수 있습니다.
 - **성공 감지**: 노란 테니스공을 잡고 나면 생각이 "공을 집는다"에서 "공을 흰 가방에 넣는다"로 스스로 바뀝니다. 별도의 성공 판단기 없이도 앞 단계가 끝났음을 압니다.
@@ -65,13 +97,35 @@ GR 1.5는 ALOHA(양팔), 양팔 Franka, Apptronik의 휴머노이드 Apollo 데�
 
 230개 작업으로 된 벤치마크로 시각·지시·행동 변화와 함께, 새 환경에서 새 작업을 하는 **작업 일반화**까지 평가했습니다. ALOHA에서 GR 1.5는 이전 Gemini Robotics와 로봇에서 직접 도는 Gemini Robotics On-Device(GRoD)보다 모든 축에서 좋았고, 특히 지시·행동·작업 일반화에서 크게 앞섰습니다. 양팔 Franka와 Apollo에서도 GRoD보다 크게 좋았습니다(GRoD는 데이터가 더 적고 로봇마다 체크포인트가 따로라 완전히 같은 조건의 비교는 아닙니다).
 
+| 로봇 · 모델 | In-dist. | 지시 | 행동 | 시각 | 작업 |
+|---|---|---|---|---|---|
+| ALOHA · **GR 1.5** | **0.83** | **0.76** | **0.54** | **0.81** | **0.70** |
+| ALOHA · Gemini Robotics | 0.73 | 0.53 | 0.25 | 0.73 | 0.44 |
+| ALOHA · GRoD | 0.66 | 0.67 | 0.17 | 0.78 | 0.41 |
+| 양팔 Franka · **GR 1.5** | **0.74** | **0.73** | **0.70** | **0.77** | **0.50** |
+| 양팔 Franka · GRoD | 0.36 | 0.22 | 0.34 | 0.09 | 0.12 |
+| Apollo · **GR 1.5** | **0.74** | **0.62** | **0.66** | **0.73** | **0.63** |
+| Apollo · GRoD | 0.32 | 0.20 | 0.24 | 0.16 | 0.07 |
+
+값은 진행 점수입니다(Figure 3). 양팔 Franka와 Apollo에서 1.0 모델을 비교하지 않은 이유는, 그 모델들이 작업별로 후학습한 전문 모델이라 일반화가 거의 없었기 때문이라고 합니다.
+
 ### MT의 효과
 
-| 비교 | 결과 |
-|---|---|
-| 한 로봇 데이터만, MT 없음 | 기준 |
-| 여러 로봇 데이터, MT 없음 | 대체로 좋아짐 |
-| **여러 로봇 데이터 + MT** | 다른 로봇 데이터의 이득을 **더 키움** |
+한 로봇 데이터만(MT 없음), 여러 로봇 데이터(MT 없음), 여러 로봇 데이터 + MT(= GR 1.5) 세 가지를 비교했습니다(Figure 4, 진행 점수).
+
+| 로봇 · 학습 | In-dist. | 지시 | 행동 | 시각 | 작업 |
+|---|---|---|---|---|---|
+| ALOHA · 한 로봇 | 0.66 | 0.65 | 0.31 | 0.83 | 0.60 |
+| ALOHA · 여러 로봇 | 0.66 | 0.67 | 0.39 | **0.84** | 0.57 |
+| ALOHA · 여러 로봇 + **MT** | **0.83** | **0.76** | **0.54** | 0.81 | **0.70** |
+| 양팔 Franka · 한 로봇 | 0.61 | 0.54 | **0.75** | 0.36 | 0.30 |
+| 양팔 Franka · 여러 로봇 | 0.69 | 0.71 | 0.64 | 0.55 | 0.38 |
+| 양팔 Franka · 여러 로봇 + **MT** | **0.74** | **0.73** | 0.70 | **0.77** | **0.50** |
+| Apollo · 한 로봇 | 0.66 | 0.49 | 0.51 | 0.56 | 0.25 |
+| Apollo · 여러 로봇 | 0.71 | 0.57 | **0.66** | 0.70 | 0.56 |
+| Apollo · 여러 로봇 + **MT** | **0.74** | **0.62** | **0.66** | **0.73** | **0.63** |
+
+다른 로봇 데이터를 넣으면 대체로 좋아지고, MT가 그 이득을 더 키웁니다. 다만 ALOHA의 시각 일반화와 양팔 Franka의 행동 일반화처럼 MT 없는 쪽이 조금 높은 칸도 있습니다.
 
 효과는 로봇이 가진 데이터 양에 따라 달랐습니다.
 
@@ -89,9 +143,21 @@ GR 1.5는 ALOHA(양팔), 양팔 Franka, Apptronik의 휴머노이드 Apollo 데�
 
 ## 4. Gemini Robotics-ER 1.5
 
-ER 1.5는 공간 이해를 크게 높이면서도 범용 모델의 능력을 유지합니다. 15개 학술 벤치마크(BLINK, CV-Bench, ERQA, RoboSpatial, Where2Place, RefSpatial 등)로 잰 embodied reasoning 점수와, MMMU·GPQA·Aider Polyglot으로 잰 범용 점수를 함께 놓고 보면, 다른 최신 모델보다 둘 다 좋은 쪽으로 경계를 밀어냈습니다.
+ER 1.5는 공간 이해를 크게 높이면서도 범용 모델의 능력을 유지합니다. 15개 학술 벤치마크(BLINK, CV-Bench, ERQA, RoboSpatial, Where2Place, RefSpatial 등)로 잰 embodied reasoning 점수와, MMMU·GPQA·Aider Polyglot으로 잰 범용 점수를 함께 놓고 보면, embodied reasoning은 가장 높고 범용 점수는 같은 급의 모델과 비슷한 위치라 둘 사이의 파레토 경계를 넓혔습니다(Table 19, 20).
 
-- **복잡한 가리키기**: "그릇의 테두리", "멀티탭의 콘센트 구멍", "10파운드보다 가벼운 물건", "같은 무늬의 양말끼리" 같은 물리·공간·의미 조건을 만족하는 점을 찍고, 충돌을 피하는 궤적으로 이을 수 있습니다. 가리키기 벤치마크에서 이전 ER, Gemini 2.5, GPT-5보다 좋았습니다.
+| 모델 | ER 점수 (15개 평균) | 가리키기 평균 | 범용 점수 (MMMU·GPQA·Aider 평균) |
+|---|---|---|---|
+| **GR-ER 1.5** (생각 켬) | **59.6** | **52.6** | 73.8 |
+| GR-ER 1.5 (생각 끔) | 53.7 | 47.1 | 68.3 |
+| GR-ER (이전) | 52.6 | 49.1 | 47.5 |
+| Gemini 2.5 Pro | 51.7 | 35.4 | 83.5 |
+| Gemini 2.5 Flash | 51.2 | 39.7 | 73.1 |
+| GPT-5 | 51.1 | 30.8 | **83.9** |
+| GPT-5-mini | 47.7 | 27.1 | 74.3 |
+
+범용 점수만 보면 Gemini 2.5 Pro와 GPT-5가 10점 가까이 높습니다. ER 1.5의 강점은 embodied reasoning, 특히 가리키기와 공간 추론입니다. 영상·이미지 질의응답 평균만 보면 GPT-5(71.4)가 ER 1.5(66.5)보다 높습니다.
+
+- **복잡한 가리키기**: "그릇의 테두리", "멀티탭의 콘센트 구멍", "10파운드보다 가벼운 물건", "같은 무늬의 양말끼리" 같은 물리·공간·의미 조건을 만족하는 점을 찍고, 충돌을 피하는 궤적으로 이을 수 있습니다. 가리키기 벤치마크(Point-Bench, RefSpatial, RoboSpatial, Where2Place, PixMo Count)에서 이전 ER, Gemini 2.5, GPT-5보다 좋았습니다.
 - **진행 상황 이해**: 작업이 몇 % 진행됐는지 추정하고, 여러 카메라를 함께 봐야만 알 수 있는 성공 여부를 판단하고, 섞인 영상 프레임의 순서를 맞춥니다. 추론 지연까지 고려한 실시간 성공 판단에서도 좋았습니다.
 - **생각할수록 좋아진다**: 생각 토큰 예산을 늘릴수록 embodied reasoning 성능이 올랐고, 작업에 따라 생각의 양을 스스로 조절했습니다(가리키기는 적게, 영상 질의응답은 많이). 범용 Gemini 2.5 Flash는 생각을 늘려도 embodied reasoning이 거의 오르지 않았습니다. 생각을 잘하는 모델이라고 물리 세계를 잘 추론하는 것은 아니라는 뜻입니다.
 
@@ -106,11 +172,18 @@ ALOHA와 양팔 Franka에서 8개의 긴 작업을 세 가지 방식으로 비�
 - "여행 가방 싸기", "위 선반에서 탁자로": 옷걸이나 선반의 부드러운 물체를 다루는 3D 추론과 정밀 조작
 - "블록을 서랍에": 9단계 계획
 
-| 방식 | 결과 |
-|---|---|
-| Thinking VLA 혼자 | 진행 점수 최대 44% 정도 |
-| Gemini 2.5 Flash(orchestrator) + GR 1.5 | 중간 |
-| **ER 1.5 + GR 1.5** | 자주 80% 가까이, 복잡한 작업에서 Flash 조합의 약 2배 |
+| 로봇 | 작업 | **ER 1.5 + GR 1.5** | Flash + GR 1.5 | Thinking VLA 혼자 |
+|---|---|---|---|---|
+| ALOHA | 블록을 서랍에 | 0.83 | **0.87** | 0.33 |
+| ALOHA | 책상 정리 | **0.88** | 0.56 | 0.32 |
+| ALOHA | 분리수거 | **0.80** | 0.64 | 0.36 |
+| ALOHA | 여행 가방 싸기 | **0.45** | 0.15 | 0.40 |
+| 양팔 Franka | 위 선반에서 탁자로 | **0.75** | 0.33 | 0.08 |
+| 양팔 Franka | 견과류 알레르기 | **0.78** | **0.78** | 0.00 |
+| 양팔 Franka | 자리 바꾸기 | **0.78** | 0.44 | 0.44 |
+| 양팔 Franka | 버섯 리소토 | **0.67** | 0.58 | 0.25 |
+
+값은 진행 점수입니다(Figure 17). Thinking VLA 혼자서는 최대 0.44에 그치고, ER 1.5 에이전트는 여러 작업에서 0.8 가까이 냅니다. 블록 넣기와 견과류 알레르기에서는 Flash 조합과 비슷하거나 조금 낮지만, 위 선반에서 탁자로(0.75 vs 0.33), 여행 가방(0.45 vs 0.15)처럼 어려운 작업에서는 두 배 이상 차이가 납니다. 양팔 Franka는 긴 작업 성공률을 높이려고 사전학습 체크포인트에 추가 후학습을 한 모델을 썼습니다.
 
 실패 원인을 나눠 보면 차이가 어디서 나는지 보입니다.
 
@@ -151,9 +224,9 @@ ALOHA와 양팔 Franka에서 8개의 긴 작업을 세 가지 방식으로 비�
 | 항목 | 내용 |
 |---|---|
 | 구성 | ER 1.5(계획·도구·성공 판단 orchestrator) + GR 1.5(Thinking VLA) |
-| Thinking VLA | 생각과 행동을 번갈아 생성, 동작 수준까지 언어로 분해, 다단계 작업 진행 점수 크게 향상, 성공 감지·복구 |
+| Thinking VLA | 생각과 행동을 번갈아 생성, 동작 수준까지 언어로 분해, 다단계 작업 진행 점수 향상(ALOHA 0.26 → 0.55), 성공 감지·복구 |
 | Motion Transfer | ALOHA·양팔 Franka·Apollo를 한 체크포인트로 제어, 다른 로봇에만 있던 기술 zero-shot 수행 |
-| ER 1.5 | 복잡한 가리키기·진행 이해에서 GPT-5·Gemini 2.5보다 좋음, 생각할수록 embodied reasoning 향상 |
+| ER 1.5 | ER 점수 59.6으로 GPT-5·Gemini 2.5보다 높음(범용 점수는 더 낮음), 생각할수록 embodied reasoning 향상 |
 | 에이전트 | 긴 작업 진행 점수 80% 가까이, 실패율 44.5% → 22%(주로 계획 실패 감소) |
 | 한계 | 정밀함은 이전 세대 수준, 구조 비공개 |
 

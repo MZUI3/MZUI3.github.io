@@ -1,13 +1,18 @@
 ---
-title: "[LLM] Speculative Decoding: 작은 모델이 추측하고 큰 모델이 검증하는 무손실 디코딩 가속"
+title: "[LLM] Speculative Decoding(Fast Inference from Transformers via Speculative Decoding): 작은 모델이 추측하고 큰 모델이 검증하는 무손실 가속"
 date: 2026-07-02 09:13:00 +0900
 categories: [Transformer, LLM]
 tags: [llm, speculative-decoding, speculative-sampling, inference-acceleration, rejection-sampling, autoregressive, t5, memory-bandwidth]
-description: 작은 근사 모델이 토큰 여러 개를 먼저 추측하고 큰 목표 모델이 한 번의 병렬 실행으로 검증해, 출력 분포를 바꾸지 않고 T5-XXL 디코딩을 2~3배 빠르게 만든 Speculative Decoding(Leviathan et al., ICML 2023)의 알고리즘과 이론 분석을 코드로 확인합니다.
+description: "Fast Inference from Transformers via Speculative Decoding(ICML 2023) 논문 리뷰. 작은 근사 모델이 추측하고 큰 목표 모델이 한 번에 검증해 출력 분포를 바꾸지 않고 T5-XXL 디코딩을 2~3배 빠르게 만든 알고리즘, 이론 분석, 실험 수치를 그림과 코드로 정리합니다."
 math: true
 ---
 
-> [Transformer 디코더에서 GPT로]({% post_url 2026-07-01-transformer-decoder-to-gpt %}) 글에서 본 것처럼, decoder-only 언어 모델은 토큰을 하나씩 순차적으로 만듭니다. 토큰 $$K$$개를 만들려면 큰 모델을 $$K$$번 직렬로 돌려야 합니다. **Speculative Decoding**(Leviathan, Kalman, Matias, Google Research, ICML 2023)은 작은 모델이 여러 토큰을 먼저 추측하고 큰 모델이 이를 한 번에 검증하는 방법으로, **출력 분포를 전혀 바꾸지 않고** T5-XXL의 디코딩을 2~3배 빠르게 만들었습니다. 모델 구조나 학습을 바꿀 필요가 없습니다.
+> - **논문**: Fast Inference from Transformers via Speculative Decoding
+> - **저자**: Yaniv Leviathan, Matan Kalman, Yossi Matias (Google Research)
+> - **학회**: ICML 2023 · [arXiv:2211.17192](https://arxiv.org/abs/2211.17192)
+{: .prompt-tip }
+
+> [Transformer 디코더에서 GPT로]({% post_url 2026-07-01-transformer-decoder-to-gpt %}) 글에서 본 것처럼, decoder-only 언어 모델은 토큰을 하나씩 순차적으로 만듭니다. 토큰 $$K$$개를 만들려면 큰 모델을 $$K$$번 직렬로 돌려야 합니다. **Speculative Decoding**은 작은 모델이 여러 토큰을 먼저 추측하고 큰 모델이 이를 한 번에 검증하는 방법으로, **출력 분포를 전혀 바꾸지 않고** T5-XXL의 디코딩을 2~3배 빠르게 만들었습니다. 모델 구조나 학습을 바꿀 필요가 없습니다.
 
 ## 1. 문제: 큰 모델의 디코딩은 연산이 아니라 메모리에 묶여 있다
 
@@ -32,6 +37,11 @@ math: true
 3. 추측을 앞에서부터 검증해 받아들일 수 있는 것은 받아들이고, 처음 거절된 자리에서 **조정된 분포**로 한 토큰을 뽑습니다. 전부 받아들여졌으면 $$p_{\gamma+1}$$에서 한 토큰을 더 뽑습니다.
 
 그래서 $$M_p$$를 한 번 돌릴 때마다 **최소 1개, 최대 $$\gamma + 1$$개**의 토큰이 나옵니다. 최악의 경우에도 일반 디코딩보다 $$M_p$$ 호출 횟수가 많아지지 않습니다.
+
+![Speculative decoding 반복 예시](/assets/img/posts/speculative-decoding/fig1.webp)
+_Figure 1. 한 줄이 알고리즘 한 번의 반복입니다. 초록은 근사 모델(6M GPT-like)이 추측해 목표 모델(97M)이 받아들인 토큰, 빨강은 거절된 추측, 파랑은 그 자리에서 목표 모델이 고쳐 뽑은 토큰입니다. 38개 토큰을 목표 모델 9번 실행으로 만들었습니다. (출처: Leviathan et al., 2023)_
+
+위 Figure 1의 첫 줄에서는 목표 모델을 한 번 돌려 토큰 5개를 얻었습니다.
 
 ### Speculative sampling: 분포를 지키는 수락 규칙
 
@@ -88,14 +98,23 @@ $$\alpha > c$$이면 개선되는 $$\gamma$$가 존재하고, $$\gamma = 1$$만 
 |---|---|---|---|
 | 0.6 | 2 | 1.53배 | 1.96배 |
 | 0.7 | 3 | 1.58배 | 2.53배 |
+| 0.8 | 2 | 1.23배 | 2.44배 |
 | 0.8 | 5 | 1.63배 | 3.69배 |
+| 0.9 | 2 | 1.11배 | 2.71배 |
 | 0.9 | 10 | 1.60배 | 6.86배 |
 
 ($$c = \hat c = 0$$ 가정, 논문 Table 1)
 
+같은 $$\alpha$$에서도 $$\gamma$$를 작게 잡으면 연산 증가는 적고 속도 이득도 적습니다. $$\alpha = 0.9$$일 때 $$\gamma = 2$$는 연산 1.11배로 2.71배, $$\gamma = 10$$은 연산 1.60배로 6.86배입니다.
+
 ### γ 고르기
 
-$$c$$와 $$\alpha$$가 주어지면 위 식을 최대로 하는 정수 $$\gamma$$를 수치로 찾으면 됩니다. $$\beta$$가 일정하지 않으므로 실행 중 $$\beta$$를 예측해 $$\gamma$$를 바꾸면 더 좋아질 수 있는데, 완벽한 oracle이 있다면 기대 토큰 수가 $$1/(1 - \alpha)$$까지 올라가 최대 약 60% 추가 개선이 가능하다는 상한을 제시하고 향후 과제로 남겼습니다.
+$$c$$와 $$\alpha$$가 주어지면 위 식을 최대로 하는 정수 $$\gamma$$를 수치로 찾으면 됩니다. 아래 Figure 3처럼 $$\alpha$$가 높고 $$c$$가 작을수록 최적 $$\gamma$$가 커집니다.
+
+![α와 c에 따른 최적 γ](/assets/img/posts/speculative-decoding/fig3.webp)
+_Figure 3. 비용 계수 $$c$$별로 $$\alpha$$에 따른 최적 $$\gamma$$. $$c = 0.01$$, $$\alpha = 0.9$$에서는 24까지 올라가지만 $$c = 0.1$$이면 10에 그칩니다. (출처: Leviathan et al., 2023)_
+
+$$\beta$$가 일정하지 않으므로 실행 중 $$\beta$$를 예측해 $$\gamma$$를 바꾸면 더 좋아질 수 있는데, 완벽한 oracle이 있다면 기대 토큰 수가 $$1/(1 - \alpha)$$까지 올라가 최대 약 60% 추가 개선이 가능하다는 상한을 제시하고 향후 과제로 남겼습니다.
 
 ## 4. 코드로 보기: 분포는 그대로, 호출은 1/3
 
@@ -169,24 +188,55 @@ c = 0.10: 최적 γ =  5, 예상 속도 향상 2.21배
 
 ### T5-XXL 벽시계 시간
 
-T5 1.1 인코더-디코더 모델로 영어-독일어 번역(WMT EnDe)과 요약(CNN/DM)을 실험했습니다. $$M_p$$는 T5-XXL(11B), $$M_q$$는 기존 체크포인트인 T5-large(800M), T5-base(250M), T5-small(77M)이고, TPU-v4 한 개에서 batch size 1로 쟀습니다.
+T5 1.1 인코더-디코더 모델로 영어-독일어 번역(WMT EnDe)과 요약(CNN/DM)을 실험했습니다. $$M_p$$는 T5-XXL(11B), $$M_q$$는 기존 체크포인트인 T5-large(800M), T5-base(250M), T5-small(77M)이고, TPU-v4 한 개에서 batch size 1로 쟀습니다. 비교 대상은 T5X 코드베이스의 표준 디코딩 구현입니다.
 
-| 작업 | $$M_q$$ | 온도 | $$\gamma$$ | $$\alpha$$ | 속도 |
-|---|---|---|---|---|---|
-| EnDe | T5-small | 0 | 7 | 0.75 | 3.4배 |
-| EnDe | T5-base | 0 | 7 | 0.80 | 2.8배 |
-| EnDe | T5-large | 0 | 7 | 0.82 | 1.7배 |
-| EnDe | T5-small | 1 | 7 | 0.62 | 2.6배 |
-| CNN/DM | T5-small | 0 | 5 | 0.65 | 3.1배 |
-| CNN/DM | T5-small | 1 | 5 | 0.53 | 2.3배 |
+| 항목 | 설정 |
+|---|---|
+| 목표 모델 $$M_p$$ | T5-XXL 11B (T5 v1.1, WMT EnDe·CNN/DM에 fine-tuning된 기존 체크포인트) |
+| 근사 모델 $$M_q$$ | T5-small 77M, T5-base 250M, T5-large 800M (기존 체크포인트, 재학습 없음) |
+| 하드웨어 | TPU-v4 1개, batch size 1 |
+| 샘플링 | argmax(온도 0), 표준 샘플링(온도 1) |
+| 기준선 | T5X 구현의 일반 autoregressive 디코딩 |
+| $$c$$ 추정 | profiler trace로 측정. T5-small 0.02, T5-base 0.04, T5-large 0.11 |
+| $$\alpha$$ 측정 | $$M_p$$가 생성한 1만 토큰에서 $$\mathbb{E}[\min(p, q)]$$ 평균 |
+
+아래는 논문 Table 2(실측)와 Appendix Table 4(Theorem 3.8로 계산한 이론값)를 합친 것입니다.
+
+| 작업 | $$M_q$$ | 온도 | $$\gamma$$ | $$\alpha$$ | $$c$$ | 이론 | 실측 |
+|---|---|---|---|---|---|---|---|
+| EnDe | **T5-small** | 0 | 7 | 0.75 | 0.02 | 3.2배 | **3.4배** |
+| EnDe | T5-base | 0 | 7 | 0.80 | 0.04 | 3.3배 | 2.8배 |
+| EnDe | T5-large | 0 | 7 | 0.82 | 0.11 | 2.5배 | 1.7배 |
+| EnDe | **T5-small** | 1 | 7 | 0.62 | 0.02 | 2.3배 | **2.6배** |
+| EnDe | T5-base | 1 | 5 | 0.68 | 0.04 | 2.4배 | 2.4배 |
+| EnDe | T5-large | 1 | 3 | 0.71 | 0.11 | 2.0배 | 1.4배 |
+| CNN/DM | **T5-small** | 0 | 5 | 0.65 | 0.02 | 2.4배 | **3.1배** |
+| CNN/DM | T5-base | 0 | 5 | 0.73 | 0.04 | 2.6배 | 3.0배 |
+| CNN/DM | T5-large | 0 | 3 | 0.74 | 0.11 | 2.0배 | 2.2배 |
+| CNN/DM | **T5-small** | 1 | 5 | 0.53 | 0.02 | 1.9배 | **2.3배** |
+| CNN/DM | T5-base | 1 | 3 | 0.55 | 0.04 | 1.8배 | 2.2배 |
+| CNN/DM | T5-large | 1 | 3 | 0.56 | 0.11 | 1.6배 | 1.7배 |
+
+![디코딩 trace 비교](/assets/img/posts/speculative-decoding/fig5.webp)
+_Figure 5. 인코더-디코더 Transformer의 단순화한 실행 trace. 위부터 $$\gamma = 7$$, $$\gamma = 3$$, 일반 디코딩입니다. 보라색 $$M_p$$ 디코더 호출 사이마다 파란색 $$M_q$$ 호출이 $$\gamma$$번 끼어 있고, 전체 길이는 일반 디코딩보다 훨씬 짧습니다. (출처: Leviathan et al., 2023)_
 
 - $$\alpha$$는 근사 모델이 클수록 높지만, $$c$$도 커져서 **가장 작은 T5-small이 가장 빠릅니다**. 두 자릿수 작은 모델이 균형점이었습니다.
 - argmax(온도 0)에서 $$\alpha$$가 더 높습니다. 분포가 날카로울수록 두 모델이 같은 답을 내기 쉽기 때문입니다.
-- 이론 예측(Theorem 3.8)과 실측이 대체로 맞고, 차이는 구현 최적화 차이와 $$\beta$$의 i.i.d. 가정 때문입니다.
+- 이론 예측(Theorem 3.8)과 실측이 대체로 맞고, 차이는 구현 최적화 차이와 $$\beta$$의 i.i.d. 가정 때문입니다. 가장 크게 벗어난 것은 EnDe·온도 0의 T5-large(이론 2.5배, 실측 1.7배)입니다.
 
 ### 여러 모델의 α
 
-GPT-like 97M 모델(근사 6M), T5-XXL, LaMDA 137B(근사 100M, 2B, 8B)에서 $$\alpha$$를 쟀습니다. 두 자릿수 작은 모델은 0.5~0.9의 $$\alpha$$를 냈고, LaMDA 137B에 LaMDA 8B를 쓰면 0.75였습니다. 흥미롭게도 unigram, bigram 같은 **표 조회 수준의 근사 모델**도 0이 아닌 $$\alpha$$를 냅니다. EnDe 번역에서 bigram은 $$\alpha \approx 0.2$$였고, $$c = 0$$이므로 $$\gamma = 3$$에서 1.25배 빨라집니다.
+GPT-like 97M 모델(근사 6M), T5-XXL, LaMDA 137B(근사 100M, 2B, 8B)에서 $$\alpha$$를 쟀습니다. 두 자릿수 작은 모델은 0.5~0.9의 $$\alpha$$를 냈고, LaMDA 137B에 LaMDA 8B를 쓰면 0.75였습니다.
+
+| $$M_p$$ | $$M_q$$ | $$\alpha$$ (온도 0) | $$\alpha$$ (온도 1) |
+|---|---|---|---|
+| GPT-like 97M | unigram / bigram | 0.03 / 0.05 | 0.03 / 0.05 |
+| GPT-like 97M | GPT-like 6M | 0.88 | 0.89 |
+| T5-XXL (EnDe) | unigram / bigram | 0.08 / 0.20 | 0.07 / 0.19 |
+| T5-XXL (CNN/DM) | unigram / bigram | 0.13 / 0.23 | 0.08 / 0.16 |
+| LaMDA 137B | LaMDA 100M / 2B / 8B | 0.61 / 0.71 / 0.75 | 0.57 / 0.71 / 0.74 |
+
+GPT-like 실험의 $$M_p$$는 dim 768, FFN 3072, 12층, head 12개(97M), $$M_q$$는 dim 256, FFN 1024, 2층, head 4개(6M)이고, 둘 다 lm1b로 학습하고 8k BERT 토크나이저를 씁니다. LaMDA 출력은 항상 Top40 필터를 거칩니다. 흥미롭게도 unigram, bigram 같은 **표 조회 수준의 근사 모델**도 0이 아닌 $$\alpha$$를 냅니다. EnDe 번역에서 bigram은 $$\alpha \approx 0.2$$였고, $$c = 0$$이므로 $$\gamma = 3$$에서 1.25배 빨라집니다.
 
 ### 근사 모델의 선택지
 
@@ -197,7 +247,7 @@ GPT-like 97M 모델(근사 6M), T5-XXL, LaMDA 137B(근사 100M, 2B, 8B)에서 $$
 
 ### Lenience: 분포를 조금 양보하면
 
-출력 분포를 반드시 지키지 않아도 된다면 $$q(x)$$에 $$l \in [0, 1]$$을 곱해 비교하는 **lenience**를 쓸 수 있습니다. 어떤 토큰도 원래 확률의 $$1/l$$배보다 자주 뽑히지 않는다는 보장은 남습니다. T5-XXL에 T5-small을 쓸 때 $$l = 1, 0.5, 0.3, 0.1$$에서 2.5배, 3.1배, 3.6배, 5배로 빨라졌습니다. 본문의 다른 결과는 모두 lenience 없이 가장 엄격한 버전입니다.
+출력 분포를 반드시 지키지 않아도 된다면 $$q(x)$$에 $$l \in [0, 1]$$을 곱해 비교하는 **lenience**를 쓸 수 있습니다. 어떤 토큰도 원래 확률의 $$1/l$$배보다 자주 뽑히지 않는다는 보장은 남습니다. EnDe 번역에서 T5-XXL에 T5-small을 쓸 때(온도 1) $$l = 1, 0.5, 0.3, 0.1$$이면 $$\alpha$$가 0.62, 0.71, 0.76, 0.84로 오르고, $$c = 0.015$$로 계산한 개선 배율은 2.5배, 3.1배, 3.6배, 5배입니다. 본문의 다른 결과는 모두 lenience 없이 가장 엄격한 버전입니다.
 
 ## 6. 한계와 향후 과제
 

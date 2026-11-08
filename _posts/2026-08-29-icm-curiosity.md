@@ -1,13 +1,18 @@
 ---
-title: "[RL] ICM: 호기심(Curiosity)을 보상으로 쓰는 탐험"
+title: "[RL] ICM(Curiosity-driven Exploration by Self-supervised Prediction): 호기심을 보상으로 쓰는 탐험"
 date: 2026-08-29 14:42:00 +0900
 categories: [Reinforcement Learning, Exploration]
 tags: [reinforcement-learning, exploration, intrinsic-motivation, curiosity, icm, inverse-dynamics, forward-dynamics, noisy-tv]
-description: 행동의 결과를 예측하지 못하는 정도를 호기심 보상으로 쓰는 ICM의 inverse·forward dynamics 구조와, 행동과 무관한 노이즈를 특징 공간에서 걸러내는 원리, 실험 결과와 한계를 코드와 함께 정리합니다.
+description: "Curiosity-driven Exploration by Self-supervised Prediction(ICML 2017) 논문 리뷰. 행동의 결과를 예측하지 못하는 정도를 호기심 보상으로 쓰는 ICM의 inverse·forward dynamics 구조, 행동과 무관한 노이즈를 걸러내는 원리, VizDoom·Mario 실험 수치와 구현 설정을 그림과 함께 정리합니다."
 math: true
 ---
 
-> [Count-Based Exploration]({% post_url 2026-08-26-count-based-exploration %})이 "얼마나 자주 봤는가"로 새로움을 쟀다면, **ICM(Intrinsic Curiosity Module)**(Pathak et al., ICML 2017)은 "**내 행동의 결과를 얼마나 잘 예측하지 못하는가**"를 호기심으로 삼습니다.
+> - **논문**: Curiosity-driven Exploration by Self-supervised Prediction
+> - **저자**: Deepak Pathak, Pulkit Agrawal, Alexei A. Efros, Trevor Darrell (UC Berkeley)
+> - **학회**: ICML 2017 · [arXiv:1705.05363](https://arxiv.org/abs/1705.05363)
+{: .prompt-tip }
+
+> [Count-Based Exploration]({% post_url 2026-08-26-count-based-exploration %})이 "얼마나 자주 봤는가"로 새로움을 쟀다면, **ICM(Intrinsic Curiosity Module)**은 "**내 행동의 결과를 얼마나 잘 예측하지 못하는가**"를 호기심으로 삼습니다.
 
 ## 1. Intrinsic Reward를 설계하는 두 방향
 
@@ -49,6 +54,9 @@ math: true
 $$
 r_t = r^e_t + r^i_t
 $$
+
+![ICM 구조](/assets/img/posts/icm-curiosity/fig2.webp)
+_Figure 2. 왼쪽: 정책 $$\pi$$는 환경 보상 $$r^e_t$$와 ICM이 만든 호기심 보상 $$r^i_t$$의 합을 최대화합니다. 오른쪽: ICM 내부. 두 상태를 같은 encoder로 특징 $$\phi$$로 바꾸고, inverse model은 행동 $$\hat{a}_t$$를, forward model은 다음 특징 $$\hat{\phi}(s_{t+1})$$을 예측합니다. 그 오차가 $$r^i_t$$입니다. (출처: Pathak et al., 2017)_
 
 ### Feature Encoder $$\phi$$
 
@@ -131,36 +139,91 @@ print(r_int.shape, r_int.requires_grad)   # torch.Size([8]) False → 보상은 
 
 참고로 저자들의 공식 TensorFlow 구현(pathak22/noreward-rl)은 detach 없이 **forward loss도 encoder까지 흘려보냅니다.** 대신 $$\beta = 0.2$$로 forward loss의 비중을 작게 두고 inverse loss(비중 0.8)가 "행동을 맞히려면 정보를 담아야 한다"고 특징 공간을 붙잡아 주므로 붕괴가 일어나지 않습니다. 어느 쪽을 택해도 되지만, 논문 결과를 그대로 재현하려면 공식 구현처럼 두는 편이 안전합니다.
 
-## 4. 실험
+## 4. 구현 디테일
 
-**VizDoom**(3D 미로에서 조끼 찾기)과 **Super Mario Bros**에서 실험했습니다.
+| 항목 | 값 |
+|---|---|
+| 입력 | RGB를 흑백으로 바꾸고 42×42로 축소, 현재 프레임과 이전 3프레임을 쌓아 상태 $$s_t$$로 사용 |
+| Action repeat | 학습 시 VizDoom 4, Mario 6 (추론 때는 repeat 없이 매 프레임 샘플링) |
+| 정책 (A3C) | conv 4층(각 32 filter, 3×3, stride 2, padding 1, ELU) → LSTM 256 → 가치·행동 FC 각각 |
+| ICM encoder $$\phi$$ | 정책과 같은 형태의 conv 4층, 출력 288차원 |
+| Inverse model | $$[\phi(s_t), \phi(s_{t+1})]$$ → FC 256 → FC (행동 수) |
+| Forward model | $$[\phi(s_t), a_t]$$ → FC 256 → FC 288 |
+| 손실 가중치 | $$\beta = 0.2$$, $$\lambda = 0.1$$ |
+| Optimizer | Adam (worker끼리 optimizer 파라미터는 공유하지 않음), lr $$10^{-3}$$ |
+| 병렬 학습 | A3C 방식, 비동기 worker 20개 |
+| 행동 공간 | VizDoom 4개(전진, 좌, 우, 정지), Mario 14개 |
+
+논문에는 보상 스케일 $$\eta$$의 값이 적혀 있지 않습니다(위 코드의 `eta=0.01`은 예시 값입니다). Mario에서 큰 파이프나 넓은 구멍을 넘으려면 같은 행동을 최대 12번 연속으로 골라야 해서, 긴 시간 의존성이 있는 어려운 게임이라고 설명합니다.
+
+## 5. 실험
+
+**VizDoom**(3D 미로에서 조끼 찾기, `DoomMyWayHome-v0`)과 **Super Mario Bros**에서 실험했습니다. VizDoom 지도는 복도로 연결된 방 9개이고, 조끼를 찾으면 +1, 아니면 0인 종료 보상만 있습니다. 에피소드는 조끼를 찾거나 2,100 step이 지나면 끝납니다. Mario 실험은 모두 게임 보상 없이 호기심만으로 학습했습니다.
 
 ### Sparse Extrinsic Reward
 
 VizDoom에서 시작 위치에 따라 난이도를 나눴습니다.
 
-- **Dense**: 17개 위치 중 무작위로 시작 (목표 근처에서 시작할 때도 있음)
-- **Sparse / Very sparse**: 목표에서 멀리 떨어진 특정 방(13번, 17번)에서 시작
+- **Dense**: 지도 곳곳의 17개 위치 중 무작위로 시작 (목표 근처에서 시작할 때도 있어 ε-greedy로도 꽤 도달함)
+- **Sparse / Very sparse**: 최적 정책으로도 각각 270 step, 350 step 떨어진 방(13번, 17번)에서 항상 시작
 
-비교 대상은 baseline **A3C**(ε-greedy 탐험), 픽셀 공간에서 forward model만 쓰는 **ICM(pixel)**, TRPO로 학습한 **VIME**입니다.
+비교 대상은 baseline **A3C**(ε-greedy 탐험), inverse model 없이 픽셀 공간에서 다음 관측을 예측하는 **ICM-pixels**(deconvolution 층을 붙인 forward model), TRPO로 학습한 **VIME**입니다.
 
-- 모든 설정에서 ICM이 A3C를 압도했고, very sparse에서 A3C는 전혀 학습하지 못했습니다.
-- Dense에서 ICM(pixel)이 ICM보다 낮았던 이유를 저자들은 **시작할 때마다 바뀌는 벽 텍스처**로 추측합니다. 픽셀 예측은 행동과 무관한 텍스처 변화에도 오차가 커지기 때문입니다.
+![보상 희소성에 따른 VizDoom 결과](/assets/img/posts/icm-curiosity/fig5.webp)
+_Figure 5. 왼쪽부터 dense, sparse, very sparse. 주황색이 ICM + A3C, 초록색이 ICM-pixels + A3C, 파란색이 A3C. 3번 실행의 평균과 표준오차. (출처: Pathak et al., 2017)_
+
+- 모든 설정에서 ICM이 A3C보다 좋았고, sparse와 very sparse에서 A3C는 전혀 학습하지 못했습니다.
+- Very sparse에서는 ICM-pixels도 한 번도 성공하지 못했고, ICM은 무작위 실행의 **66%에서 만점**을 냈습니다. 위 Figure 5 오른쪽에서 ICM 평균 보상이 0.66 근처에 머무는 이유입니다.
+- Dense에서 ICM-pixels가 ICM보다 느렸던 이유를 저자들은 **텍스처가 서로 다른 17개 방 중 하나에서 매번 시작**하기 때문으로 추측합니다. 텍스처 종류가 많을수록 픽셀 예측 모델을 학습하기 어렵습니다. 시작 방이 고정된 sparse에서는 두 방법의 수렴 속도가 비슷했습니다.
+
+같은 sparse 설정에서 TRPO 계열과 비교한 결과입니다(수렴 시 점수의 평균, 괄호는 중앙값).
+
+| 방법 | Sparse 설정 점수 |
+|---|---|
+| TRPO | 26.0% (0.0%) |
+| A3C | 0.0% (0.0%) |
+| VIME + TRPO | 46.1% (27.1%) |
+| **ICM + A3C** | **100.0% (100.0%)** |
+
+TRPO는 A3C보다 샘플 효율이 좋은 편인데도 ICM이 수렴 속도와 정확도 모두에서 앞섰습니다. 또 호기심 네트워크를 uniform, Gaussian, Laplacian 무작위 노이즈로 바꿔 보상으로 주는 sanity check에서는 어떤 설정도 목표에 도달하지 못했습니다. ICM이 엉뚱한 해로 성공한 것이 아니라는 확인입니다.
+
+### 통제할 수 없는 노이즈에 대한 강건성
+
+Noisy TV 상황을 직접 만들기 위해, sparse 설정에서 관측 이미지의 **40%를 고정 영역의 white noise**로 바꿨습니다. ICM은 여전히 만점에 도달했지만, 노이즈가 없을 때 sparse를 풀었던 ICM-pixels는 크게 무너졌습니다. 행동과 무관한 변화를 특징 공간에서 걸러낸다는 2장의 주장을 실험으로 확인한 셈입니다.
 
 ### 보상이 전혀 없을 때
 
 Extrinsic reward 없이 **호기심만으로** 학습해 봤습니다.
 
-- VizDoom에서 2,100 step 에피소드 안에, 최적 경로로도 250 step 넘게 떨어진 **가장 먼 방**까지 탐험하는 경우가 많았습니다. 호기심이 없으면 탐험 범위가 훨씬 좁았습니다.
+- VizDoom에서 2,100 step 에피소드 안에, 최적 경로로도 250 step 넘게 떨어진 **가장 먼 방**까지 탐험하는 경우가 많았습니다. 무작위로 탐험하는 에이전트는 벽에 막혀 움직이지 못하는 등 탐험 범위가 훨씬 좁았습니다(아래 Figure 7).
+
+![호기심 에이전트와 무작위 에이전트의 방문 방](/assets/img/posts/icm-curiosity/fig7.webp)
+_Figure 7. 각 지도는 에피소드 하나(최대 2,100 step)에서 방문한 방을 칠한 것입니다. 왼쪽 세 개(노랑)는 호기심만으로 학습한 에이전트, 오른쪽 두 개(하늘색)는 무작위 탐험 에이전트. (출처: Pathak et al., 2017)_
 - Mario에서는 보상 없이 **1단계의 30% 이상**을 진행했습니다. 적을 피하고 구멍을 뛰어넘는 행동을 스스로 익힌 것입니다(죽으면 처음으로 돌아가 다시 익숙한 장면을 보게 되므로, 호기심 관점에서 죽음은 손해입니다).
 
 ### 새로운 환경으로의 일반화
 
 Mario 1단계에서 호기심만으로 학습한 정책을 다른 단계에 옮겨 봤습니다.
 
-1. **그대로 적용**: 시각적으로 비슷한 3단계에서는 점수가 높았지만 2단계에서는 낮았습니다.
-2. **호기심만으로 fine-tuning**: 2단계는 처음부터 학습한 것보다 좋아졌지만, 3단계는 오히려 나빠졌습니다. 저자들은 2단계에서는 1단계의 **지식을 활용**했고, 탈출이 어려운 3단계에서는 같은 상태가 반복되며 **호기심이 막혀(curiosity blockade)** 정책이 퇴화했다고 설명합니다.
-3. **Extrinsic reward로 fine-tuning**: VizDoom에서 호기심으로 사전학습한 모델을 very sparse 목표로 fine-tuning하자, 처음부터 학습한 모델보다 좋았습니다.
+1. **그대로 적용**: 1단계와 같은 낮 배경인 3단계에서는 점수가 높았지만, 밤 배경으로 시각적으로 크게 다른 2단계에서는 낮았습니다.
+2. **호기심만으로 fine-tuning**: 2단계는 같은 반복 수로 처음부터 학습한 것보다 좋아졌지만, 3단계는 그대로 적용했을 때보다 오히려 나빠졌습니다. 저자들은 2단계에서는 1단계의 **지식을 활용**했고, 특정 지점을 넘기 어려운 3단계에서는 그 전까지의 환경을 이미 다 알아 호기심 보상이 거의 0이 되면서(**curiosity blockade**) 정책이 퇴화했다고 설명합니다. 지루해서 탐험을 그만두는 것과 비슷하다고 비유합니다.
+3. **Extrinsic reward로 fine-tuning**: VizDoom에서 텍스처가 다른 학습용 지도에서 호기심만으로 사전학습한 모델을, 테스트 지도의 very sparse 목표로 fine-tuning하자 처음부터 학습한 ICM 모델보다 빨리 배우고 보상도 높았습니다. ICM-pixels는 이 테스트 환경에 일반화되지 못했습니다.
+
+Mario 결과는 이동 거리로 평가했습니다(Table 1, 평균 ± 표준오차).
+
+| 단계 | 설정 | 반복 수 | 평균 이동 거리 | 거리 > 200 비율 | 거리 > 400 비율 |
+|---|---|---|---|---|---|
+| Level-1 | 처음부터 | 1.5M | 711 ± 59.3 | 50.0% | 35.0% |
+| Level-2 | 그대로 적용 | 0 | 31.9 ± 4.2 | 0% | 0% |
+| Level-2 | **fine-tuning** | 1.5M | **466 ± 37.9** | 64.2% | 63.6% |
+| Level-2 | 처음부터 | 1.5M | 399.7 ± 22.5 | 88.2% | 33.2% |
+| Level-2 | 처음부터 | 3.5M | 455.5 ± 33.4 | 69.6% | 51.9% |
+| Level-3 | **그대로 적용** | 0 | **319.3 ± 9.7** | 50.0% | 8.4% |
+| Level-3 | fine-tuning | 1.5M | 97.5 ± 17.4 | 1.5% | 0% |
+| Level-3 | 처음부터 | 1.5M | 11.8 ± 3.3 | 0% | 0% |
+| Level-3 | 처음부터 | 5.0M | 42.2 ± 6.4 | 0% | 0% |
+
+Level-2에서는 사전학습 1.5M + fine-tuning 1.5M이 처음부터 3.5M 학습한 것보다도 평균 이동 거리가 깁니다. 저자들은 어려운 2단계에서 이동·점프·적 처치 같은 기본기를 처음부터 배우는 것보다, 비교적 안전한 1단계에서 먼저 익히는 편이 일종의 curriculum이 된다고 해석합니다. Level-3은 처음부터 5M을 학습해도 42 정도밖에 못 가는데, 1단계 정책을 그대로 쓰면 319를 갑니다.
 
 호기심만으로도 환경에 대한 **이해**를 얻을 수 있고, 이것이 새 환경에 일반화된다는 것을 보여 줬습니다.
 
@@ -170,7 +233,7 @@ Mario 1단계에서 호기심만으로 학습한 정책을 다른 단계에 옮�
 - Sparse와 very sparse를 나누는 기준이 다소 주관적
 - Baseline 반복 실험이나, 보상이 전혀 없는 설정의 정량적 결과가 더 있었으면 좋았을 것
 
-## 5. 정리
+## 6. 정리
 
 | 구성 요소 | 역할 |
 |---|---|

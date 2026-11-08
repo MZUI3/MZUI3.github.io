@@ -1,13 +1,18 @@
 ---
-title: "[RL] Diffusion Policy: 로봇의 행동을 조건부 디노이징으로 생성하는 시각운동 정책"
+title: "[RL] Diffusion Policy(Visuomotor Policy Learning via Action Diffusion): 로봇 행동을 조건부 디노이징으로 생성하기"
 date: 2026-10-25 14:10:00 +0900
 categories: [Reinforcement Learning, Imitation Learning]
 tags: [reinforcement-learning, imitation-learning, diffusion-policy, ddpm, visuomotor-policy, multimodal, action-chunking, receding-horizon, robotics, behavior-cloning]
-description: 시연의 다봉 행동 분포, 고차원 행동 시퀀스, 학습 안정성이라는 behavior cloning의 세 난제를 행동 공간의 조건부 DDPM으로 푼 Diffusion Policy(Chi et al., RSS 2023)의 정식화, receding horizon·시각 조건·시계열 Transformer 설계, 12개 작업에서 평균 46.9% 향상한 결과와 실제 로봇 실험을 정리하고, 다봉 행동을 작은 예제로 확인합니다.
+description: "Diffusion Policy: Visuomotor Policy Learning via Action Diffusion(RSS 2023) 논문 리뷰. 다봉 행동 분포, 고차원 행동 시퀀스, 학습 안정성이라는 behavior cloning의 세 난제를 행동 공간의 조건부 DDPM으로 푼 정식화와 설계, 12개 작업 결과와 실제 로봇 실험, 하이퍼파라미터를 그림과 함께 정리하고 다봉 행동을 작은 예제로 확인합니다."
 math: true
 ---
 
-> [Diffuser]({% post_url 2026-09-19-diffuser %})가 diffusion으로 궤적을 **계획**했다면, **Diffusion Policy**(Chi, Feng, Du et al., Columbia·TRI·MIT, RSS 2023)는 diffusion을 **정책** 자체로 씁니다. 관측을 조건으로 노이즈에서 행동 시퀀스를 디노이징하는 것입니다. 시연 데이터의 다봉 행동 분포를 자연스럽게 표현하고, 고차원 행동 시퀀스를 한 번에 내며, 에너지 기반 정책과 달리 학습이 안정적입니다. 4개 벤치마크 12개 작업에서 평균 **46.9%** 향상했고, 실제 로봇의 Push-T에서 사람에 가까운 95% 성공률을 냈습니다. 이후 [π0]({% post_url 2026-10-21-pi0 %})를 비롯한 VLA의 action expert, [ParaDiGMS]({% post_url 2026-07-27-paradigms %})의 가속 대상이 모두 이 정책입니다.
+> - **논문**: Diffusion Policy: Visuomotor Policy Learning via Action Diffusion
+> - **저자**: Cheng Chi, Siyuan Feng, Yilun Du, Zhenjia Xu, Eric Cousineau, Benjamin Burchfiel, Shuran Song (Columbia University, Toyota Research Institute, MIT)
+> - **학회**: RSS 2023 · [arXiv:2303.04137](https://arxiv.org/abs/2303.04137) · [프로젝트 페이지](https://diffusion-policy.cs.columbia.edu)
+{: .prompt-tip }
+
+> [Diffuser]({% post_url 2026-09-19-diffuser %})가 diffusion으로 궤적을 **계획**했다면, **Diffusion Policy**는 diffusion을 **정책** 자체로 씁니다. 관측을 조건으로 노이즈에서 행동 시퀀스를 디노이징하는 것입니다. 시연 데이터의 다봉 행동 분포를 자연스럽게 표현하고, 고차원 행동 시퀀스를 한 번에 내며, 에너지 기반 정책과 달리 학습이 안정적입니다. 4개 벤치마크 12개 작업에서 평균 **46.9%** 향상했고, 실제 로봇의 Push-T에서 사람에 가까운 95% 성공률을 냈습니다. 이후 [π0]({% post_url 2026-10-21-pi0 %})를 비롯한 VLA의 action expert, [ParaDiGMS]({% post_url 2026-07-27-paradigms %})의 가속 대상이 모두 이 정책입니다.
 
 ## 1. 문제: 로봇 행동 예측은 보통의 회귀가 아니다
 
@@ -50,6 +55,11 @@ $$
 - **닫힌 루프 행동 시퀀스**: 시각 $$t$$에 최근 $$T_o$$ step의 관측을 받아 $$T_p$$ step의 행동을 예측하고, 그중 $$T_a$$ step만 실행한 뒤 다시 계획합니다(receding horizon). 시간 일관성과 반응성의 균형입니다.
 - **시각 조건**: [Diffuser]({% post_url 2026-09-19-diffuser %})처럼 $$p(A_t, O_t)$$의 결합 분포가 아니라 **조건부 분포 $$p(A_t \mid O_t)$$**를 모델링합니다. 미래 상태를 추론할 필요가 없고, 시각 특징을 디노이징 반복과 무관하게 **한 번만** 뽑으므로 추론이 훨씬 빨라 실시간 제어와 end-to-end 시각 인코더 학습이 가능합니다.
 
+아래 Figure 3이 이 구성과 3절의 두 네트워크를 한눈에 보여 줍니다.
+
+![Diffusion Policy 개요](/assets/img/posts/diffusion-policy/fig3.webp)
+_Figure 3. a) 최근 $$T_o$$ step의 관측 $$O_t$$를 조건으로 $$T_p$$ step의 행동 시퀀스를 $$K$$번 디노이징하고, 그중 $$T_a$$ step만 실행한 뒤 다시 계획합니다. b) CNN 기반: 관측을 FiLM으로 모든 합성곱 층에 조건으로 넣습니다. c) Transformer 기반: 관측 임베딩을 cross-attention으로 넣고, 행동 토큰끼리는 causal attention을 씁니다. (출처: Chi et al., 2023)_
+
 ### 왜 IBC보다 안정적인가
 
 암시적 정책은 에너지 기반 모델 $$p_\theta(a \mid o) = e^{-E_\theta(o, a)} / Z(o, \theta)$$를 InfoNCE로 학습하는데, 다루기 어려운 $$Z$$를 negative sample로 추정하는 부정확함이 학습을 불안정하게 만듭니다. Diffusion Policy는 같은 분포의 **score** $$\nabla_a \log p(a \mid o) = -\nabla_a E_\theta(a, o) - \underbrace{\nabla_a \log Z(o, \theta)}_{= 0}$$를 배우므로 학습에도 추론에도 $$Z$$가 나타나지 않습니다. IBC는 학습 손실이 매끄럽게 줄어도 평가 성공률이 요동쳐 checkpoint 선택이 어려웠지만, Diffusion Policy는 하이퍼파라미터가 작업 간에 거의 일정했습니다.
@@ -67,7 +77,26 @@ $$
 
 - **시각 인코더**: 사전학습 없는 ResNet-18을 카메라마다 따로, timestep마다 독립으로 인코딩. global average pooling을 **spatial softmax**로 바꿔 공간 정보를 유지하고, EMA와 함께 쓸 때 안정적이도록 BatchNorm을 **GroupNorm**으로.
 - **노이즈 스케줄**: iDDPM의 square cosine schedule이 가장 좋았습니다. 스케줄이 행동 신호의 고주파·저주파를 얼마나 잡는지를 정합니다.
-- **추론 가속**: DDIM으로 학습 100회, 추론 10회 디노이징을 써서 3080 GPU에서 **0.1초** 지연.
+- **추론 가속**: DDIM으로 학습 100회, 추론 10회 디노이징을 써서 3080 GPU에서 **0.1초** 지연(본문 기준). 부록 하이퍼파라미터 표에는 실제 로봇 추론 반복이 16회로 적혀 있고, 시뮬레이션은 학습·추론 모두 100회입니다.
+
+### 하이퍼파라미터 (부록 Table VI, VII)
+
+| 항목 | CNN 기반 | Transformer 기반 |
+|---|---|---|
+| 관측 horizon $$T_o$$ | 2 (Block Push 3) | 2 (Block Push 3, Kitchen 4) |
+| 행동 horizon $$T_a$$ | 8 (Block Push 1, 실제 Push-T 6) | 8 (Block Push 1, 실제 Push-T 6) |
+| 예측 horizon $$T_p$$ | 16 (Block Push 12) | 10 (Push-T·Kitchen·실제 Push-T 16, Block Push 5) |
+| diffusion 네트워크 크기 | 256M (Transport 264M), 실제 로봇 67M | 9M (Kitchen·실제 Push-T 80M) |
+| 시각 인코더 파라미터 | 22M (Transport 45M) | 같음 |
+| 층·임베딩 | 1D temporal CNN + FiLM | 8층, 임베딩 256 (Kitchen·실제 Push-T 768), attention dropout 0.3 (Push-T 0.01, Kitchen 0.1) |
+| lr / weight decay | 1e-4 / 1e-6 | 1e-4 / 1e-3 (Push-T 1e-1) |
+| batch / warmup | 상태 256, 이미지 64 / 500 step | 상태 256, 이미지 64 / 1000 step |
+| 학습 | 상태 4500 epoch, 이미지 3000 epoch, cosine lr 스케줄, random crop 증강 | 같음 |
+| 이미지 해상도 | 84×84 → crop 76×76 (Push-T 96→84, ToolHang 240→216, 실제 320×240 → 288×216) | 같음 |
+
+- 행동은 차원마다 최솟값·최댓값을 $$[-1, 1]$$로 맞춰 정규화합니다. DDPM이 매 반복 예측을 $$[-1, 1]$$로 자르므로 평균 0·분산 1 정규화는 행동 공간 일부를 닿지 못하게 만듭니다.
+- 위치 제어의 회전은 6D 회전 표현을 씁니다.
+- CNN은 파라미터를 늘릴수록 항상 좋아졌고, Transformer는 층을 늘리면 오히려 나빠지기도 했습니다. Push-T의 DP-CNN만 FiLM 대신 inpainting 조건이 더 좋아 Table I에 그 결과를 썼습니다.
 
 ## 4. 코드로 보기: 평균을 내는 회귀와 모드를 고르는 diffusion
 
@@ -130,6 +159,9 @@ Diffusion Policy: 행동 평균 +0.25, 왼쪽 모드 46% / 오른쪽 모드 54% 
 무작위 관측 2000개: 회귀 성공률 0% | Diffusion Policy 성공률 98%
 ```
 
+![Push-T의 다봉 행동](/assets/img/posts/diffusion-policy/fig4.webp)
+_Figure 4. 같은 상태에서 40번 rollout한 end-effector(파란 점) 궤적. Diffusion Policy는 왼쪽과 오른쪽 두 모드를 모두 배우고 rollout마다 하나에 전념하지만, LSTM-GMM과 IBC는 한쪽으로 치우치고 BET는 한 모드를 고수하지 못해 궤적이 흔들립니다. (출처: Chi et al., 2023)_
+
 MSE 회귀는 두 모드의 평균인 장애물 **한가운데**(+0.20)를 내놓아 늘 부딪힙니다. Diffusion Policy는 같은 관측에서 샘플마다 왼쪽과 오른쪽을 거의 반반으로 고르고 각 샘플은 한 모드에 **확실히 붙어** 98%가 성공합니다. 논문 Figure 4의 Push-T 상황(T 블록의 왼쪽이나 오른쪽으로 돌아가기)에서 LSTM-GMM과 IBC는 한쪽으로 치우치고 BET는 한 모드를 고수하지 못하는 반면 Diffusion Policy는 두 모드를 모두 배우고 rollout마다 하나에 전념한다는 관찰 그대로입니다. 다봉성은 두 군데에서 옵니다. 매 샘플링의 무작위 초깃값이 수렴할 분지를 정하고, 반복 중의 가우시안 섭동이 분지 사이를 오갈 수 있게 합니다.
 
 ## 5. 흥미로운 성질들
@@ -153,14 +185,29 @@ Robomimic 5개 작업(PH: 숙련자 시연, MH: 숙련·비숙련 혼합), Push-
 | **DP-CNN** | 1.00/0.98, 1.00/0.97 | 1.00/0.96, 1.00/0.96 | 1.00/0.93, 0.97/0.82 | 0.94/0.82, 0.68/0.46 | 0.50/0.30 | 0.95/0.91 |
 | **DP-Transformer** | 1.00/1.00, 1.00/1.00 | 1.00/1.00, 1.00/0.94 | 1.00/0.89, 0.95/0.81 | 1.00/0.84, 0.62/0.35 | 1.00/0.87 | 0.95/0.79 |
 
-이미지 관측에서도 같은 경향이고, 특히 Transport와 ToolHang처럼 복잡한 작업에서 차이가 큽니다. 다단계 작업에서는 Block Push의 두 블록 모두 성공(p2)이 BET 0.71 → DP-T 0.94, Kitchen의 4개 작업 모두(p4)가 BET 0.44 → DP-C 0.99로 **긴 horizon의 다봉성**(하위 목표의 순서가 임의)도 잘 다룹니다.
+표의 형식은 (최고 checkpoint) / (마지막 10개 checkpoint 평균)이고, Push-T는 성공률 대신 목표 영역 coverage입니다. 이미지 관측에서도 같은 경향이고, 특히 Transport와 ToolHang처럼 복잡한 작업에서 차이가 큽니다(Table II, 이미지 관측).
+
+| 이미지 관측 | Transport PH/MH | ToolHang PH | Push-T |
+|---|---|---|---|
+| LSTM-GMM | 0.88/0.62, 0.44/0.24 | 0.68/0.49 | 0.69/0.54 |
+| IBC | 0.00/0.00, 0.00/0.00 | 0.00/0.00 | 0.75/0.64 |
+| **DP-CNN** | 1.00/0.93, 0.89/0.69 | 0.95/0.73 | 0.91/0.84 |
+| **DP-Transformer** | 0.98/0.81, 0.73/0.50 | 0.76/0.47 | 0.78/0.66 |
+
+상태 관측에서는 DP-Transformer가, 이미지 관측에서는 DP-CNN이 대체로 더 좋습니다. 평균 46.9%는 작업마다 (DP 두 변형 중 최고 − 기준선 중 최고) / 기준선 최고를 구해 평균한 값입니다(MH 결과 제외). 다단계 작업에서는 Block Push의 두 블록 모두 성공(p2)이 BET 0.71 → DP-T 0.94, Kitchen의 4개 작업 모두(p4)가 BET 0.44 → DP-C 0.99로 **긴 horizon의 다봉성**(하위 목표의 순서가 임의)도 잘 다룹니다. 논문은 이를 Block Push p2 32%, Kitchen p4 213% 향상으로 요약합니다. 단, Block Push에서 DP-CNN은 p2 0.11로 낮고 Transformer만 좋습니다.
 
 ### 실제 로봇
 
-- **Push-T**(UR5): 블록을 밀어 넣고 가림을 피해 종료 구역으로 가는 2단계 작업. end-to-end Diffusion Policy가 **성공률 95%, IoU 0.80**(사람 0.84)이고, IBC와 LSTM-GMM의 최선은 0%와 20%입니다. 단계 전환 구간의 높은 다봉성과 모호한 결정 경계에서 기준선이 멈추거나(LSTM-GMM 20회 중 8회) 조기에 떠납니다(IBC 6회). 멈춤 행동을 제거하지 않은 데이터로 학습했는데도 그렇습니다. 사전학습 인코더(R3M 80%, ImageNet은 더 낮음)보다 **end-to-end 학습**이 가장 좋았습니다.
+- **Push-T**(UR5): 블록을 밀어 넣고 가림을 피해 종료 구역으로 가는 2단계 작업. end-to-end Diffusion Policy가 **성공률 95%, IoU 0.80**(사람 0.84)이고, IBC와 LSTM-GMM의 최선은 0%와 20%입니다. 정책은 10Hz로 명령을 내고 125Hz로 선형 보간해 실행하며, 136개 시연으로 방법마다 12시간 학습한 뒤 같은 초기 조건 20개로 평가했습니다. 단계 전환 구간의 높은 다봉성과 모호한 결정 경계에서 기준선이 멈추거나(LSTM-GMM 20회 중 8회) 조기에 떠납니다(IBC 6회). 멈춤 행동을 제거하지 않은 데이터로 학습했는데도 그렇습니다. 사전학습 인코더(R3M 80%, ImageNet 15%)보다 **end-to-end 학습**이 가장 좋았습니다. Transformer 기반 end-to-end 변형은 65%였습니다.
+
+| 실제 Push-T | 사람 | IBC (pos/vel) | LSTM-GMM (pos/vel) | DP-T E2E | DP-C ImageNet | DP-C R3M | **DP-C E2E** |
+|---|---|---|---|---|---|---|---|
+| IoU | 0.84 | 0.14 / 0.19 | 0.24 / 0.25 | 0.53 | 0.24 | 0.66 | **0.80** |
+| 성공률 | 1.00 | 0.00 / 0.00 | 0.20 / 0.10 | 0.65 | 0.15 | 0.80 | **0.95** |
+| 소요 시간(초) | 20.3 | 56.3 / 41.6 | 47.3 / 51.7 | 57.5 | 55.8 | 31.7 | **22.9** |
 - **교란 실험**: 카메라를 3초 가리면 약간 떨리지만 계속 수행하고, 밀던 블록을 옮기면 즉시 반대쪽에서 다시 밀며, 종료 구역으로 가던 중 블록을 옮기면 되돌아와 고친 뒤 다시 갑니다. 시연에 없던 행동입니다.
-- **머그 뒤집기**(6DoF, Franka): 잡기 대 밀기, 정방향 대 역방향 잡기 등 매우 다봉인 시연에서 **90%** 성공. LSTM-GMM은 정렬조차 못 했습니다.
-- **소스 붓기·바르기**(액체, 주기적 동작)도 수행했습니다.
+- **머그 뒤집기**(6DoF): 잡기 대 밀기, 정방향 대 역방향 잡기 등 매우 다봉인 시연(250개)에서 20회 중 **90%** 성공. 같은 데이터 일부로 학습한 LSTM-GMM은 20회 모두 머그에 제대로 정렬하지 못해 0%였습니다.
+- **소스 붓기·바르기**(Franka, 액체, 주기적 동작): Push-T 하이퍼파라미터를 그대로 써서 첫 시도에 성공했습니다. 붓기는 IoU 0.74(사람 0.79)·성공률 79%, 바르기는 coverage 0.77(사람 0.79)·성공률 100%이고, LSTM-GMM은 두 작업 모두 0%입니다. LSTM-GMM은 붓기 20회 중 15회에서 국자를 들어 올리지 못했습니다.
 
 ## 7. 해석
 

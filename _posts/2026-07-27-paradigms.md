@@ -1,13 +1,18 @@
 ---
-title: "[Generative AI] ParaDiGMS: Picard 반복으로 Diffusion의 디노이징 step을 병렬로 풀기"
+title: "[Generative AI] ParaDiGMS(Parallel Sampling of Diffusion Models): Picard 반복으로 디노이징 step 병렬화"
 date: 2026-07-27 13:59:00 +0900
 categories: [Generative AI, Diffusion]
 tags: [diffusion, paradigms, parallel-sampling, picard-iteration, ddim, dpm-solver, diffusion-policy, stable-diffusion, inference-acceleration]
-description: step 수를 줄여 품질을 희생하는 대신 연산을 더 써서 속도를 얻는 ParaDiGMS(Shih et al., NeurIPS 2023)의 Picard 반복, 슬라이딩 윈도우 알고리즘, DDIM·DPM-Solver와의 결합, Diffusion Policy와 Stable Diffusion에서의 2~4배 가속을 정리하고 작은 ODE 예제로 수렴을 확인합니다.
+description: "Parallel Sampling of Diffusion Models(NeurIPS 2023) 논문 리뷰. step 수를 줄이는 대신 연산을 더 써서 속도를 얻는 ParaDiGMS의 Picard 반복, 슬라이딩 윈도우 알고리즘, DDIM·DPM-Solver와의 결합, Diffusion Policy·Stable Diffusion·LSUN 실험 수치를 그림과 함께 정리하고 작은 ODE 예제로 수렴을 확인합니다."
 math: true
 ---
 
-> Diffusion 모델의 샘플링은 느립니다. [DDPM]({% post_url 2026-07-03-latent-diffusion-models %})은 샘플 하나에 1,000번의 순차 디노이징이 필요하고, [DDIM이나 DPM-Solver]({% post_url 2026-07-26-latent-consistency-model %})는 step 수를 줄이는 대신 품질을 조금 내줍니다. **ParaDiGMS**(Parallel Diffusion Generative Model Sampling, Shih, Belkhale, Ermon, Sadigh, Anari, Stanford, NeurIPS 2023)는 다른 축을 엽니다. step 수는 그대로 두고 **여러 step을 병렬로 계산**해, 연산을 더 쓰는 대가로 지연 시간을 줄입니다. 로봇 제어와 이미지 생성 모델 전반에서 품질 손실 없이 2~4배 빨라졌습니다.
+> - **논문**: Parallel Sampling of Diffusion Models
+> - **저자**: Andy Shih, Suneel Belkhale, Stefano Ermon, Dorsa Sadigh, Nima Anari (Stanford University)
+> - **학회**: NeurIPS 2023 · [arXiv:2305.16317](https://arxiv.org/abs/2305.16317) · [코드](https://github.com/AndyShih12/paradigms)
+{: .prompt-tip }
+
+> Diffusion 모델의 샘플링은 느립니다. [DDPM]({% post_url 2026-07-03-latent-diffusion-models %})은 샘플 하나에 1,000번의 순차 디노이징이 필요하고, [DDIM이나 DPM-Solver]({% post_url 2026-07-26-latent-consistency-model %})는 step 수를 줄이는 대신 품질을 조금 내줍니다. **ParaDiGMS**(Parallel Diffusion Generative Model Sampling)는 다른 축을 엽니다. step 수는 그대로 두고 **여러 step을 병렬로 계산**해, 연산을 더 쓰는 대가로 지연 시간을 줄입니다. 로봇 제어와 이미지 생성 모델 전반에서 품질 손실 없이 2~4배 빨라졌습니다.
 
 ## 1. 문제: 품질 대 속도가 아니라 연산 대 속도
 
@@ -35,7 +40,12 @@ $$
 x^{k+1}_t = x^k_0 + \frac{1}{T} \sum_{i=0}^{t-1} s\!\left(x^k_i, \tfrac{i}{T}\right)
 $$
 
-순차 샘플링에서는 $$x_t$$가 $$x_{t-1}$$에만 의존했지만, 이 갱신식에서는 **모든 이전 시각**에 의존합니다. 계산 그래프에 건너뛰는 간선이 생겨 정보가 사슬을 따라 빠르게 전파됩니다. 그리고 반복 한 번 안에서 비싼 계산 $$\{s(x^k_i, i/T)\}$$는 서로 독립이므로 **전부 병렬**로 할 수 있고, 그 결과를 prefix sum으로 모으는 비용은 무시할 만합니다. 병렬 자원이 충분하면 샘플링 시간은 step 수 $$T$$가 아니라 **수렴까지의 반복 횟수 $$K$$**에 비례합니다.
+순차 샘플링에서는 $$x_t$$가 $$x_{t-1}$$에만 의존했지만, 이 갱신식에서는 **모든 이전 시각**에 의존합니다. 계산 그래프에 건너뛰는 간선이 생겨 정보가 사슬을 따라 빠르게 전파됩니다(아래 Figure 1, 2).
+
+![순차 샘플링과 Picard 반복의 계산 그래프](/assets/img/posts/paradigms/fig1-2.webp)
+_Figure 1(왼쪽), Figure 2(오른쪽). 순차 샘플링은 $$x_t$$가 직전 값에만 의존하는 사슬이지만, Picard 반복에서는 $$x^{k+1}_t$$가 이전 반복의 모든 앞선 점 $$x^k_{0:t}$$에 의존하는 건너뛰는 간선이 생깁니다. (출처: Shih et al., 2023)_
+
+ 그리고 반복 한 번 안에서 비싼 계산 $$\{s(x^k_i, i/T)\}$$는 서로 독립이므로 **전부 병렬**로 할 수 있고, 그 결과를 prefix sum으로 모으는 비용은 무시할 만합니다. 병렬 자원이 충분하면 샘플링 시간은 step 수 $$T$$가 아니라 **수렴까지의 반복 횟수 $$K$$**에 비례합니다.
 
 최악의 경우에도 $$K \le T$$입니다. $$k$$번 반복하면 앞의 $$k$$개 점은 순차 해와 정확히 같아지기 때문입니다. 반대로 현재 추측에서 계산한 drift가 참값에서의 drift와 같다면 한 번에 수렴합니다(Proposition 1). 실제로는 $$K$$가 $$T$$보다 훨씬 작았습니다.
 
@@ -48,6 +58,9 @@ Diffusion에 적용할 때 drift $$s(x_t, t/T)/T$$는 $$p_\theta(x_{t+1} \mid x_
 - **GPU 메모리**: 모든 시각의 점 $$x_{0:T}$$를 들고 있어야 하는데 이미지 모델에서는 너무 큽니다. 그래서 크기 $$p$$의 **창**(batch window) 안의 점들만 반복하고, 창의 앞부분이 수렴하는 대로 공격적으로 창을 앞으로 **밉니다**(sliding window). 창 전체가 수렴할 때까지 기다리지 않습니다.
 - **SDE**: Picard 반복은 결정론적 ODE의 고정점을 찾습니다. DDPM의 역방향 SDE는 노이즈가 위치와 무관하므로, **노이즈를 미리 전부 뽑아** drift에 흡수하면 결정론적 ODE가 되고 Lipschitz 조건도 유지됩니다.
 - **종료 조건**: 반복의 변화량 $$\|x^{k+1}_i - x^k_i\|^2$$이 허용 오차 아래로 떨어지면 수렴으로 봅니다. 수렴률이 2배 이상인 선형 수렴을 가정하면 허용 오차 $$4\epsilon^2 \sigma_t^2 / T^2$$로 최종 샘플 분포가 DDPM 분포와 total variation $$\epsilon$$ 이내임을 보장합니다(Proposition 2). 이는 최악의 경우 분석이고, 실험에서는 훨씬 느슨한 $$\frac{1}{D}\|x^{k+1}_i - x^k_i\|^2 \le \tau^2 \sigma_i^2$$($$\tau = 0.1$$, $$D$$는 데이터 차원)로도 품질 손실이 없었습니다.
+
+![ParaDiGMS 슬라이딩 윈도우](/assets/img/posts/paradigms/fig3.webp)
+_Figure 3. 한 반복의 세 단계. (a) 창($$p = 4$$) 안 점들의 drift를 병렬로 계산 → (b) drift 누적합으로 값 갱신 → (c) 변화량이 허용 오차 안에 든 점까지 창을 앞으로 밂. (출처: Shih et al., 2023)_
 
 ### Algorithm 1
 
@@ -126,7 +139,15 @@ ParaDiGMS : 모델 호출 198회, 병렬 반복 11회 (창 20, 허용 오차 0.0
 
 ### Diffusion Policy: 로봇 제어
 
-[Diffusion Policy]({% post_url 2026-10-25-diffusion-policy %})는 예측 horizon 16, 재계획 horizon 8로 행동 시퀀스를 생성하므로, 에피소드 길이 1,200인 Kitchen 작업에서는 샘플 150개 × 100 step = 15,000번의 디노이징이 필요합니다. A40 한 장, $$\tau = 0.1$$, 창 크기 20입니다.
+[Diffusion Policy]({% post_url 2026-10-25-diffusion-policy %})는 예측 horizon 16, 재계획 horizon 8로 행동 시퀀스를 생성하므로, 에피소드 길이 1,200인 Kitchen 작업에서는 샘플 150개 × 100 step = 15,000번의 디노이징이 필요합니다. A40 한 장, $$\tau = 0.1$$, 창 크기 20이고, 보상은 평가 에피소드 200개의 평균입니다(표준오차 ±0.03).
+
+| 작업 | 관측 | 최대 길이 | 에피소드당 샘플 | 디노이징 차원 |
+|---|---|---|---|---|
+| Square | 상태 | 400 | 50 | 112 (행동 7 × 16) |
+| PushT | 상태 | 300 | 38 | 32 (행동 2 × 16) |
+| Kitchen | 이미지 | 1,200 | 150 | 112 (행동 7 × 16) |
+
+스케줄러는 DDPM 100 step, DDIM/DPM-Solver 15 step이고, 세 작업 모두 convolution 기반 구조입니다. 아래 표는 순차 → ParaDiGMS 순서입니다(Table 1~3).
 
 | 작업 | 방법 | 모델 호출 | 병렬 반복 | 보상 | 에피소드 시간 | 속도 |
 |---|---|---|---|---|---|---|
@@ -136,8 +157,9 @@ ParaDiGMS : 모델 호출 198회, 병렬 반복 11회 (창 20, 허용 오차 0.0
 | PushT | DDPM 100 | 100 → 386 | 24 | 0.81 → 0.83 | 32.3s → 8.33s | 3.9배 |
 | Kitchen | DDPM 100 | 100 → 390 | 25 | 0.85 → 0.84 | 112s → 33.3s | 3.4배 |
 | Kitchen | DDIM 15 | 15 → 47 | 7 | 0.80 → 0.80 | 16.9s → 9.45s | 1.8배 |
+| Kitchen | DPMSolver 15 | 15 → 41 | 6 | 0.79 → 0.80 | 17.4s → 8.89s | 2.0배 |
 
-모델 호출은 4배 가까이 늘지만 시간은 병렬 반복 수에 묶이므로 줄어듭니다. 어려운 Kitchen에서는 DDIM과 DPM-Solver가 step을 줄이며 보상이 떨어졌지만 ParaDDPM은 보상을 유지하면서 3.4배 빨라졌습니다. 샘플 하나의 시간으로는 100 step Diffusion Policy가 0.74초에서 0.2초가 되었습니다.
+PushT의 DDIM, DPM-Solver도 각각 1.7배, 2.0배 빨라졌습니다. 모델 호출은 4배 가까이 늘지만 시간은 병렬 반복 수에 묶이므로 줄어듭니다. 어려운 Kitchen에서는 DDIM과 DPM-Solver가 step을 줄이며 보상이 떨어졌지만(DDPM 0.85 대 0.80, 0.79) ParaDDPM은 보상을 유지하면서 3.4배 빨라졌습니다. 샘플 하나의 시간으로는 100 step Diffusion Policy가 0.74초에서 0.2초가 되었습니다.
 
 ### Stable Diffusion v2와 LSUN
 
@@ -146,21 +168,52 @@ ParaDiGMS : 모델 호출 198회, 병렬 반복 11회 (창 20, 허용 오차 0.0
 - **알고리즘 비효율**: 수렴까지 반복하므로 모델 호출이 2~3배 늘어남. GPU 종류와 무관
 - **하드웨어 효율**: 창 80개를 GPU 4장(장당 20개)에서 평가하면 순차 80번보다 약 5배 빠름
 
-창 80개를 A100 8장에 나누면 1,000 step ParaDDPM이 **3배 이상** 빨라집니다. 품질은 COCO 캡션 1,000개의 CLIP score로 확인했습니다(guidance 7.5).
+![SD v2에서의 하드웨어 효율과 순 가속](/assets/img/posts/paradigms/fig4.webp)
+_Figure 4(e, f). 왼쪽: 창 크기에 따른 GPU 수별 하드웨어 효율(색 선)과 알고리즘 비효율(회색, 늘어난 모델 호출 비율). 오른쪽: 둘의 비율인 순 가속. GPU 8장, 창 80 근처에서 3배를 넘습니다. (출처: Shih et al., 2023)_
 
-| 방법 | 모델 호출 | 병렬 반복 | CLIP | 시간 | 속도 |
+위 Figure 4처럼 창 80개를 A100 8장에 나누면 1,000 step ParaDDPM이 **3배 이상** 빨라집니다. GPU 1장에서는 창을 키워도 순 가속이 1 아래에 머뭅니다. 품질은 COCO2017 캡션 1,000개의 CLIP score(ViT-g-14)로 확인했습니다(guidance 7.5, Table 4).
+
+| 방법 | 허용 오차 $$\tau$$ | 모델 호출 | 병렬 반복 | CLIP | 시간 | 속도 |
+|---|---|---|---|---|---|---|
+| DDPM 1000 | 1e-1 | 1000 → 2504 | 50 | 32.1 → 32.1 | 50.0s → 14.6s | 3.4배 |
+| DPMSolver 200 | 1e-1 | 200 → 422 | 15 | 31.7 → 31.7 | 10.3s → 2.6s | 4.0배 |
+| DDIM 200 | 1e-1 | 200 → 432 | 15 | 31.9 → 31.9 | 10.3s → 2.6s | 4.0배 |
+| DDIM 100 | 5e-2 | 100 → 229 | 19 | 31.9 → 31.9 | 5.3s → 2.0s | 2.7배 |
+| DDIM 50 | 5e-2 | 50 → 91 | 17 | 31.9 → 31.9 | 2.6s → 1.1s | 2.4배 |
+| DDIM 25 | 1e-2 | 25 → 93 | 17 | 31.7 → 31.7 | 1.3s → 1.0s | 1.3배 |
+
+step이 적을수록 가속이 줄어듭니다. 25 step에서는 병렬 반복(17)이 원래 step 수(25)와 크게 다르지 않아 1.3배에 그칩니다.
+
+픽셀 공간(3×256×256)의 LSUN Church에서는 5,000장의 FID로 확인했습니다(Table 5, 허용 오차 DDPM 5e-1, DDIM 1e-3, A100).
+
+| 방법 | 모델 호출 | 병렬 반복 | FID ↓ | 시간 | 속도 |
 |---|---|---|---|---|---|
-| DDPM 1000 | 1000 → 2504 | 50 | 32.1 → 32.1 | 50.0s → 14.6s | 3.4배 |
-| DPMSolver 200 | 200 → 422 | 15 | 31.7 → 31.7 | 10.3s → 2.6s | 4.0배 |
-| DDIM 200 | 200 → 432 | 15 | 31.9 → 31.9 | 10.3s → 2.6s | 4.0배 |
-| DDIM 50 | 50 → 91 | 17 | 31.9 → 31.9 | 2.6s → 1.1s | 2.4배 |
-| DDIM 25 | 25 → 93 | 17 | 31.7 → 31.7 | 1.3s → 1.0s | 1.3배 |
+| DDPM 1000 | 1000 → 2583 | 45 | 12.8 → 12.9 | 24.0s → 6.1s | 3.9배 |
+| DDIM 500 | 500 → 1375 | 41 | 15.5 → 15.3 | 12.2s → 3.7s | 3.3배 |
+| DDIM 100 | 100 → 373 | 23 | 15.1 → 14.8 | 2.5s → 1.0s | 2.5배 |
+| DDIM 50 | 50 → 168 | 17 | 15.3 → 15.7 | 1.2s → 0.7s | 1.7배 |
+| DDIM 25 | 25 → 70 | 15 | 15.6 → 15.9 | 0.6s → 0.6s | 1.0배 |
 
-픽셀 공간(3×256×256)의 LSUN Church에서는 5,000장의 FID로 확인했습니다. 1,000 step DDPM이 FID 12.8에 24.0초였는데 ParaDDPM은 12.9에 6.1초입니다. 500 step DDIM은 FID 15.5에 12.2초이므로, **ParaDDPM이 500 step DDIM보다 품질도 좋고 두 배 빠릅니다**. step을 줄이는 방법이 버린 품질을 되찾으면서 속도까지 얻은 결과입니다.
+1,000 step DDPM이 FID 12.8에 24.0초였는데 ParaDDPM은 12.9에 6.1초입니다. 500 step DDIM은 FID 15.5에 12.2초이므로, **ParaDDPM이 500 step DDIM보다 품질도 좋고 두 배 빠릅니다**. step을 줄이는 방법이 버린 품질을 되찾으면서 속도까지 얻은 결과입니다. 반면 25 step DDIM에서는 가속이 없었습니다(1.0배). LSUN 모델은 Diffusers에 DPM-Solver가 아직 통합되지 않아 비교에서 빠졌습니다.
 
 ### 허용 오차
 
-200 step ParaDDIM에서 $$\tau$$를 바꾸면 반복과 속도가 달라집니다. $$5 \cdot 10^{-3}$$에서 36회·1.4배, $$10^{-1}$$에서 15회·4.0배(CLIP 31.9 유지), $$1$$에서 12회·5.4배(CLIP 31.5로 하락)입니다. 논문은 $$10^{-1}$$을 골랐습니다.
+200 step ParaDDIM(SD v2)에서 $$\tau$$를 바꾸면 반복과 속도가 달라집니다(Table 6, 순차 200 step은 CLIP 31.9, 10.3초).
+
+| $$\tau$$ | 병렬 반복 | CLIP | 시간 | 속도 |
+|---|---|---|---|---|
+| 5e-3 | 36 | 31.9 | 7.4s | 1.4배 |
+| 1e-2 | 28 | 31.9 | 5.1s | 2.0배 |
+| 5e-2 | 19 | 31.9 | 3.3s | 3.1배 |
+| **1e-1** | **15** | **31.9** | **2.6s** | **4.0배** |
+| 5e-1 | 13 | 31.5 | 2.1s | 4.9배 |
+| 1 | 12 | 31.5 | 1.9s | 5.4배 |
+
+$$10^{-1}$$까지는 CLIP이 그대로이고 그보다 크면 31.5로 떨어지므로, 논문은 $$10^{-1}$$을 골랐습니다.
+
+### 구현: 다중 GPU
+
+다중 GPU 병렬은 `torch.nn.DataParallel`과 `torch.multiprocessing` 두 방식을 시험했고 후자가 더 빨랐습니다. GPU 0에 Algorithm 1의 메인 루프를 도는 producer 프로세스 하나를 두고, GPU마다 consumer 프로세스를 하나씩 띄워 drift 계산(Algorithm 1의 5행)을 나눠 맡깁니다. producer는 GPU 자원을 거의 쓰지 않아 GPU 하나를 따로 주지 않는 편이 나았습니다. 부록의 LSUN 가속 그래프(Figure 5)는 DataParallel로 잰 것이라 Table 5보다 가속이 작게 나옵니다.
 
 ## 6. 한계
 

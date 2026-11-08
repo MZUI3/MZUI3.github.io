@@ -1,13 +1,21 @@
 ---
-title: "[Lightweight] MobileNetV3: NAS와 NetAdapt로 찾고, h-swish와 SE로 다듬은 모바일 백본"
+title: "[Lightweight] MobileNetV3(Searching for MobileNetV3): NAS와 NetAdapt로 찾고, h-swish와 SE로 다듬은 모바일 백본"
 date: 2026-08-07 18:44:00 +0900
 categories: [Neural Network, Lightweight]
 tags: [lightweight, mobilenetv3, nas, netadapt, h-swish, squeeze-excitation, lr-aspp, ssdlite, on-device, latency]
-description: MobileNetV3(Howard et al., ICCV 2019)가 플랫폼 인식 NAS와 NetAdapt로 블록 구조와 층별 채널 수를 찾고, 마지막 단계 재설계·h-swish·SE 블록으로 손으로 다듬어 MobileNetV2 대비 정확도 +3.2%, 지연 -20%를 얻은 과정을 정리합니다. 작은 계산으로 h-swish 근사 오차, SE 파라미터, 마지막 단계의 MAdds 절감을 확인합니다.
+description: "Searching for MobileNetV3(ICCV 2019) 논문 리뷰. 플랫폼 인식 NAS와 NetAdapt로 블록 구조와 층별 채널 수를 찾고, 마지막 단계 재설계·h-swish·SE 블록으로 다듬어 MobileNetV2 대비 정확도 +3.2%, 지연 -20%를 얻은 과정을 그림·수치·학습 설정과 함께 정리합니다. 작은 계산으로 h-swish 근사 오차, SE 파라미터, 마지막 단계의 MAdds 절감을 확인합니다."
 math: true
 ---
 
-> [MobileNetV2]({% post_url 2026-07-22-mobilenetv2 %})까지는 사람이 블록을 설계했습니다. **MobileNetV3**(Howard, Sandler, Chu, Chen, Chen, Tan, Wang, Zhu, Pang, Vasudevan, Le, Adam, Google, ICCV 2019)는 **자동 탐색과 수작업 설계를 섞습니다**. 플랫폼 인식 NAS로 전체 구조를, NetAdapt로 층별 필터 수를 찾은 뒤, 탐색이 놓친 비싼 층을 손으로 고치고 새 비선형성 h-swish와 SE 블록을 넣습니다. 결과는 두 모델입니다. V3-Large는 ImageNet 75.2%를 Pixel 1에서 51ms에, V3-Small은 67.4%를 15.8ms에 냅니다.
+> - **논문**: Searching for MobileNetV3
+> - **저자**: Andrew Howard, Mark Sandler, Grace Chu, Liang-Chieh Chen, Bo Chen, Mingxing Tan, Weijun Wang, Yukun Zhu, Ruoming Pang, Vijay Vasudevan, Quoc V. Le, Hartwig Adam (Google AI, Google Brain)
+> - **학회**: ICCV 2019 · [arXiv:1905.02244](https://arxiv.org/abs/1905.02244)
+{: .prompt-tip }
+
+> [MobileNetV2]({% post_url 2026-07-22-mobilenetv2 %})까지는 사람이 블록을 설계했습니다. **MobileNetV3**는 **자동 탐색과 수작업 설계를 섞습니다**. 플랫폼 인식 NAS로 전체 구조를, NetAdapt로 층별 필터 수를 찾은 뒤, 탐색이 놓친 비싼 층을 손으로 고치고 새 비선형성 h-swish와 SE 블록을 넣습니다. 결과는 두 모델입니다. V3-Large는 ImageNet 75.2%를 Pixel 1에서 51ms에, V3-Small은 67.4%를 15.8ms에 냅니다.
+
+![지연-정확도 트레이드오프](/assets/img/posts/mobilenetv3/fig1.webp)
+_Figure 1. Pixel 1 지연 대비 ImageNet top-1. 왼쪽은 20~40ms의 작은 모델, 오른쪽은 40~100ms의 큰 모델이고, 점은 multiplier 0.35·0.5·0.75·1·1.25(입력 224)입니다. (출처: Howard et al., 2019)_
 
 ## 1. 문제: FLOPs가 아니라 지연 시간
 
@@ -17,15 +25,18 @@ math: true
 
 ### 플랫폼 인식 NAS + NetAdapt
 
-**블록 단위 탐색**은 MnasNet과 같은 RNN 컨트롤러와 분해된 계층적 탐색 공간을 씁니다. 보상은 정확도와 지연의 곱 $$ACC(m) \times [LAT(m)/TAR]^w$$입니다. Large 모델은 $$w = -0.07$$, Small 모델은 $$w = -0.15$$를 씁니다. 작은 모델은 지연이 조금만 변해도 정확도가 크게 움직이므로 지연에 더 민감한 가중치가 필요합니다.
+**블록 단위 탐색**은 MnasNet과 같은 RNN 컨트롤러와 분해된 계층적 탐색 공간을 씁니다. 보상은 정확도와 지연의 곱 $$ACC(m) \times [LAT(m)/TAR]^w$$입니다. 원래 MnasNet의 $$w = -0.07$$로 목표 지연 80ms 근처를 탐색하면 MnasNet과 비슷한 결과가 나오므로, Large 모델은 탐색을 새로 하지 않고 **MnasNet-A1을 시작 모델로 그대로 재사용**합니다. Small 모델은 $$w = -0.15$$로 처음부터 새로 탐색합니다. 작은 모델은 지연이 조금만 변해도 정확도가 크게 움직이므로 지연에 더 민감한 가중치가 필요합니다.
 
-**층 단위 미세 조정**은 NetAdapt를 보완해 씁니다. 매 단계에서 확장 층이나 bottleneck 채널 수를 줄이는 제안들을 만들고(모든 층은 지연을 최소 $$\delta$$만큼 줄여야 하며 $$\delta = 0.01 \lvert L \rvert$$), 각 제안을 잠깐 fine-tuning한 뒤 **$$\Delta Acc / \Delta Latency$$가 가장 큰 제안**을 고릅니다. 원래 NetAdapt는 정확도 변화만 보지만, 지연당 정확도 변화로 바꾸면 모든 제안이 같은 지연 절감을 주는 것이 아니라는 점을 반영할 수 있습니다. 목표 지연에 도달할 때까지 반복합니다.
+**층 단위 미세 조정**은 NetAdapt를 보완해 씁니다. 매 단계에서 확장 층 크기나 bottleneck 채널 수(residual 연결을 유지하도록 같은 크기를 공유하는 블록 전체)를 줄이는 제안들을 만들고(각 제안은 이전 단계보다 지연을 최소 $$\delta$$만큼 줄여야 하며, $$\delta = 0.01 \lvert L \rvert$$, $$L$$은 시작 모델의 지연), 각 제안을 $$T = 10000$$ step fine-tuning한 뒤 **$$\Delta Acc / \lvert \Delta Latency \rvert$$가 가장 큰 제안**을 고릅니다. 원래 NetAdapt는 정확도 변화만 보지만, 지연당 정확도 변화로 바꾸면 모든 제안이 같은 지연 절감을 주는 것이 아니라는 점을 반영할 수 있습니다. 목표 지연에 도달할 때까지 반복하고, 최종 구조는 처음부터 다시 학습합니다.
 
 ### 비싼 층 재설계
 
 탐색 결과를 보면 마지막 몇 층과 첫 층이 유독 비쌉니다.
 
-- **마지막 단계.** V2 구조에서는 7×7 해상도에서 1×1 conv로 960 → 320, 다시 1280으로 확장한 뒤 pooling합니다. V3는 **average pooling을 앞으로 옮겨** 1×1 conv로 960채널을 만든 직후 1×1 해상도로 줄이고, 그 뒤에 1280채널 층을 둡니다. 특징 추출이 7×7이 아니라 1×1에서 이뤄지므로 앞의 bottleneck 블록의 투영과 depthwise 층도 필요 없어집니다. 이것만으로 지연 7ms(11%), 30M MAdds가 줄고 정확도는 거의 그대로입니다.
+![마지막 단계 비교](/assets/img/posts/mobilenetv3/fig5.webp)
+_Figure 5. 위: 원래 마지막 단계(7×7에서 1×1 960 → 3×3 depthwise → 1×1 320 → 1×1 1280 → pooling). 아래: pooling을 앞당긴 효율적 마지막 단계. 비싼 층 셋이 빠집니다. (출처: Howard et al., 2019)_
+
+- **마지막 단계.** 위 Figure 5처럼 V2 구조에서는 7×7 해상도에서 1×1 conv로 960채널로 넓히고 depthwise conv를 거쳐 320으로 투영한 뒤, 다시 1280으로 확장하고 pooling합니다. V3는 **average pooling을 앞으로 옮겨** 1×1 conv로 960채널을 만든 직후 1×1 해상도로 줄이고, 그 뒤에 1280채널 층을 둡니다. 특징 추출이 7×7이 아니라 1×1에서 이뤄지므로 앞의 bottleneck 블록의 투영과 depthwise 층도 필요 없어집니다. 이것만으로 지연 7ms(11%), 30M MAdds가 줄고 정확도는 거의 그대로입니다.
 - **첫 층.** 32개 필터 대신 **16개 필터 + h-swish**를 쓰면 정확도를 유지하며 2ms, 10M MAdds를 아낍니다. 32개 필터는 서로 거울상인 경우가 많아 중복이라는 관찰입니다.
 
 ### h-swish
@@ -40,11 +51,14 @@ $$
 
 ### Squeeze-and-Excite
 
-[SENet]({% post_url 2026-06-02-cnn-architectures %})의 SE 블록을 MnasNet처럼 bottleneck 안에 넣되, SE의 bottleneck 채널을 확장 층의 **1/4**로 고정하고 시그모이드 대신 h-sigmoid를 씁니다. 파라미터는 조금 늘지만 지연 증가 없이 정확도가 오릅니다.
+[SENet]({% post_url 2026-06-02-cnn-architectures %})의 SE 블록을 MnasNet처럼 residual 블록 안(depthwise 뒤)에 넣되, MnasNet에서는 conv bottleneck 크기에 비례하던 SE의 bottleneck 채널을 확장 층의 **1/4**로 고정하고 시그모이드 대신 h-sigmoid를 씁니다. 파라미터는 조금 늘지만 지연 증가 없이 정확도가 오릅니다.
+
+![MobileNetV3 블록](/assets/img/posts/mobilenetv3/fig4.webp)
+_Figure 4. MobileNetV3 블록. V2의 inverted residual(1×1 확장 → 3×3 depthwise → 1×1 투영)에 pooling → FC(ReLU) → FC(hard-σ)의 SE 경로를 더했습니다. NL은 층에 따라 ReLU 또는 h-swish입니다. (출처: Howard et al., 2019)_
 
 ### 분할용 헤드: LR-ASPP
 
-분할에서는 Lite R-ASPP를 제안합니다. SE처럼 큰 stride의 average pooling으로 전역 정보를 뽑아 곱하고, 저해상도 특징과 고해상도 특징을 1×1 conv로 합칩니다. Cityscapes에서 V2 기반 R-ASPP와 비슷한 mIOU로 34% 빠릅니다.
+분할에서는 Lite R-ASPP를 제안합니다. SE처럼 큰 stride의 average pooling으로 전역 정보를 뽑아 곱하고, 저해상도 특징과 고해상도 특징을 1×1 conv로 합칩니다. Cityscapes에서 V2 기반 R-ASPP와 비슷한 mIOU로 34% 빠릅니다(초록 기준).
 
 ## 3. 코드로 보기: h-swish, SE, 마지막 단계
 
@@ -110,7 +124,22 @@ activation elements per layer (batch 1): h-swish is per element, so its cost tra
 
 ## 4. 실험
 
-**ImageNet.** Pixel 1 단일 코어, TFLite 벤치마크 기준입니다.
+### 학습·측정 설정
+
+| 항목 | 값 |
+|---|---|
+| 데이터 | ImageNet, Inception과 같은 전처리 |
+| 하드웨어 | 4×4 TPU Pod, 동기식 학습 |
+| Optimizer | RMSProp, momentum 0.9 |
+| Learning rate | 초기 0.1, 3 epoch마다 0.01 비율로 감소 |
+| Batch | 4096 (칩당 128장) |
+| 정규화 | dropout 0.8, L2 weight decay 1e-5, BN average decay 0.99 |
+| 기타 | 가중치 EMA decay 0.9999 |
+| 지연 측정 | Pixel 1/2/3, TFLite Benchmark Tool, 큰 코어 1개 단일 스레드, batch 1 |
+
+### ImageNet (Table 3, 4)
+
+Pixel 1 단일 코어, TFLite 벤치마크 기준입니다.
 
 | 모델 | Top-1 | MAdds | Params | P-1 지연 |
 |---|---|---|---|---|
@@ -120,18 +149,53 @@ activation elements per layer (batch 1): h-swish is per element, so its cost tra
 | V3-Small 1.0 | 67.4% | 56M | 2.5M | 15.8ms |
 | V2 0.35 | 60.8% | 59.2M | 1.6M | 16.6ms |
 
-V3-Large는 V2보다 **3.2% 정확하면서 20% 빠르고**, V3-Small은 비슷한 지연의 V2 0.35보다 6.6% 정확합니다. 양자화해도 Large 73.8%/44ms 대 V2 70.9%/52ms로 우위가 유지됩니다. 해상도 조절이 width multiplier보다 좋은 트레이드오프를 주지만, 해상도는 과제가 정하는 경우가 많아 항상 쓸 수 있는 손잡이는 아닙니다.
+V3-Large는 V2보다 **3.2% 정확하면서 20% 빠르고**, V3-Small은 비슷한 지연의 V2 0.35보다 6.6% 정확합니다. 양자화해도 Large 73.8%/44ms 대 V2 70.9%/52ms, Small 64.9%/15.5ms 대 V2 0.35 57.2%/16.7ms로 우위가 유지됩니다(Pixel 1). Figure 7에서는 MobileNetV3-Small이 multiplier를 줄여 지연을 맞춘 Large보다 약 3% 정확합니다. 해상도 조절이 width multiplier보다 좋은 트레이드오프를 주지만, 해상도는 과제가 정하는 경우가 많아 항상 쓸 수 있는 손잡이는 아닙니다.
 
-**Ablation.** 비선형성 위치와 최적화된 구현의 효과입니다.
+### Ablation: 비선형성 위치 (Table 5)
 
-- ReLU만: 74.5%(-0.7%), 지연 -1%
-- h-swish를 16채널 층부터: 75.4%(+0.2%), 최적화 구현 +4% 지연, 미최적화 구현은 68.9ms로 크게 느려짐
-- h-swish를 112채널 층부터(기본보다 늦게): 75.0%(-0.3%)
-- 최적화된 h-swish는 ReLU 대비 1ms만 추가하고, 미최적화 구현 대비 6ms(10% 이상)를 아낌
+h-swish @N은 h-swish를 처음 켜는 층의 채널 수입니다. 기본 V3는 80채널 층부터 씁니다.
+
+| 설정 | Top-1 | P-1 지연(ms), 최적화 h-swish | P-1 지연(ms), 미최적화 |
+|---|---|---|---|
+| V3-Large 1.0 (h-swish @80) | 75.2 | 51.4 | 57.5 |
+| ReLU만 | 74.5 (-0.7%) | 50.5 (-1%) | 50.5 |
+| h-swish @16 | 75.4 (+0.2%) | 53.5 (+4%) | 68.9 |
+| h-swish @112 | 75.0 (-0.3%) | 51 (-0.5%) | 54.4 |
+
+- 최적화된 h-swish는 ReLU 대비 약 1ms만 추가하고, 미최적화 구현 대비 6ms(실행 시간의 10% 이상)를 아낍니다.
+- h-swish를 첫 층부터 켜면 정확도는 0.2% 오르지만, 미최적화 구현에서는 지연이 68.9ms로 크게 늘어납니다.
+
+### 구성 요소별 효과와 다운스트림
 
 Figure 9의 개발 진행을 보면 MnasNet 75.2% → +SE/4 75.5% → +h-swish 76.1% → +NetAdapt와 compact 재설계로 정확도를 75.2%로 유지하면서 지연이 크게 줄어듭니다.
 
-**검출과 분할.** SSDLite COCO에서 V3-Large는 V2와 같은 22.0 mAP를 137ms에, C4~C5 사이 채널을 절반으로 줄인 V3-Large†는 119ms에 냅니다(V2 162ms, 27% 빠름). 분할에서 V3-Large + LR-ASPP는 Cityscapes에서 V2 R-ASPP와 비슷한 mIOU로 34% 빠릅니다.
+**검출 (Table 6).** SSDLite의 백본만 바꿔 COCO test에서 비교합니다. C4는 stride 16의 마지막 층(Large는 13번째 bottleneck의 확장 층), C5는 pooling 직전 층이고, †는 C4~C5 사이 채널을 절반으로 줄인 것입니다(COCO는 90클래스라 1000클래스용 채널이 남는다는 이유).
+
+| 백본 | mAP | 지연(ms) | Params(M) | MAdds(B) |
+|---|---|---|---|---|
+| V1 | 22.2 | 228 | 5.1 | 1.3 |
+| V2 | 22.1 | 162 | 4.3 | 0.80 |
+| MnasNet | 23.0 | 174 | 4.88 | 0.84 |
+| V3 | 22.0 | 137 | 4.97 | 0.62 |
+| V3† | 22.0 | 119 | 3.22 | 0.51 |
+| V3-Small | 16.0 | 52 | 2.49 | 0.21 |
+| V3-Small† | 16.1 | 43 | 1.77 | 0.16 |
+
+V3-Large†는 V2(22.1)와 거의 같은 22.0 mAP로 27% 빠릅니다. 채널 절반 트릭만으로 두 모델 모두 mAP 손실 없이 지연이 약 15% 줄었습니다.
+
+**분할 (Table 7, 8).** Cityscapes fine 라벨만 쓰고 ImageNet 사전학습 없이 처음부터 학습하며, 지연은 Pixel 3 큰 코어 1개 기준입니다. val에서 V2 + R-ASPP(72.84 mIOU, 전체 해상도 3.90s)를 V3 + LR-ASPP(필터 128, 마지막 블록 채널 절반)로 바꾸면 72.36 mIOU에 2.47s입니다. test 결과는 다음과 같습니다.
+
+| 백본 | OS | mIOU | MAdds (반 해상도) | CPU (반 해상도) |
+|---|---|---|---|---|
+| V3 | 16 | 72.6 | 2.48B | 657ms |
+| V3 | 32 | 72.0 | 1.98B | 534ms |
+| V3-Small | 16 | 69.4 | 0.74B | 327ms |
+| V3-Small | 32 | 68.3 | 0.53B | 275ms |
+| ESPNetv2 | - | 66.2 | 2.7B | - |
+| CCC2 | - | 62.0 | 3.15B | - |
+| ESPNetv1 | - | 60.3 | 4.5B | - |
+
+OS 16은 마지막 블록에 atrous conv를 쓴 것입니다. 이 표의 V3 모델은 전체 해상도 입력을 받고(ESPNet·CCC2는 반 해상도 입력), MAdds·CPU 열은 반 해상도 입력으로 잰 값입니다. V3는 ESPNetv2보다 6.4%p 높습니다.
 
 ## 5. 해석
 
@@ -154,7 +218,7 @@ Figure 9의 개발 진행을 보면 MnasNet 75.2% → +SE/4 75.5% → +h-swish 7
 | 비선형성 | h-swish $$= x \cdot \text{ReLU6}(x+3)/6$$, 뒤쪽 절반에만 적용 |
 | 블록 | V2 inverted residual + SE(1/4, h-sigmoid) |
 | 결과 | Large 75.2% / 51ms(V2 대비 +3.2%, -20%), Small 67.4% / 15.8ms |
-| 다운스트림 | SSDLite 27% 빠름, LR-ASPP 34% 빠름(동급 정확도) |
+| 다운스트림 | SSDLite 22.0 mAP로 V2보다 27% 빠름, LR-ASPP는 V2 R-ASPP보다 34% 빠름(동급 정확도), Cityscapes test 72.6 mIOU |
 
 ## References
 

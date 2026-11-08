@@ -1,17 +1,22 @@
 ---
-title: "[RL] EfficientZero: 2시간 분량의 플레이로 Atari 정복하기"
+title: "[RL] EfficientZero(Mastering Atari Games with Limited Data): 2시간 분량의 플레이로 Atari 정복하기"
 date: 2026-08-21 22:14:00 +0900
 categories: [Reinforcement Learning, Model-Based]
 tags: [reinforcement-learning, model-based, muzero, efficientzero, mcts, sample-efficiency, self-supervised, atari-100k]
-description: MuZero가 적은 데이터에서 약했던 세 가지 이유와, 이를 자기지도 consistency loss, value prefix, model-based off-policy correction으로 고쳐 Atari 100k에서 처음 사람 수준을 넘은 EfficientZero를 정리합니다.
+description: "Mastering Atari Games with Limited Data(EfficientZero, NeurIPS 2021) 논문 리뷰. MuZero가 적은 데이터에서 약했던 세 가지 이유와 이를 고친 자기지도 consistency loss, value prefix, model-based off-policy correction을 정리하고, Atari 100k·DMControl 수치와 ablation을 그림과 함께 다룹니다."
 math: true
 ---
+
+> - **논문**: Mastering Atari Games with Limited Data (EfficientZero)
+> - **저자**: Weirui Ye, Shaohuai Liu, Thanard Kurutach, Pieter Abbeel, Yang Gao (Tsinghua University, UC Berkeley, Shanghai Qi Zhi Institute)
+> - **학회**: NeurIPS 2021 · [코드](https://github.com/YeWR/EfficientZero)
+{: .prompt-tip }
 
 > Model-Based RL 카테고리의 첫 글입니다. 강화학습의 고질적인 문제인 **샘플 효율성**을, 환경 모델을 학습하는 MuZero를 개선해서 크게 끌어올린 **EfficientZero**(Ye et al., NeurIPS 2021)를 정리합니다.
 
 ## 1. 문제: 강화학습은 데이터를 너무 많이 먹는다
 
-DQN, Double DQN 같은 대표적인 알고리즘은 Atari 게임 하나를 학습하는 데 **2억(200M) frame**을 씁니다. 사람이 실제로 플레이하는 시간으로 바꾸면 약 **900시간 이상**입니다. 사람은 몇 시간이면 게임 요령을 익히는데, 에이전트는 그 수백 배의 경험이 필요한 것입니다.
+DQN, Double DQN 같은 대표적인 알고리즘은 Atari 게임 하나를 학습하는 데 **2억(200M) frame**을 씁니다. 사람이 실제로 플레이하는 시간으로 바꾸면 약 **925시간**입니다. 사람은 몇 시간이면 게임 요령을 익히는데, 에이전트는 그 수백 배의 경험이 필요한 것입니다.
 
 시뮬레이터에서는 괜찮지만, **로봇처럼 실제 환경에서 데이터를 모아야 하는 경우**에는 이렇게 많은 시행착오를 감당할 수 없습니다. 그래서 적은 데이터로 학습하는 **샘플 효율성(sample efficiency)**이 중요한 연구 주제입니다.
 
@@ -19,9 +24,10 @@ DQN, Double DQN 같은 대표적인 알고리즘은 Atari 게임 하나를 학�
 
 샘플 효율성을 재는 대표적인 벤치마크입니다.
 
-- Atari 26개 게임에서 에이전트가 **10만 step(= 40만 frame)**만 환경과 상호작용
+- Atari 26개 게임에서 에이전트가 **10만 step(= 40만 frame, frameskip 4)**만 환경과 상호작용
 - 실제 플레이 시간으로 약 **2시간**
 - DQN이 쓰는 데이터의 **약 1/500**
+- 비교 기준인 사람 점수도 2시간 동안 게임에 익숙해진 뒤 잰 것
 
 평가는 **Human Normalized Score**로 합니다.
 
@@ -95,7 +101,12 @@ MuZero는 Atari에서 최고 수준이었지만, **데이터가 적은 Atari 100
 
 **문제**: MuZero의 dynamics network는 **보상, 가치, 정책이라는 스칼라 신호**로만 학습됩니다. Atari처럼 보상이 드문 환경에서 데이터까지 적으면, 이 신호만으로는 잠재 상태가 제대로 학습되지 않습니다.
 
-**해결**: Dynamics가 예측한 다음 상태 $$s_{t+1}$$이, 실제 다음 관측을 representation에 넣어 얻은 상태 $$\hat{s}_{t+1} = h(o_{t+1})$$과 **같아지도록** 추가로 학습합니다. 보상이 없어도 "다음 상태를 맞혀라"라는 풍부한 학습 신호가 생깁니다.
+**해결**: Dynamics가 예측한 다음 상태 $$\hat{s}_{t+1} = g(s_t, a_t)$$이, 실제 다음 관측을 representation에 넣어 얻은 상태 $$s_{t+1} = h(o_{t+1})$$과 **같아지도록** 추가로 학습합니다. 보상이 없어도 "다음 상태를 맞혀라"라는 풍부한 학습 신호가 생깁니다. 맞혀야 할 대상이 스칼라 하나가 아니라 수백 차원 이상의 텐서이기 때문입니다.
+
+![self-supervised consistency loss](/assets/img/posts/efficientzero/fig2.webp)
+_Figure 2. 왼쪽 가지는 $$o_t$$를 표현한 뒤 dynamics로 한 step 굴린 $$\hat s_{t+1}$$, 오른쪽 가지는 실제 다음 관측 $$o_{t+1}$$의 표현 $$s_{t+1}$$입니다. 두 가지가 같은 projector를 거치고, 왼쪽에만 predictor를 둔 뒤 오른쪽은 stop-gradient로 막습니다. (출처: Ye et al., 2021)_
+
+실제로는 0~4픽셀 무작위 이동 같은 augmentation을 관측에 걸고, dynamics를 5 step까지 펼쳐 $$\hat s_{t+k}$$와 $$s_{t+k}$$ ($$k = 1, \dots, 5$$)를 모두 맞춥니다. SPR도 비슷한 시간 일관성 손실을 쓰지만 BYOL 기반이고 model-free에서만 표현을 쓰는 반면, EfficientZero는 SimSiam 기반이고 학습된 모델을 MCTS 탐색에 그대로 씁니다.
 
 $$
 \mathcal{L}_{sim} = -\cos\Big(P\big(g(s_t, a_t)\big),\ \text{sg}\big(h(o_{t+1})\big)\Big)
@@ -115,7 +126,7 @@ def consistency_loss(dynamics_state, next_obs_state, proj, pred):
     return -F.cosine_similarity(p, z, dim=-1).mean()
 ```
 
-이 하나만 추가해도 성능이 가장 크게 오릅니다.
+세 개선 중 이것을 빼면 성능이 가장 크게 떨어집니다(아래 Table 3).
 
 ### 개선 2. End-to-End Value Prefix
 
@@ -127,7 +138,7 @@ $$
 \text{value prefix}_k = \sum_{i=0}^{k-1}\gamma^i r_{t+i}
 $$
 
-"언제" 받는지는 조금 틀려도 "**지금까지 얼마나** 받았는지"는 정확히 맞힐 수 있으므로, 누적 오차(compounding error)가 크게 줄어듭니다.
+"언제" 받는지는 조금 틀려도 "**지금까지 얼마나** 받았는지"는 정확히 맞힐 수 있으므로, 누적 오차(compounding error)가 크게 줄어듭니다. value prefix는 새 상태가 들어올 때마다 계산할 수 있어서 LSTM을 매 step 감독할 수 있고, 이 촘촘한 감독 덕분에 데이터가 적어도 잘 학습됩니다. 논문은 반쯤 학습된 Pong 모델로 모은 10만 step 고정 데이터셋에서 비교했는데, step별 보상 예측이 학습 손실은 더 낮았지만 5 step을 펼친 검증 오차는 value prefix가 훨씬 작았습니다. 보상 예측이 과적합된 것입니다.
 
 ### 개선 3. Model-Based Off-Policy Correction
 
@@ -144,19 +155,70 @@ $$
 - 데이터가 **오래될수록 $$n$$을 줄여**(dynamic horizon), 예전 정책의 실제 보상은 적게 쓰고
 - 나머지는 **현재 모델로 MCTS를 다시 돌려(reanalyze)** 얻은 가치로 bootstrap합니다.
 
-학습된 모델을 이용해 오래된 데이터의 목푯값을 현재 정책에 맞게 **보정**하는 것입니다.
+학습된 모델을 이용해 오래된 데이터의 목푯값을 현재 정책에 맞게 **보정**하는 것입니다. 식으로는 $$z_t = \sum_{i=0}^{l-1}\gamma^i u_{t+i} + \gamma^l \nu^{MCTS}_{t+l}$$이고, $$l \le k$$이며 궤적이 오래될수록 $$l$$이 작아집니다. reanalyze 쪽 계산량은 두 배가 되지만 병렬 구현이라 학습 속도에는 영향이 없다고 합니다.
 
-## 5. 결과
+UpNDown에서 Monte Carlo로 구한 참값과 목푯값의 L1 오차를 비교하면(Table 4, 20k step 시점 궤적), 보정이 모든 경우 오차를 줄입니다.
+
+| 상태 | 보정 없음 | 보정 있음 |
+|---|---|---|
+| 현재 상태 | 0.765 | **0.533** |
+| 펼친 다음 5개 상태 평균 | 0.636 | **0.576** |
+| 전체 평균 | 0.657 | **0.569** |
+
+궤적을 모은 시점별로 보면(Table 5) 보정 없는 오차는 20k → 100k에서 0.657 → 0.441, 보정 있는 오차는 0.569 → 0.397로, 오래된 데이터일수록 오차가 크고 보정은 모든 시점에서 오차를 줄입니다.
+
+## 5. 구현 디테일
+
+논문 본문에 있는 설정만 모았습니다. 네트워크 구조와 하이퍼파라미터의 자세한 값은 부록으로 미루는데, 이 PDF에는 부록이 없습니다.
+
+| 항목 | 값 |
+|---|---|
+| 기반 | MuZero Reanalyze (비교용 MuZero도 같은 하이퍼파라미터로 저자들이 구현) |
+| Consistency | SimSiam 방식, 공통 projector + predictor(2층 MLP), 목표 가지 stop-gradient, 0~4픽셀 무작위 이동 augmentation, 5 step unroll |
+| Value prefix | LSTM, unroll 구간의 매 step 감독 |
+| Off-policy correction | 궤적이 오래될수록 짧은 horizon $$l$$, 마지막 상태에서 현재 정책으로 MCTS를 다시 돌린 root 값으로 bootstrap |
+| Atari 100k | 26게임, 게임마다 10만 step(40만 frame), 32 seeds |
+| DMControl 100k | 행동 차원마다 5칸으로 이산화, 저차원 과제 3개, 10 seeds |
+
+## 6. 결과
 
 | 알고리즘 | Atari 100k 평균 HNS | 중앙값 HNS |
 |---|---|---|
 | SimPLe | 44.3% | 14.4% |
+| OTRainbow | 26.4% | 20.4% |
+| CURL | 38.1% | 17.5% |
+| DrQ | 35.7% | 26.8% |
 | SPR (이전 SOTA) | 70.4% | 41.5% |
-| **EfficientZero** | **194.3%** | **109.0%** |
+| MuZero (저자 구현) | 56.2% | 22.7% |
+| **EfficientZero** | **190.4%** | **116.0%** |
 
-- **2시간 분량의 플레이**만으로 Atari에서 처음으로 **평균·중앙값 모두 사람 수준을 넘었습니다.**
-- DQN이 2억 frame으로 얻는 성능에 근접한 결과를 약 **500배 적은 데이터**로 냈습니다.
-- Ablation에서 세 가지 중 **self-supervised consistency**가 가장 큰 효과를 냈고, 셋 모두 의미 있는 기여를 했습니다.
+- **2시간 분량의 플레이**만으로 Atari에서 처음으로 **평균·중앙값 모두 사람 수준을 넘었습니다.** 26개 중 14개 게임에서 사람보다 높습니다.
+- DQN은 2억 frame으로 평균 220%, 중앙값 96%를 얻습니다. EfficientZero는 그 약 **500분의 1 데이터**로 평균은 근접하고 중앙값은 더 높습니다.
+- 같은 하이퍼파라미터의 MuZero(평균 56.2%)와 비교하면 세 가지 수정만으로 평균이 3배 넘게 오른 셈입니다.
+
+**Ablation (Table 3).** 세 요소를 하나씩 뺐을 때의 HNS입니다.
+
+| 설정 | 평균 HNS | 중앙값 HNS |
+|---|---|---|
+| 전체 | **1.904** | **1.160** |
+| consistency 없음 | 0.881 | 0.340 |
+| value prefix 없음 | 1.482 | 0.552 |
+| off-policy correction 없음 | 1.475 | 0.836 |
+
+셋 다 빼면 성능이 떨어지고, consistency를 뺄 때 가장 크게 떨어집니다. 데이터가 많은 상황에서는 consistency가 학습을 크게 앞당기고, value prefix는 초반에만 도움이 되며, off-policy correction은 필요 없다고 논문은 덧붙입니다.
+
+![consistency 유무에 따른 잠재 상태 복원](/assets/img/posts/efficientzero/fig4.webp)
+_Figure 4. 학습된 모델을 고정하고 잠재 상태를 이미지로 되돌리는 디코더를 따로 학습해, 현재 상태와 dynamics로 1~5 step 펼친 상태를 복원한 결과입니다. consistency가 없으면 펼친 상태가 화면으로 복원되지 않습니다. (출처: Ye et al., 2021)_
+
+위 Figure 4가 consistency의 효과를 보여 줍니다. 현재 상태 $$s_t$$는 두 모델 모두 잘 복원되지만, consistency 없이 학습한 dynamics가 만든 다음 상태는 representation이 만드는 상태와 분포가 달라 디코더가 해석하지 못합니다.
+
+**DMControl 100k (Table 2, 10 seeds).** 연속 행동을 이산화해야 하는 불리함에도 이전 SOTA인 CURL을 앞서고, 실제 상태를 입력으로 받는 State SAC와 비슷합니다.
+
+| 과제 | CURL | MuZero | State SAC | **EfficientZero** |
+|---|---|---|---|---|
+| Cartpole, Swingup | 582 ± 146 | 218.5 ± 122 | 835 ± 22 | 813 ± 19 |
+| Reacher, Easy | 538 ± 233 | 493 ± 145 | 746 ± 25 | **952 ± 34** |
+| Ball in cup, Catch | 769 ± 43 | 542 ± 270 | 746 ± 91 | **942 ± 17** |
 
 <details markdown="1">
 <summary>더 알아보기: 이 숫자를 읽을 때 주의할 점</summary>
@@ -165,7 +227,7 @@ $$
 - **평균 HNS의 함정**: 사람 점수를 크게 뛰어넘는 몇몇 게임이 평균을 끌어올릴 수 있어서 중앙값을 함께 봐야 합니다. Agarwal et al.(NeurIPS 2021)은 실행(seed) 수가 적은 벤치마크에서 평균·중앙값 모두 불안정하다며 **IQM(사분위 평균)**과 신뢰구간을 쓰자고 제안했고, 이후 논문들은 이 지표도 함께 보고합니다.
 </details>
 
-## 6. 정리
+## 7. 정리
 
 | 문제 | EfficientZero의 해결 |
 |---|---|

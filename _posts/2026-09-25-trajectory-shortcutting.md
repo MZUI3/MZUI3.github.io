@@ -1,17 +1,25 @@
 ---
-title: "[Robotics] 시간 최적 shortcut으로 매니퓰레이터 궤적 매끄럽게 만들기: 포물선과 직선의 닫힌 해"
+title: "[Robotics] Fast Smoothing of Manipulator Trajectories using Optimal Bounded-Acceleration Shortcuts: 포물선-직선 shortcut의 닫힌 해"
 date: 2026-09-25 15:25:00 +0900
 categories: [Robotics, Motion Planning]
 tags: [trajectory-smoothing, shortcutting, time-optimal, bang-bang, manipulator, collision-checking, puma, asimo, icra]
-description: Hauser와 Ng-Thow-Hing(ICRA 2010)이 샘플링 플래너의 거친 경로를 속도·가속도 한계 아래 시간 최적인 포물선-직선 구간으로 이어 붙이는 shortcut 휴리스틱으로 매끄럽게 만든 방법을 정리합니다. 단일 관절 시간 최적 보간의 닫힌 해, 최소 가속도 보간으로 다관절 동기화, 포물선 경로의 정확한 충돌 검사, PUMA·ASIMO 실험과 온라인 평활화를 다루고, 작은 실험으로 보간 시간과 shortcut 효과를 확인합니다.
+description: "Fast Smoothing of Manipulator Trajectories using Optimal Bounded-Acceleration Shortcuts(ICRA 2010) 논문 리뷰. 샘플링 플래너의 꺾인 경로를 속도·가속도 한계 아래 시간 최적인 포물선-직선 shortcut으로 매끄럽게 만드는 방법, 단일 관절 닫힌 해와 다관절 동기화, 정확한 충돌 검사, PUMA·ASIMO 실험 수치를 그림과 작은 실험으로 정리합니다."
 math: true
 ---
 
-> PRM이나 RRT 같은 샘플링 플래너는 빠르게 충돌 없는 경로를 찾지만, 그 결과는 **정점마다 멈춰야 정확히 따라갈 수 있는 꺾인 선**입니다. 그대로 실행하면 느리고 부자연스럽습니다. 스플라인 피팅은 원래 경로를 벗어나 충돌할 수 있고, 수치 궤적 최적화는 반복마다 충돌 검사를 해야 해서 비쌉니다. 이 논문(Hauser, Ng-Thow-Hing, Indiana University·Honda Research Institute, ICRA 2010)은 로봇공학과 애니메이션에서 오래 쓰인 **shortcut 휴리스틱**을 두 가지로 바꿉니다. 구성 공간이 아니라 **구성·속도 상태 공간**에서 동작하고, 직선 대신 **속도·가속도 한계 아래 시간 최적인 포물선-직선 구간**을 shortcut으로 씁니다. 이 구간의 닫힌 해가 주요 기여이고, PUMA와 ASIMO에서 몇 초 만에 실행 시간을 40% 넘게 줄였습니다.
+> - **논문**: Fast Smoothing of Manipulator Trajectories using Optimal Bounded-Acceleration Shortcuts
+> - **저자**: Kris Hauser, Victor Ng-Thow-Hing (Indiana University, Honda Research Institute)
+> - **학회**: ICRA 2010, pp. 2493–2498
+{: .prompt-tip }
+
+> PRM이나 RRT 같은 샘플링 플래너는 빠르게 충돌 없는 경로를 찾지만, 그 결과는 **정점마다 멈춰야 정확히 따라갈 수 있는 꺾인 선**입니다. 그대로 실행하면 느리고 부자연스럽습니다. 스플라인 피팅은 원래 경로를 벗어나 충돌할 수 있고, 수치 궤적 최적화는 반복마다 충돌 검사를 해야 해서 비쌉니다. 이 논문은 로봇공학과 애니메이션에서 오래 쓰인 **shortcut 휴리스틱**을 두 가지로 바꿉니다. 구성 공간이 아니라 **구성·속도 상태 공간**에서 동작하고, 직선 대신 **속도·가속도 한계 아래 시간 최적인 포물선-직선 구간**을 shortcut으로 씁니다. 이 구간의 닫힌 해가 주요 기여이고, PUMA와 ASIMO에서 몇 초의 계산으로 실행 시간을 평균 40~46% 줄였습니다.
 
 ## 1. 문제: 빠르고, 안전하고, 자연스러운 움직임을 한 번에
 
 고자유도 로봇이 사람 환경에서 움직이려면 세 가지를 동시에 만족해야 합니다. 계획이 빨라야 하고(속도), 충돌이 없어야 하며(안전), 보기에 부자연스럽지 않아야 합니다(미감). 비용 함수 최적화(장애물 포텐셜, 시간, 토크, 에너지)는 품질이 좋지만, 수백~수천 지점의 충돌 질의가 반복마다 필요해 실시간에는 너무 느립니다. Figure 1의 경로 하나를 충돌 검사하는 데만 0.15초가 걸립니다. shortcut은 최적성은 없지만 빠르고 구현이 쉬우며 실제로 품질 좋은 경로를 냅니다.
+
+![PUMA가 테이블 아래 컵을 잡는 경로](/assets/img/posts/trajectory-shortcutting/fig1.webp)
+_Figure 1. 흰 점선이 샘플링 플래너가 만든 원래 엔드이펙터 경로, 주황 곡선이 무작위 shortcut 100번 뒤의 경로입니다. 실행 시간이 9.4초에서 4.0초로 줄었습니다. (출처: Hauser & Ng-Thow-Hing, 2010)_
 
 ## 2. 방법
 
@@ -22,6 +30,11 @@ math: true
 1. 꺾인 선 경로를 각 정점에서 멈추는 시간 최적 궤적으로 바꾼다.
 2. $$N$$번 반복: 궤적 위의 두 시각 $$t_a, t_b$$를 무작위로 뽑아 상태 $$(a, c) = (u(t_a), u'(t_a))$$, $$(b, d) = (u(t_b), u'(t_b))$$를 얻고, 두 상태를 잇는 시간 최적 보간 $$s(t)$$를 계산한다. 충돌이 없으면 그 구간을 $$s$$로 바꾼다.
 
+![shortcut 알고리즘 진행 과정](/assets/img/posts/trajectory-shortcutting/fig2.webp)
+_Figure 2. (a) 샘플링 플래너의 꺾인 경로 → (b) 정점마다 멈추는 궤적으로 변환 → (c) 무작위 shortcut이 충돌해 기각 → (d), (e) 충돌 없는 shortcut 두 번을 채택 → (f) 최종 궤적. (출처: Hauser & Ng-Thow-Hing, 2010)_
+
+1단계에서 직선 구간 하나를 따라갈 때는 보간 변수의 속도·가속도 한계를 관절별 한계를 이동량으로 나눈 값의 최솟값($$v_s = \min_k v^k_{max}/\lvert b^k - a^k \rvert$$, $$a_s$$도 같은 방식)으로 잡고, 가속 포물선 → (필요하면) 등속 직선 → 감속 포물선으로 움직입니다.
+
 ### 단일 관절 시간 최적 보간
 
 위치 $$x_1 \to x_2$$, 속도 $$v_1 \to v_2$$를 $$\lvert v \rvert \le v_{max}$$, $$\lvert a \rvert \le a_{max}$$ 아래 가장 빨리 잇는 궤적은 bang-bang 원리에 따라 네 가지 원시 동작 조합 중 하나입니다. $$P^+P^-$$, $$P^-P^+$$(가속 후 감속 포물선 둘), $$P^+L^+P^-$$, $$P^-L^-P^+$$(최대 속도 직선이 사이에 끼는 경우). 각 조합에 대해 변곡 시각을 대수적으로 풉니다.
@@ -30,7 +43,10 @@ math: true
 - $$P^+L^+P^-$$: 직선 구간 길이 $$t_L = \frac{v_2^2 + v_1^2 - 2 v_{max}^2}{2 v_{max} a_{max}} + \frac{x_2 - x_1}{v_{max}}$$, 가속 $$t_{P1} = (v_{max} - v_1)/a_{max}$$, 감속 구간, 셋 다 음수가 아니어야 유효하고 $$T = t_{P1} + t_L + t_{P2}$$.
 - 나머지 둘은 $$a_{max}$$(와 $$v_{max}$$)의 부호를 뒤집은 것입니다.
 
-유효한 조합 중 최소 $$T$$를 고릅니다. 이것이 함수 $$f(x_1, x_2, v_1, v_2, v_{max}, a_{max})$$입니다.
+유효한 조합 중 최소 $$T$$를 고릅니다. 이것이 함수 $$f(x_1, x_2, v_1, v_2, v_{max}, a_{max})$$입니다. 논문은 유도 과정은 생략하고 결과 식만 적었습니다.
+
+![단일 관절 시간 최적 보간의 네 가지 경우](/assets/img/posts/trajectory-shortcutting/fig5.webp)
+_Figure 5. 최대 속도·가속도가 1일 때의 단일 관절 시간 최적 궤적(가로축이 시간). 네모는 포물선과 직선 구간이 바뀌는 변곡점입니다. 아래 3장의 코드가 이 네 경우의 시간을 다시 계산합니다. (출처: Hauser & Ng-Thow-Hing, 2010)_
 
 ### 다관절: 가장 느린 관절에 맞추는 최소 가속도 보간
 
@@ -117,11 +133,31 @@ initial trajectory (stop at each of 7 milestones): 12.30 s
 
 ## 4. 실험
 
-**PUMA 760 시뮬레이션.** 약 8,000 폴리곤 로봇, 20,000 폴리곤 환경에서 테이블 아래의 컵을 잡는 작업. SBL 플래너가 만든 초기 경로 10개의 최적 실행 시간은 5.7~10.4초였고, **200회 shortcut 후 평균 40% 감소**해 4.1~6.6초가 됐습니다. 3GHz PC에서 계획 0.6초, 평활화 2.6초, 총 3.2초. 닫힌 해 덕분에 shortcut 자체는 무시할 만한 시간이고, **평활화 시간은 충돌 검사가 지배**합니다. 실행 시간은 초반에 빠르게 줄고 이후 수확 체감합니다(Figure 7, 8).
+| 실험 | 초기 경로 | shortcut 횟수 | 계산 시간 | 실행 시간 |
+|---|---|---|---|---|
+| PUMA 760, Figure 1의 경로 1개 | SBL | 100 | - | 9.4초 → 4.0초 |
+| PUMA 760, 경로 10개 | SBL, 5.7~10.4초 | 200 | 계획 0.6초 + 평활화 2.6초 = 3.2초 (평균) | 4.1~6.6초, 평균 40% 감소 |
+| ASIMO, 동작 10개 | SBL | 50 | 평균 0.9초 | 평균 2.4초 감소 (46%) |
+
+**PUMA 760 시뮬레이션.** 약 8,000 폴리곤 로봇, 20,000 폴리곤 이상 환경에서 테이블 아래의 컵을 잡는 작업. SBL 플래너가 만든 초기 경로 10개의 최적 실행 시간은 5.7~10.4초였고, **200회 shortcut 후 평균 40% 감소**해 4.1~6.6초가 됐습니다. 3GHz PC에서 계획 0.6초, 평활화 2.6초, 총 3.2초. 닫힌 해 덕분에 shortcut 자체는 무시할 만한 시간이고, **평활화 시간은 충돌 검사가 지배**합니다. 실행 시간은 초반에 빠르게 줄고 이후 수확 체감합니다(Figure 7, 8).
 
 **온라인 평활화.** 평활화를 끝내고 실행하면 언제 멈출지 정하기 어렵지만, shortcut은 **현재 시각 이후의 경로에서만** 뽑도록 하면 실행과 평활화를 병렬로 돌릴 수 있습니다. 로봇을 멈추지 않고도 고품질 경로가 나옵니다(Figure 9).
 
-**ASIMO.** 테이블 위 물체를 미는 시스템에 통합해, 50회 shortcut이 평균 0.9초 계산으로 실행 시간을 2.4초(46%) 줄였고, 관찰자들이 움직임이 훨씬 자연스럽다고 판단했습니다.
+**ASIMO.** 테이블 위 물체를 미는 시스템에 통합해, SBL이 만든 동작 10개에서 50회 shortcut이 평균 0.9초 계산으로 실행 시간을 평균 2.4초(초기 대비 46%) 줄였고, 관찰자들이 움직임이 훨씬 자연스럽다고 판단했습니다. 시뮬레이션뿐 아니라 실제 ASIMO 팔로도 실행했습니다.
+
+### 구현 디테일
+
+| 항목 | 값 |
+|---|---|
+| 초기 경로 플래너 | SBL (Sánchez & Latombe) |
+| 모델 규모 | PUMA CAD 모델 약 8,000 폴리곤, 환경 20,000 폴리곤 이상 |
+| 계산 환경 | 3 GHz PC |
+| 충돌 검사 | Schwarzer 등의 적응형 이분법을 포물선 경로로 확장. 세밀한 이산화 대비 2~10배 느림 |
+| 충돌 검사 비용 감각 | Figure 1 경로 하나를 이산 점검하는 데 약 0.15초 |
+| 온라인 평활화 | 현재 시각 이후(약간의 여유를 둔) 구간에서만 shortcut을 뽑음 |
+| 코드 | 저자들이 C++ 구현을 공개했다고 적혀 있음 |
+
+실험에 쓴 최대 속도·가속도 값은 논문에 적혀 있지 않습니다.
 
 ## 5. 해석
 
@@ -144,11 +180,11 @@ initial trajectory (stop at each of 7 milestones): 12.30 s
 | 닫힌 해 | 4가지 bang-bang 조합($$P^+P^-$$, $$P^-P^+$$, $$P^+L^+P^-$$, $$P^-L^-P^+$$)의 변곡 시각을 대수적으로 계산 |
 | 다관절 | 가장 느린 관절의 $$T$$에 맞춰 나머지는 최소 가속도 보간 |
 | 충돌 검사 | 적응형 이분법 + 포물선 경계 상자로 정확한 보장 |
-| 결과 | PUMA 200회 shortcut 평균 -40%(3.2초 계산), ASIMO 50회 -46%(0.9초), 온라인 평활화 가능 |
+| 결과 | PUMA 200회 shortcut 평균 -40%(5.7~10.4초 → 4.1~6.6초, 3.2초 계산), ASIMO 50회 -46%(0.9초), 온라인 평활화 가능 |
 
 ## References
 
-- Hauser, Ng-Thow-Hing, "Fast Smoothing of Manipulator Trajectories using Optimal Bounded-Acceleration Shortcuts," ICRA 2010.
+- Hauser, Ng-Thow-Hing, "Fast Smoothing of Manipulator Trajectories using Optimal Bounded-Acceleration Shortcuts," ICRA 2010, pp. 2493–2498.
 - Geraerts, Overmars, "Creating High-quality Paths for Motion Planning," IJRR 2007.
 - Schwarzer, Saha, Latombe, "Exact Collision Checking of Robot Paths," WAFR 2002.
 - Sánchez, Latombe, "On Delaying Collision Checking in PRM Planning: Application to Multi-Robot Coordination," IJRR 2002.

@@ -1,13 +1,18 @@
 ---
-title: "[Generative AI] Neural Style Transfer: CNN으로 Content와 Style 분리하기"
+title: "[Generative AI] Neural Style Transfer(Image Style Transfer Using Convolutional Neural Networks): CNN으로 Content와 Style 분리하기"
 date: 2026-08-08 16:35:00 +0900
 categories: [Generative AI, Image Synthesis]
 tags: [style-transfer, gatys, vgg19, gram-matrix, content-loss, style-loss, image-synthesis]
-description: 사전학습된 VGG-19의 특징으로 이미지의 내용과 화풍을 분리하는 Neural Style Transfer의 content loss, Gram matrix 기반 style loss, 픽셀을 직접 최적화하는 과정을 PyTorch 코드와 함께 정리합니다.
+description: "Image Style Transfer Using Convolutional Neural Networks(Gatys et al., CVPR 2016) 논문 리뷰. 사전학습된 VGG-19 특징으로 이미지의 내용과 화풍을 분리하는 content loss, Gram matrix 기반 style loss, 픽셀을 직접 최적화하는 과정을 그림·실험 설정과 함께 PyTorch 코드로 정리합니다."
 math: true
 ---
 
-> Image Synthesis 카테고리의 첫 글입니다. 사진을 고흐의 「별이 빛나는 밤」 화풍으로 다시 그려 주는 **Neural Style Transfer**의 원조, *Image Style Transfer Using Convolutional Neural Networks*(Gatys, Ecker & Bethge, CVPR 2016)를 정리합니다. 사전학습된 CNN의 특징으로 이미지의 **내용(content)**과 **화풍(style)**을 분리해서 다시 합칩니다.
+> - **논문**: Image Style Transfer Using Convolutional Neural Networks
+> - **저자**: Leon A. Gatys, Alexander S. Ecker, Matthias Bethge (University of Tübingen, Bernstein Center for Computational Neuroscience, Max Planck Institute for Biological Cybernetics, Baylor College of Medicine)
+> - **학회**: CVPR 2016 · 선행 arXiv 버전 「A Neural Algorithm of Artistic Style」 [arXiv:1508.06576](https://arxiv.org/abs/1508.06576)
+{: .prompt-tip }
+
+> Image Synthesis 카테고리의 첫 글입니다. 사진을 고흐의 「별이 빛나는 밤」 화풍으로 다시 그려 주는 **Neural Style Transfer**의 원조, *Image Style Transfer Using Convolutional Neural Networks*를 정리합니다. 같은 저자들이 2015년 arXiv에 먼저 공개한 「A Neural Algorithm of Artistic Style」을 학회 논문으로 확장한 버전입니다. 사전학습된 CNN의 특징으로 이미지의 **내용(content)**과 **화풍(style)**을 분리해서 다시 합칩니다.
 
 ## 1. Content와 Style
 
@@ -34,13 +39,17 @@ ImageNet으로 사전학습된 **VGG-19**의 특징을 씁니다.
 - 사전학습 덕분에 물체 인식과 위치 파악 능력을 갖춤
 - 여러 층에서 **다양한 scale의 feature map**을 얻을 수 있음
 - 네트워크 자체는 **학습하지 않고 고정**
+- 19층 VGG 중 합성곱 16층과 pooling 5층만 쓰고 FC 층은 버립니다. 각 필터의 평균 활성값이 이미지·위치에 걸쳐 1이 되도록 가중치를 다시 스케일한 **정규화된 VGG**를 씁니다. ReLU만 있고 feature map 간 정규화가 없어서 출력은 바뀌지 않습니다.
 
 ### CNN 층에 따른 표현의 변화
 
 CNN은 층이 깊어질수록 **feature map은 작아지고 채널은 많아지며**, 값 하나가 담당하는 영역(receptive field)이 커집니다.
 
-- **Content**: 앞쪽 층의 feature map으로 이미지를 복원하면 **픽셀 세부까지** 거의 그대로 나오지만, 뒤쪽 층에서는 **정확한 픽셀 값은 사라지고 구조와 배치만** 남습니다. 그래서 content는 **깊은 층** 하나로 표현합니다.
-- **Style**: 반대 경향입니다. 앞쪽 층의 style 표현은 색 정보 정도만 담지만, **뒤쪽 층까지 여러 층을 합칠수록** style 이미지의 질감을 큰 규모로 잘 재현합니다.
+- **Content**: 흰 노이즈에서 시작해 특정 층의 반응만 맞추도록 이미지를 복원해 보면, conv1_2~conv3_2에서는 **픽셀 세부까지** 거의 그대로 나오지만, conv4_2·conv5_2에서는 **정확한 픽셀 값은 사라지고 구조와 배치만** 남습니다. 그래서 content는 **깊은 층** 하나로 표현합니다.
+- **Style**: 반대 경향입니다. conv1_1 하나의 style 표현으로는 작은 규모의 색과 질감만 재현되지만, **뒤쪽 층까지 여러 층을 합칠수록** style 이미지의 질감을 큰 규모로 재현합니다. 장면의 전체 배치는 어느 경우에도 사라집니다.
+
+![CNN 층별 content·style 복원](/assets/img/posts/neural-style-transfer/fig1.webp)
+_Figure 1. 위: `conv1_1`부터 `conv5_1`까지 층을 하나씩 더해 만든 style 표현으로 복원한 이미지. 아래: `conv1_2`~`conv5_2` 각 층의 content 표현으로 복원한 이미지. 깊은 층일수록 픽셀 세부는 사라지고 배치만 남습니다. (출처: Gatys et al., 2016)_
 
 ## 4. Content Loss
 
@@ -90,7 +99,23 @@ $$
 
 $$\alpha / \beta$$ 비율로 content와 style 중 어느 쪽을 더 살릴지 조절합니다. 비율이 작을수록 화풍이 강해집니다(논문 예시: $$10^{-3}$$, $$10^{-4}$$).
 
-특이한 점은 **네트워크가 아니라 이미지를 최적화**한다는 것입니다. 결과 이미지 $$\vec{x}$$를 흰 노이즈(또는 content 이미지)로 시작해, 고정된 VGG를 통과시킨 loss의 기울기로 **픽셀 값 자체를 업데이트**합니다. 최적화에는 **L-BFGS**를 씁니다. 또 VGG의 max pooling을 **average pooling**으로 바꾸면 결과가 조금 더 부드러웠습니다.
+![style transfer 알고리즘](/assets/img/posts/neural-style-transfer/fig2.webp)
+_Figure 2. 왼쪽: style 이미지 $$\vec a$$의 다섯 층 Gram matrix $$A^l$$을 저장. 오른쪽: content 이미지 $$\vec p$$의 `conv4_2` 특징 $$P^l$$을 저장. 가운데: 흰 노이즈 $$\vec x$$를 통과시켜 두 loss를 구하고, 픽셀에 대한 기울기로 $$\vec x$$를 갱신합니다. (출처: Gatys et al., 2016)_
+
+특이한 점은 위 Figure 2처럼 **네트워크가 아니라 이미지를 최적화**한다는 것입니다. 결과 이미지 $$\vec{x}$$를 흰 노이즈(또는 content 이미지)로 시작해, 고정된 VGG를 통과시킨 loss의 기울기로 **픽셀 값 자체를 업데이트**합니다. 최적화에는 이미지 합성에서 가장 잘 동작했다는 **L-BFGS**를 씁니다. 또 VGG의 max pooling을 **average pooling**으로 바꾸면 결과가 조금 더 보기 좋아서, 논문의 그림은 모두 average pooling으로 만들었습니다.
+
+### 논문의 실험 설정
+
+| 항목 | 값 |
+|---|---|
+| 특징 추출기 | 정규화된 VGG-19 (합성곱 16층 + pooling 5층, FC 없음, max → average pooling), Caffe |
+| Content 층 | conv4_2 |
+| Style 층 | conv1_1, conv2_1, conv3_1, conv4_1, conv5_1, 각 $$w_l = 1/5$$ (나머지 층 0) |
+| $$\alpha/\beta$$ | Figure 3: 터너 $$1\times10^{-3}$$, 고흐 $$8\times10^{-4}$$, 뭉크 $$5\times10^{-3}$$, 피카소·칸딘스키 $$5\times10^{-4}$$ |
+| 초기화 | 흰 노이즈 (Figure 7의 사진 간 전이만 content 이미지에서 시작) |
+| 최적화 | L-BFGS, 이미지 prior(정규화 항) 없음 |
+| 전처리 | style 이미지를 content 이미지와 같은 크기로 리사이즈 |
+| 해상도·시간 | 약 512×512, Nvidia K40 GPU에서 최대 1시간 (이미지 크기와 종료 조건에 따라 다름) |
 
 ```python
 import torch
@@ -148,13 +173,21 @@ def style_transfer(content, style, alpha=1.0, beta=1e3, steps=300):
 
 ## 7. 결과
 
-- 같은 사진(튀빙겐 강변)을 고흐, 터너, 뭉크, 피카소, 칸딘스키 등의 화풍으로 바꿔, 구조는 유지하면서 화풍이 뚜렷한 결과를 만들었습니다.
+이 논문에는 정량 지표가 없습니다. 결과는 모두 그림으로 보여 줍니다.
+
+![여러 화풍으로 바꾼 튀빙겐 사진](/assets/img/posts/neural-style-transfer/fig3.webp)
+_Figure 3. A: 원본 사진(튀빙겐 네카어 강변). B: 터너 「미노타우르호의 난파」, C: 고흐 「별이 빛나는 밤」, D: 뭉크 「절규」, E: 피카소 「앉아 있는 나부」, F: 칸딘스키 「구성 VII」. 왼쪽 아래 작은 그림이 style 이미지입니다. (출처: Gatys et al., 2016)_
+
+- 같은 사진(튀빙겐 강변)을 고흐, 터너, 뭉크, 피카소, 칸딘스키의 화풍으로 바꿔, 구조는 유지하면서 화풍이 뚜렷한 결과를 만들었습니다(위 Figure 3).
 - Style을 **얕은 층만으로** 표현하면 국소적인 색과 작은 질감만, **깊은 층까지** 쓰면 더 큰 규모의 화풍 구조가 재현됐습니다.
-- $$\alpha / \beta$$를 바꾸면 사진에 가까운 결과부터 원래 그림에 가까운 결과까지 연속적으로 조절됐습니다.
+- $$\alpha / \beta$$를 바꾸면 사진에 가까운 결과부터 원래 그림에 가까운 결과까지 연속적으로 조절됐습니다. $$1\times10^{-4}$$이면 그림을 질감으로만 다시 짠 것처럼 사진 내용이 거의 보이지 않고, $$1\times10^{-1}$$이면 사진은 뚜렷하지만 화풍이 약합니다(Figure 4).
+- Content를 **conv2_2**에서 맞추면 그림의 질감이 사진 위에 얹힌 것처럼 보이고, **conv4_2**에서 맞추면 사진의 윤곽과 색까지 화풍에 맞게 바뀌면서 내용과 질감이 섞입니다(Figure 5, $$\alpha/\beta = 10^{-3}$$).
+- 초기화를 content 이미지나 style 이미지로 바꾸면 결과가 그 공간 구조 쪽으로 조금 치우치지만 큰 차이는 없습니다. 노이즈로 시작해야 서로 다른 결과를 여러 장 만들 수 있습니다(Figure 6).
+- 밤의 뉴욕 사진의 style을 낮의 런던 사진에 옮기는 사진 간 전이도 보였지만, 사실감이 완전히 유지되지는 않습니다(Figure 7, $$\alpha/\beta = 10^{-2}$$).
 
 ### 한계와 후속 연구
 
-이미지 한 장마다 수백 번의 최적화가 필요해 **느립니다.** 이후 연구는 특정 화풍을 **한 번의 forward로** 입히는 feed-forward 네트워크(Johnson et al., Perceptual Loss), 아무 화풍이나 즉시 입히는 **AdaIN** 등으로 발전했습니다. AdaIN은 [Instance Normalization]({% post_url 2026-05-23-normalization %})의 평균·분산을 style 이미지의 것으로 바꿔 끼우는 방식입니다.
+이미지 한 장마다 수백 번의 최적화가 필요해 **느립니다.** 논문 기준 512×512 한 장에 K40 GPU로 최대 1시간이 걸리고, 최적화 변수와 네트워크 유닛 수가 픽셀 수에 비례해 늘어나므로 해상도가 가장 큰 제약입니다. 저자들은 결과에 네트워크 필터를 닮은 저수준 노이즈가 남는 경우가 있다는 점(특히 사진 간 전이에서)과, content와 style을 어디까지 나눌 수 있는지 자체가 잘 정의된 문제가 아니라는 점도 함께 적습니다. 이후 연구는 특정 화풍을 **한 번의 forward로** 입히는 feed-forward 네트워크(Johnson et al., Perceptual Loss), 아무 화풍이나 즉시 입히는 **AdaIN** 등으로 발전했습니다. AdaIN은 [Instance Normalization]({% post_url 2026-05-23-normalization %})의 평균·분산을 style 이미지의 것으로 바꿔 끼우는 방식입니다.
 
 ## 8. 정리
 
@@ -170,6 +203,7 @@ def style_transfer(content, style, alpha=1.0, beta=1e3, steps=300):
 ## References
 
 - Gatys, Ecker & Bethge, "Image Style Transfer Using Convolutional Neural Networks," CVPR 2016.
+- Gatys, Ecker & Bethge, "A Neural Algorithm of Artistic Style," 2015. [arXiv:1508.06576](https://arxiv.org/abs/1508.06576)
 - [PyTorch Tutorial – Neural Transfer Using PyTorch](https://pytorch.org/tutorials/advanced/neural_style_tutorial.html)
 - Efros & Freeman, "Image Quilting for Texture Synthesis and Transfer," SIGGRAPH 2001.
 - Simonyan & Zisserman, "Very Deep Convolutional Networks for Large-Scale Image Recognition," ICLR 2015.

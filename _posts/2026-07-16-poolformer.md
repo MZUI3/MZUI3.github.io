@@ -1,13 +1,18 @@
 ---
-title: "[Transformer] PoolFormer: Attention 대신 Pooling이어도 될까? (MetaFormer)"
+title: "[Transformer] PoolFormer(MetaFormer Is Actually What You Need for Vision): Attention 대신 Pooling이어도 될까?"
 date: 2026-07-16 22:22:00 +0900
 categories: [Transformer, Vision Transformer]
 tags: [vision-transformer, poolformer, metaformer, token-mixer, mlp-mixer, fnet, pooling]
-description: Self-attention을 학습 파라미터가 없는 평균 풀링으로 바꿔도 성능이 유지된다는 PoolFormer 실험으로, Transformer 성능의 핵심이 attention이 아니라 MetaFormer라는 전체 구조라는 주장을 정리합니다.
+description: "MetaFormer Is Actually What You Need for Vision(PoolFormer, CVPR 2022) 논문 리뷰. Self-attention을 학습 파라미터가 없는 평균 풀링으로 바꿔도 성능이 유지된다는 실험으로 Transformer 성능의 핵심이 MetaFormer라는 전체 구조라는 주장을 정리하고, ImageNet·COCO·ADE20K 수치와 ablation, 학습 설정을 그림과 함께 다룹니다."
 math: true
 ---
 
-> Vision Transformer가 잘되는 것은 흔히 **Self-Attention** 덕분이라고 생각합니다. *MetaFormer Is Actually What You Need for Vision*(Yu et al., CVPR 2022)은 이 생각에 의문을 던집니다. Attention을 **아무 학습 파라미터도 없는 평균 풀링**으로 바꿔도 성능이 거의 유지된다면, 진짜 핵심은 attention이 아니라 **Transformer의 전체 구조(MetaFormer)**라는 주장입니다.
+> - **논문**: MetaFormer Is Actually What You Need for Vision
+> - **저자**: Weihao Yu, Mi Luo, Pan Zhou, Chenyang Si, Yichen Zhou, Xinchao Wang, Jiashi Feng, Shuicheng Yan (Sea AI Lab, National University of Singapore)
+> - **학회**: CVPR 2022 · [arXiv:2111.11418](https://arxiv.org/abs/2111.11418) · [코드](https://github.com/sail-sg/poolformer)
+{: .prompt-tip }
+
+> Vision Transformer가 잘되는 것은 흔히 **Self-Attention** 덕분이라고 생각합니다. 이 논문은 이 생각에 의문을 던집니다. Attention을 **아무 학습 파라미터도 없는 평균 풀링**으로 바꿔도 성능이 거의 유지된다면, 진짜 핵심은 attention이 아니라 **Transformer의 전체 구조(MetaFormer)**라는 주장입니다.
 
 ## 1. Transformer 블록 다시 보기
 
@@ -22,7 +27,10 @@ $$
 1. **토큰 사이의 정보를 섞는 부분** (Self-Attention) → **Token Mixer**
 2. **그 나머지** (Normalization, Shortcut, Channel MLP)
 
-논문은 Token Mixer를 **구체적으로 정하지 않은** 이 일반 구조를 **MetaFormer**라고 부릅니다.
+논문은 Token Mixer를 **구체적으로 정하지 않은** 이 일반 구조를 **MetaFormer**라고 부릅니다(아래 Figure 1 (a)).
+
+![MetaFormer와 그 구현들](/assets/img/posts/poolformer/fig1.webp)
+_Figure 1. (a) Token Mixer를 비워 둔 MetaFormer와, 그 자리에 Attention·Spatial MLP·Pooling을 넣은 Transformer, MLP 계열, PoolFormer. (b) ImageNet-1K 정확도 대 MACs, 원 크기는 파라미터 수입니다. (출처: Yu et al., 2022)_
 
 $$
 Y = \text{TokenMixer}\big(\text{Norm}(X)\big) + X
@@ -108,33 +116,99 @@ print(sum(p.numel() for p in block.parameters()))               # 33344 → 전�
 
 ### 전체 구조
 
-- CNN처럼 **4단계 계층 구조**: 해상도를 $$\frac{H}{4} \to \frac{H}{8} \to \frac{H}{16} \to \frac{H}{32}$$로 줄이며 채널을 늘림. 단계 사이에서 patch embedding으로 downsampling
+![PoolFormer 전체 구조](/assets/img/posts/poolformer/fig2.webp)
+_Figure 2. (a) 블록 $$L$$개를 네 단계에 $$L/6, L/6, L/2, L/6$$개씩 나눈 PoolFormer 전체 구조. 단계 사이의 patch embedding이 해상도를 줄입니다. (b) PoolFormer 블록. (출처: Yu et al., 2022)_
+
+- CNN처럼 **4단계 계층 구조**: 해상도를 $$\frac{H}{4} \to \frac{H}{8} \to \frac{H}{16} \to \frac{H}{32}$$로 줄이며 채널을 늘림. 단계 사이에서 patch embedding으로 downsampling(첫 단계 7×7 stride 4, 나머지 3×3 stride 2)
 - 크기별 변형: **PoolFormer-S12, S24, S36, M36, M48** (숫자는 전체 블록 수, S/M은 채널 폭)
 - 계층 구조라 Detection, Segmentation의 backbone으로 바로 쓸 수 있음
 
-## 4. 결과
+| 모델 | 단계별 채널 | 단계별 블록 수 | 파라미터 | MACs |
+|---|---|---|---|---|
+| S12 | 64, 128, 320, 512 | 2, 2, 6, 2 | 11.9M | 1.8G |
+| S24 | 64, 128, 320, 512 | 4, 4, 12, 4 | 21.4M | 3.4G |
+| S36 | 64, 128, 320, 512 | 6, 6, 18, 6 | 30.8M | 5.0G |
+| M36 | 96, 192, 384, 768 | 6, 6, 18, 6 | 56.1M | 8.8G |
+| M48 | 96, 192, 384, 768 | 8, 8, 24, 8 | 73.4M | 11.6G |
 
-### ImageNet 분류
+모든 모델에서 pooling 크기 3×3, MLP 확장 비율 4입니다(Table 1).
 
-정확도 대비 연산량(MACs)과 파라미터 수에서, PoolFormer는 같은 규모의 ViT·MLP 계열 모델과 비슷하거나 더 좋았습니다.
+## 4. 구현 디테일
 
-| 모델 | Top-1 | 파라미터 | Token Mixer |
+| 항목 | 값 |
+|---|---|
+| ImageNet 학습 | 224², 300 epoch(warmup 5), AdamW, weight decay 0.05, cosine decay |
+| 배치와 학습률 | batch 4096, peak lr = 1e-3 × batch/1024 = 4e-3 |
+| 증강·정규화 | MixUp α 0.8, CutMix α 1.0, RandAugment(부록 표에는 AutoAugment), Random erasing 0.25, label smoothing 0.1, dropout 없음 |
+| Stochastic depth | S12·S24 0.1, S36 0.2, M36 0.3, M48 0.4 |
+| LayerScale 초기값 | S12·S24 1e-5, S36·M36·M48 1e-6 |
+| Norm | Modified LayerNorm(토큰·채널 축 전체 평균·분산, `GroupNorm(1, C)`) |
+| 구현 | timm 기반, TPU에서 학습 |
+| COCO | RetinaNet·Mask R-CNN, 1× schedule(12 epoch), AdamW lr 1e-4, batch 16, 짧은 변 800, mmdetection, A100 8장 |
+| ADE20K | Semantic FPN, batch 32로 40k iter, AdamW lr 2e-4(poly, power 0.9), 512×512 crop, mmsegmentation, A100 8장 |
+
+> 부록 Table 6에는 "peak learning rate used in the paper"가 4e-4로 적혀 있지만, 같은 표의 공식(batch/1024 × 1e-3)과 본문은 batch 4096에서 4e-3입니다. 여기서는 본문 값을 따랐습니다.
+{: .prompt-warning }
+
+## 5. 결과
+
+### ImageNet 분류 (Table 2)
+
+| 모델 | Token Mixer | Params | MACs | Top-1 |
+|---|---|---|---|---|
+| RSB-ResNet-34 | - (CNN) | 22M | 3.7G | 75.5 |
+| RSB-ResNet-50 | - (CNN) | 26M | 4.1G | 79.8 |
+| DeiT-S | Attention | 22M | 4.6G | 79.8 |
+| DeiT-B | Attention | 86M | 17.5G | 81.8 |
+| PVT-Medium | Attention | 44M | 6.7G | 81.2 |
+| ResMLP-S24 | Spatial MLP | 30M | 6.0G | 79.4 |
+| gMLP-B | Spatial MLP | 73M | 15.8G | 81.6 |
+| PoolFormer-S12 | Pooling | 12M | 1.8G | 77.2 |
+| **PoolFormer-S24** | Pooling | 21M | 3.4G | **80.3** |
+| **PoolFormer-S36** | Pooling | 31M | 5.0G | **81.4** |
+| PoolFormer-M36 | Pooling | 56M | 8.8G | 82.1 |
+| **PoolFormer-M48** | Pooling | 73M | 11.6G | **82.5** |
+
+- PoolFormer-S24(80.3%)는 DeiT-S(79.8%)보다 높으면서 MACs가 26% 적고(3.4G 대 4.6G), ResMLP-S24(79.4%)보다 파라미터·연산이 모두 적습니다.
+- PoolFormer-S36(81.4%)은 PVT-Medium(81.2%)보다 파라미터 30%, MACs 25%가 적습니다.
+- PoolFormer-M48(82.5%)은 DeiT-B(81.8%)보다 파라미터가 적고(73M 대 86M) MACs는 2/3 수준입니다.
+
+학습 파라미터가 없는 pooling으로, **더 적은 파라미터와 연산**에서 attention 기반 모델 이상의 정확도를 냈습니다. 같은 300 epoch로 학습한 RSB-ResNet보다도 좋습니다. 저자들은 pooling의 지역 모델링 능력이 convolution보다 훨씬 약하므로, 이 성능은 MetaFormer라는 구조 덕분이라고 해석합니다. 부록에서는 S12를 더 오래 학습하면 77.2%(300 epoch)에서 78.8%(2000 epoch 이상)까지 오릅니다.
+
+### Ablation (PoolFormer-S12, Table 5)
+
+| 변경 | Top-1 |
+|---|---|
+| 기본(Pooling, MLN, GELU) | 77.2 |
+| Pooling → **Identity** | 74.3 |
+| Pooling → 고정 무작위 행렬(학습 안 함) | 75.8 |
+| Pooling → Depthwise conv | 78.1 |
+| Pooling 크기 3 → 5 / 7 / 9 | 77.2 / 77.1 / 76.8 |
+| MLN → LayerNorm / BatchNorm / 없음 | 76.5 / 76.4 / 46.1 |
+| GELU → ReLU / SiLU | 76.4 / 77.2 |
+| Residual 제거 / Channel MLP 제거 | 0.1 / 5.7 |
+| 4단계만 Attention [P, P, P, A] | 78.3 (14.0M, 1.9G) |
+| 3·4단계 Attention [P, P, A, A] | **81.0** (16.5M, 2.5G) |
+| 4단계만 Spatial FC / 3·4단계 Spatial FC | 77.5 / 77.9 |
+
+- Pooling 대신 **아무것도 하지 않는 identity**를 Token Mixer로 써도 ImageNet top-1이 **74.3%**나 나왔습니다. 토큰을 섞지 않아도 MetaFormer 구조만으로 상당한 성능이 나온다는 뜻입니다. 학습하지 않는 무작위 행렬로 섞어도 75.8%입니다.
+- 반대로 Norm(46.1%), residual(0.1%), Channel MLP(5.7%)를 빼면 학습이 무너집니다. "나머지 구조"가 핵심이라는 주장의 다른 면입니다.
+- 앞쪽 단계는 pooling, 뒤쪽 두 단계만 attention을 쓰는 **혼합 구조**는 81.0%로 pooling만 쓴 것보다 3.8%p 높습니다. 같은 81.0%를 내는 ResMLP-B24는 파라미터 7배(116M), MACs 9.2배(23.0G)가 필요합니다.
+
+### 다른 과제 (Table 3, 4)
+
+| Backbone | RetinaNet AP | Mask R-CNN AP$$^{b}$$ / AP$$^{m}$$ | ADE20K mIoU (Semantic FPN) |
 |---|---|---|---|
-| DeiT-B | 81.8% | 86M | Attention |
-| **PoolFormer-M48** | **82.5%** | **73M** | **Average Pooling** |
+| ResNet-18 | 31.8 | 34.0 / 31.2 | 32.9 |
+| **PoolFormer-S12** | **36.2** | **37.3 / 34.6** | **37.2** |
+| ResNet-50 | 36.3 | 38.0 / 34.4 | 36.7 |
+| **PoolFormer-S24** | **38.9** | **40.1 / 37.0** | **40.3** |
+| ResNet-101 | 38.5 | 40.4 / 36.4 | 38.8 |
+| **PoolFormer-S36** | **39.5** | **41.0 / 37.7** | **42.0** |
 
-학습 파라미터가 없는 pooling으로, **더 적은 파라미터**에서 attention 기반 모델 이상의 정확도를 냈습니다.
+COCO 객체 검출·인스턴스 분할, ADE20K 의미 분할 모두에서 같은 급의 ResNet backbone보다 좋고, ADE20K에서는 PVT(Tiny 35.7, Small 39.8, Medium 41.6)보다도 높습니다.
 
-### Ablation
-
-- Pooling 대신 **아무것도 하지 않는 identity**를 Token Mixer로 써도(S12) ImageNet top-1이 **약 74%**나 나왔습니다. 토큰을 섞지 않아도 MetaFormer 구조만으로 상당한 성능이 나온다는 뜻입니다.
-- 앞쪽 단계는 pooling, 뒤쪽 단계만 attention을 쓰는 **혼합 구조**는 pooling만 쓴 것보다 더 좋아, 두 연산을 조합할 여지도 보여 줬습니다.
-
-### 다른 과제
-
-COCO 객체 검출·인스턴스 분할, ADE20K 의미 분할에서도 ResNet backbone보다 좋은 성능을 보였습니다.
-
-## 5. Contribution: Attention is not all you need
+## 6. Contribution: Attention is not all you need
 
 - Transformer 계열 모델의 성능 원인은 attention이 아니라 **MetaFormer라는 일반 구조**에 있다.
 - MetaFormer 형태의 모델 자체가 분류·검출·분할 등 **컴퓨터 비전 전반에서 핵심**이다.
@@ -142,7 +216,7 @@ COCO 객체 검출·인스턴스 분할, ADE20K 의미 분할에서도 ResNet ba
 
 이후 같은 저자들은 다양한 Token Mixer를 MetaFormer 틀에서 비교하는 후속 연구로 이어갔고, [경량 ViT]({% post_url 2026-06-13-lightweight-vision-transformer %}) 설계에서도 "attention을 일부만 쓰는" 방향의 근거가 됐습니다.
 
-## 6. 정리
+## 7. 정리
 
 | 구성 | 역할 | PoolFormer에서 |
 |---|---|---|

@@ -3,11 +3,16 @@ title: "[Distillation] Self-Referenced Deep Learning: 절반 학습한 자기 �
 date: 2026-06-30 22:23:00 +0900
 categories: [Neural Network, Lightweight]
 tags: [knowledge-distillation, self-distillation, srdl, soft-label, learning-rate-schedule, random-restart, flat-minima, fast-optimization, lightweight]
-description: 큰 교사를 따로 학습하지 않고, 전체 epoch의 절반을 학습한 모델이 낸 소프트 라벨을 나머지 절반의 학습에 되먹이는 Self-Referenced Deep Learning(Lan, Zhu, Gong, ACCV 2018)의 2단계 절차, stage-complete 학습률 스케줄, 무작위 재시작의 역할과 CIFAR·Tiny ImageNet·Market-1501 결과를 정리하고 작은 실험으로 재현합니다.
+description: "Self-Referenced Deep Learning(SRDL, ACCV 2018) 논문 리뷰. 절반 학습한 자기 자신의 소프트 라벨을 나머지 절반의 학습에 되먹이는 2단계 절차, stage-complete 학습률 스케줄과 무작위 재시작, CIFAR·Tiny ImageNet·ImageNet·Market-1501 수치와 학습 설정을 그림과 함께 정리하고 작은 실험으로 재현합니다."
 math: true
 ---
 
-> Knowledge distillation은 학생을 좋게 만들지만 **큰 교사를 먼저 학습**해야 합니다. ResNet-32 학생에 WRN-28-10 교사를 쓰면 학습 비용이 157배 늘어납니다. **Self-Referenced Deep Learning**(SRDL, Lan, Zhu, Gong, Queen Mary University of London, ACCV 2018)은 교사를 없앱니다. 같은 모델을 전체 epoch의 절반만 학습한 뒤 그 모델의 예측을 **자기 발견 지식**으로 뽑고, 나머지 절반 동안 라벨과 그 지식을 함께 맞춥니다. 추가 비용은 거의 0이고, 작은 모델일수록 이득이 큽니다. [Be Your Own Teacher]({% post_url 2026-07-09-be-your-own-teacher %})가 깊이 방향으로 자기 증류를 했다면, SRDL은 **시간 방향**으로 합니다.
+> - **논문**: Self-Referenced Deep Learning
+> - **저자**: Xu Lan, Xiatian Zhu, Shaogang Gong (Queen Mary University of London, Vision Semantics Ltd)
+> - **학회**: ACCV 2018 · [arXiv:1811.07598](https://arxiv.org/abs/1811.07598)
+{: .prompt-tip }
+
+> Knowledge distillation은 학생을 좋게 만들지만 **큰 교사를 먼저 학습**해야 합니다. ResNet-32 학생에 WRN-28-10 교사를 쓰면 학습 비용이 157배 늘어납니다. **Self-Referenced Deep Learning**(SRDL)은 교사를 없앱니다. 같은 모델을 전체 epoch의 절반만 학습한 뒤 그 모델의 예측을 **자기 발견 지식**으로 뽑고, 나머지 절반 동안 라벨과 그 지식을 함께 맞춥니다. 추가 비용은 거의 0이고, 작은 모델일수록 이득이 큽니다. [Be Your Own Teacher]({% post_url 2026-07-09-be-your-own-teacher %})가 깊이 방향으로 자기 증류를 했다면, SRDL은 **시간 방향**으로 합니다.
 
 ## 1. 문제: 증류와 빠른 최적화를 함께
 
@@ -21,6 +26,9 @@ vanilla 학습은 라벨만 보고 $$M$$ epoch를 돕니다. 그 과정에서 **
 ## 2. 방법
 
 ### 두 단계
+
+![SRDL 전체 구조](/assets/img/posts/self-referenced-deep-learning/fig2.webp)
+_Figure 2. SRDL 개요. 1단계(파랑)는 라벨(a)로 학습하며 클래스 확률 예측에서 자기 발견 지식(b)을 뽑고, 2단계(빨강)는 무작위로 재시작한 모델(f)을 라벨(d)과 자기 발견 지식(e)으로 함께 학습합니다. 두 단계 모두 stage-complete 학습률 스케줄(c)을 씁니다. (출처: Lan et al., 2018)_
 
 1. **1단계**($$M/2$$ epoch): 보통의 cross-entropy로 학습하되, 아래의 특별한 학습률 스케줄을 씁니다. 끝나면 "절반 학습된" 모델 $$\theta^*$$에서 학습 샘플마다 소프트 라벨을 뽑습니다.
 
@@ -44,7 +52,11 @@ $$
 \epsilon_t = \epsilon_0 \times f_{\text{step}}(t, 0.5M)
 $$
 
-즉 $$M/2$$ epoch 안에 50%, 75% 지점의 decay를 모두 거쳐 안정된 상태에 도달하게 합니다. 이 하나가 결과를 가릅니다. ResNet-32·CIFAR-100에서 stage-incomplete 스케줄은 **58.11%**, stage-complete는 **71.63%**입니다. 설익은 지식은 도움이 아니라 방해가 됩니다.
+즉 아래 Figure 3처럼 $$M/2$$ epoch 안에 50%, 75% 지점의 decay를 모두 거쳐 안정된 상태에 도달하게 합니다.
+
+![stage-complete 학습률 스케줄](/assets/img/posts/self-referenced-deep-learning/fig3.webp)
+_Figure 3. 200 epoch 기준 vanilla step-decay(주황 실선, 100·150 epoch에서 감소)와 SRDL의 stage-complete 스케줄(파랑 점선, 단계마다 50·75 epoch 지점에서 감소하고 2단계 시작에 다시 초기값). (출처: Lan et al., 2018)_
+ 이 하나가 결과를 가릅니다. ResNet-32·CIFAR-100에서 stage-incomplete 스케줄은 **58.11%**, stage-complete는 **71.63%**입니다. 설익은 지식은 도움이 아니라 방해가 됩니다.
 
 ### 무작위 재시작
 
@@ -114,7 +126,20 @@ SRDL, 1단계 decay 불완전     : 75.43%
 
 ## 4. 실험
 
-세 분류 데이터셋(CIFAR-10/100, Tiny ImageNet)과 person re-identification(Market-1501)에서 5회 평균입니다. 학습 비용은 forward FLOPs × epoch × 데이터 수로 잽니다.
+세 분류 데이터셋(CIFAR-10/100, Tiny ImageNet)과 person re-identification(Market-1501)에서 5회 평균입니다. 학습 비용은 forward FLOPs × epoch × 데이터 수로 잽니다(표의 단위는 $$10^{16}$$ FLOPs).
+
+### 실험 설정
+
+| 항목 | 값 |
+|---|---|
+| Optimizer | SGD + Nesterov momentum 0.9, weight decay 2e-4, 초기 lr 0.1 |
+| Batch | 128 (Market-1501은 32) |
+| Epoch $$M$$ | CIFAR: ResNet·WRN 200, DenseNet 300 / Tiny ImageNet 150 / Market-1501 120 |
+| 학습률 감소 | 50%, 75% 지점에서 ×0.1 (SRDL은 단계마다 $$M/2$$ 기준으로) |
+| 데이터 증강 | 좌우 반전, 각 변 4픽셀 reflection padding 후 random crop |
+| 네트워크 | ResNet-32(학생), ResNet-110·WRN-28-10(KD 교사), ResNet-50, DenseNet-121, DenseNet-201, DenseNet-BC($$L = 190, k = 40$$) |
+| 소프트 라벨 | $$T = 3$$ (Hinton et al. 권장값) |
+| Re-id 평가 | cross-entropy로 학습한 뒤 feature 층 출력의 Euclidean 거리로 매칭, 751/750 ID split |
 
 ### Vanilla와 비교
 
@@ -143,7 +168,15 @@ ResNet-32 학생에 WRN-28-10과 ResNet-110을 교사로 쓴 KD와 비교합니�
 
 ### Person re-identification
 
-Market-1501에서 ResNet-50과 DenseNet-121을 SRDL로 학습하면 single-query Rank-1이 각각 87.5 → 89.3, 90.1 → 91.7, mAP가 69.9 → 73.5, 74.0 → 76.8로 오릅니다. re-id 전용 구조나 학습 기법 없이 범용 네트워크로 당시 최고 수준(MLFN 90.0/74.3)을 넘었습니다.
+Market-1501에서 ResNet-50과 DenseNet-121을 SRDL로 학습한 결과입니다.
+
+| 모델 | Single-query Rank-1 | Single-query mAP | Multi-query Rank-1 | Multi-query mAP |
+|---|---|---|---|---|
+| MLFN (당시 최고 비교 대상) | 90.0 | 74.3 | 92.3 | 82.4 |
+| ResNet-50 vanilla / SRDL | 87.5 / 89.3 | 69.9 / 73.5 | 91.4 / 93.1 | 78.5 / 81.5 |
+| DenseNet-121 vanilla / SRDL | 90.1 / **91.7** | 74.0 / **76.8** | 93.6 / **94.2** | 81.7 / **83.5** |
+
+re-id 전용 구조나 학습 기법 없이 범용 네트워크로 당시 최고 수준(MLFN)을 넘었습니다. 다만 DenseNet-121은 vanilla로도 single-query Rank-1이 이미 MLFN보다 높아서, 이 부분은 SRDL만의 공이 아니라 백본의 몫도 큽니다.
 
 ### 그 밖의 분석
 
@@ -160,7 +193,7 @@ Market-1501에서 ResNet-50과 DenseNet-121을 SRDL로 학습하면 single-query
 
 **4. 작은 모델에 더 좋다는 점이 실용적입니다.** 큰 교사를 쓰는 KD는 큰 모델을 학습할 자원이 있는 사람의 도구입니다. SRDL은 학생을 학습할 자원만 있으면 되고, 그 학생이 작을수록 이득이 큽니다. 다만 CIFAR-100처럼 클래스가 많을 때는 작은 모델이 스스로 발견하는 지식이 강한 교사에 못 미칩니다.
 
-**5. 평가를 읽을 때 주의할 점.** 2018년 논문이라 비교 대상이 vanilla KD뿐이고 Born-Again Networks 같은 동시 연구와의 직접 비교는 없습니다. ImageNet 결과는 DenseNet-201 하나이고 1회 실행입니다. "넓은 최솟값" 분석은 한 방향 섭동의 정성적 그래프입니다. 2단계 손실의 가중치($$T^2$$ 고정)와 온도($$T = 3$$)는 탐색하지 않았습니다.
+**5. 평가를 읽을 때 주의할 점.** 2018년 논문이라 비교 대상이 vanilla KD뿐이고 Born-Again Networks 같은 동시 연구와의 직접 비교는 없습니다. ImageNet 결과는 DenseNet-201 하나뿐입니다. "넓은 최솟값" 분석은 한 방향 섭동의 정성적 그래프입니다. 2단계 손실의 가중치($$T^2$$ 고정)와 온도($$T = 3$$)는 탐색하지 않았습니다.
 
 ## 6. 정리
 

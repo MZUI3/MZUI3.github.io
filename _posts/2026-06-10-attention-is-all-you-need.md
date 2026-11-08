@@ -3,9 +3,14 @@ title: "[Transformer] Attention Is All You Need 정리: Self-Attention부터 Pos
 date: 2026-06-10 19:48:00 +0900
 categories: [Transformer, Architecture]
 tags: [transformer, attention, self-attention, positional-encoding, nlp]
-description: seq2seq의 병목과 RNN의 순차 연산 문제에서 출발해 Self-Attention, √d_k 스케일링, Multi-Head, Positional Encoding, 연산 복잡도까지 Transformer의 설계 이유를 코드와 함께 정리합니다.
+description: "Attention Is All You Need(NeurIPS 2017) 논문 리뷰. seq2seq의 병목과 RNN의 순차 연산 문제에서 출발해 Self-Attention, √d_k 스케일링, Multi-Head, Positional Encoding, 연산 복잡도, WMT 2014 번역 실험 수치와 학습 설정까지 그림·코드와 함께 정리합니다."
 math: true
 ---
+
+> - **논문**: Attention Is All You Need
+> - **저자**: Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N. Gomez, Łukasz Kaiser, Illia Polosukhin (Google Brain, Google Research, University of Toronto)
+> - **학회**: NeurIPS 2017 · [arXiv:1706.03762](https://arxiv.org/abs/1706.03762) · [코드(tensor2tensor)](https://github.com/tensorflow/tensor2tensor)
+{: .prompt-tip }
 
 > Transformer 시리즈의 첫 글입니다. 이후 글에서 다룰 ViT, PoolFormer, Mobile-Former, GPT는 모두 이 구조에서 출발하기 때문에, 여기서는 **"왜 Attention만으로 충분했는가"**에 집중해서 정리합니다.
 
@@ -79,9 +84,14 @@ $$
 \text{Attention}(Q, K, V) = \text{softmax}\left(\frac{QK^\top}{\sqrt{d_k}}\right)V
 $$
 
+![Scaled Dot-Product Attention과 Multi-Head Attention](/assets/img/posts/attention-is-all-you-need/fig2.webp)
+_Figure 2. 왼쪽: Scaled Dot-Product Attention (MatMul → Scale → 선택적 Mask → SoftMax → V와 MatMul). 오른쪽: 이를 $$h$$개 병렬로 수행하는 Multi-Head Attention. (출처: Vaswani et al., 2017)_
+
 ### 왜 $$\sqrt{d_k}$$로 나누나?
 
 $$Q, K$$의 각 성분이 평균 0, 분산 1이라면 내적 $$q \cdot k$$의 분산은 $$d_k$$가 됩니다. 차원이 커질수록 값이 커지고, Softmax가 한쪽으로 극단적으로 쏠려 **gradient가 거의 0**이 됩니다. $$\sqrt{d_k}$$로 나눠 분산을 1로 되돌리는 것입니다.
+
+논문은 내적 대신 작은 신경망으로 점수를 매기는 additive attention과도 비교합니다. $$d_k$$가 작을 때는 두 방식이 비슷하지만, $$d_k$$가 크면 스케일링 없는 내적이 additive보다 나빠집니다. 그래도 내적 방식을 고른 이유는 행렬 곱 하나로 계산할 수 있어 **실제로 더 빠르고 메모리를 덜 쓰기** 때문입니다.
 
 ```python
 import torch
@@ -129,7 +139,14 @@ $$
 \text{MultiHead}(Q,K,V) = \text{Concat}(\text{head}_1, \dots, \text{head}_h)W_O
 $$
 
-학습된 모델을 분석해 보면 어떤 head는 문법적 관계를, 어떤 head는 가까운 위치를 주로 보는 식으로 역할이 나뉘는 경향이 관찰됩니다. 다만 역할이 항상 깔끔하게 나뉘는 것은 아니고, 상당수 head는 제거해도 성능이 거의 떨어지지 않는다는 연구(Michel et al., 2019)도 있습니다. head를 나눠도 전체 연산량은 single-head와 거의 같다는 점도 장점입니다.
+head 수를 바꾸는 실험(연산량은 고정, 아래 9장 표)에서 single-head는 가장 좋은 설정보다 BLEU가 0.9 낮았고, head를 32개로 늘려도 오히려 떨어졌습니다.
+
+학습된 모델을 분석해 보면 어떤 head는 문법적 관계를, 어떤 head는 가까운 위치를 주로 보는 식으로 역할이 나뉘는 경향이 관찰됩니다. 아래 Figure 4는 앞에서 본 `it` 예시처럼 대명사가 가리키는 대상을 찾는 것으로 보이는 head입니다.
+
+![대명사 its에서 나가는 attention](/assets/img/posts/attention-is-all-you-need/fig4.webp)
+_Figure 4. Encoder 5층(전체 6층)의 attention head 시각화. 오른쪽: head 5의 전체 attention, 왼쪽: 단어 'its'에서 나가는 attention만 따로 표시한 head 5·6. 'its'가 'Law'와 'application'에 집중합니다. 원 논문의 세로 방향 그림을 가로로 돌렸습니다. (출처: Vaswani et al., 2017)_
+
+다만 역할이 항상 깔끔하게 나뉘는 것은 아니고, 상당수 head는 제거해도 성능이 거의 떨어지지 않는다는 연구(Michel et al., 2019)도 있습니다. head를 나눠도 전체 연산량은 single-head와 거의 같다는 점도 장점입니다.
 
 ## 6. Word Embedding
 
@@ -144,6 +161,8 @@ $$
 | 사람 | 0.7 | 0.8 | 0.2 |
 
 (실제 임베딩 차원에는 이렇게 사람이 읽을 수 있는 의미가 붙지 않지만, 직관적으로는 이런 느낌입니다.)
+
+Transformer는 입력 임베딩, 출력 임베딩, 마지막 softmax 직전 linear layer가 **같은 가중치 행렬을 공유**하고, 임베딩 층에서는 이 가중치에 $$\sqrt{d_{model}}$$을 곱해 씁니다.
 
 ## 7. Positional Encoding: 순서를 다시 넣어주기
 
@@ -160,7 +179,7 @@ sin과 cos을 함께 쓰는 이유는 다음과 같습니다.
 - **상대 위치를 선형 변환으로 표현**: 삼각함수 덧셈 정리 덕분에 $$PE_{pos+k}$$를 $$PE_{pos}$$의 선형 함수로 쓸 수 있습니다. 모델이 "k칸 떨어진 단어"라는 관계를 배우기 쉬워집니다.
 - **값의 범위가 [-1, 1]**: 임베딩 값을 압도하지 않습니다.
 
-논문은 학습 가능한 위치 임베딩도 실험했는데 성능은 거의 같았고, 학습 때보다 긴 문장에도 적용할 수 있을 것이라는 이유로 sinusoidal 방식을 택했습니다. 이후 BERT·GPT-2는 학습 가능한 위치 임베딩을, 최근 LLM은 RoPE(회전 위치 임베딩)를 주로 씁니다.
+논문은 학습 가능한 위치 임베딩도 실험했는데 성능은 거의 같았고(dev BLEU 25.7 vs sinusoidal 25.8), 학습 때보다 긴 문장에도 적용할 수 있을 것이라는 이유로 sinusoidal 방식을 택했습니다. 이후 BERT·GPT-2는 학습 가능한 위치 임베딩을, 최근 LLM은 RoPE(회전 위치 임베딩)를 주로 씁니다.
 
 ```python
 import math
@@ -178,6 +197,9 @@ def sinusoidal_pe(max_len, d_model):
 ## 8. 전체 구조
 
 Encoder와 Decoder는 각각 같은 블록을 $$N=6$$번 쌓은 구조입니다.
+
+![Transformer 전체 구조](/assets/img/posts/attention-is-all-you-need/fig1.webp)
+_Figure 1. Transformer 전체 구조. 왼쪽이 Encoder, 오른쪽이 Decoder 블록이고 각각 $$N$$번 쌓습니다. Decoder 입력은 한 칸 오른쪽으로 민 정답 문장입니다. (출처: Vaswani et al., 2017)_
 
 **Encoder 블록**
 1. Multi-Head Self-Attention
@@ -213,7 +235,61 @@ Encoder와 Decoder는 각각 같은 블록을 $$N=6$$번 쌓은 구조입니다.
 - **최대 경로 길이 $$O(1)$$**: 첫 단어와 마지막 단어가 한 번의 Attention으로 바로 연결되므로 먼 거리의 관계를 배우기 쉽습니다.
 - **대가는 $$n^2$$**: 모든 토큰 쌍의 점수를 계산하므로 문장이 2배 길어지면 Attention 연산과 메모리가 4배가 됩니다. 문장 길이 $$n$$이 차원 $$d$$보다 짧은 번역 문장에서는 RNN보다 싸지만, 긴 문서나 고해상도 이미지에서는 이것이 병목이 됩니다. 이후 Sparse Attention, Linformer, FlashAttention 같은 연구가 이 문제를 다룹니다.
 
-## 9. 정리
+## 9. 실험과 구현 디테일
+
+### 학습 설정
+
+| 항목 | 값 |
+|---|---|
+| 데이터 | WMT 2014 영어–독일어 약 450만 문장 쌍 (BPE, 공유 어휘 약 37,000), 영어–프랑스어 3,600만 문장 (word-piece 32,000) |
+| 배치 | 길이가 비슷한 문장끼리 묶어, 배치당 source·target 토큰 각 약 25,000개 |
+| 모델 크기 | base: $$N=6$$, $$d_{model}=512$$, $$d_{ff}=2048$$, $$h=8$$, $$d_k=d_v=64$$ (65M) / big: $$d_{model}=1024$$, $$d_{ff}=4096$$, $$h=16$$ (213M) |
+| 하드웨어·시간 | P100 GPU 8장 머신 한 대. base는 step당 0.4초로 100K step(12시간), big은 step당 1.0초로 300K step(3.5일) |
+| Optimizer | Adam, $$\beta_1=0.9$$, $$\beta_2=0.98$$, $$\epsilon=10^{-9}$$ |
+| Learning rate | $$d_{model}^{-0.5}\cdot\min(\text{step}^{-0.5},\ \text{step}\cdot\text{warmup}^{-1.5})$$. warmup 4000 step 동안 선형 증가 후 step의 역제곱근에 비례해 감소 |
+| 정규화 | 각 sub-layer 출력(residual 덧셈 전)과 임베딩+PE 합에 dropout (base 0.1, big 0.3), label smoothing 0.1 |
+| 추론 | beam size 4, length penalty 0.6, 최대 길이 입력+50. base는 마지막 체크포인트 5개, big은 20개를 평균 |
+
+Label smoothing은 모델을 덜 확신하게 만들어 perplexity는 나빠지지만, 정확도와 BLEU는 오른다고 논문은 설명합니다.
+
+### 번역 결과 (newstest2014)
+
+| 모델 | EN-DE BLEU | EN-FR BLEU | 학습 비용 (FLOPs, EN-DE) |
+|---|---|---|---|
+| GNMT + RL | 24.6 | 39.92 | 2.3·10¹⁹ |
+| ConvS2S | 25.16 | 40.46 | 9.6·10¹⁸ |
+| MoE | 26.03 | 40.56 | 2.0·10¹⁹ |
+| GNMT + RL Ensemble | 26.30 | 41.16 | 1.8·10²⁰ |
+| ConvS2S Ensemble | 26.36 | 41.29 | 7.7·10¹⁹ |
+| Transformer (base) | 27.3 | 38.1 | **3.3·10¹⁸** |
+| **Transformer (big)** | **28.4** | **41.8** | 2.3·10¹⁹ |
+
+<small>논문 Table 2</small>
+
+- EN-DE에서 big 모델이 앙상블을 포함한 기존 최고 기록보다 BLEU가 2.0 이상 높습니다. base 모델도 기존 모든 모델·앙상블보다 좋은데, 학습 비용은 그 일부에 불과합니다.
+- EN-FR에서는 단일 모델 최고 기록이고, 학습 비용은 이전 최고 모델의 1/4 미만입니다. (본문 6.1절에는 41.0으로 적혀 있지만 표와 초록은 41.8입니다.)
+
+### Ablation (EN-DE dev, newstest2013)
+
+| 변경 | 설정 | dev BLEU |
+|---|---|---|
+| base | $$h=8$$, $$d_k=64$$ | 25.8 |
+| head 수 (연산량 고정) | $$h=1$$ ($$d_k=512$$) / 4 / 16 / 32 ($$d_k=16$$) | 24.9 / 25.5 / 25.8 / 25.4 |
+| key 차원만 축소 | $$d_k=16$$ / 32 | 25.1 / 25.4 |
+| 모델 크기 | $$N=2$$ / $$d_{model}=1024$$ / $$d_{ff}=4096$$ | 23.7 / 26.0 / 26.2 |
+| dropout 제거 | $$P_{drop}=0$$ | 24.6 |
+| 위치 표현 | 학습 가능한 위치 임베딩 | 25.7 |
+| big | $$d_{model}=1024$$, $$d_{ff}=4096$$, $$h=16$$, 300K step | 26.4 |
+
+<small>논문 Table 3. checkpoint 평균 없이 beam search로 측정</small>
+
+- head는 많을수록 좋은 것이 아니고, 8~16개 근처가 가장 좋습니다.
+- $$d_k$$를 줄이면 성능이 떨어집니다. 논문은 Query–Key 호환성을 판단하는 일이 쉽지 않아서, 내적보다 정교한 함수가 도움이 될 수 있다고 봅니다.
+- 모델이 클수록 좋고, dropout은 overfitting을 막는 데 효과가 큽니다.
+
+같은 구조를 영어 구문 분석(WSJ Penn Treebank)에 4층 Transformer로 적용해도 과제별 튜닝 없이 WSJ만 쓴 설정에서 F1 91.3(같은 설정 최고는 RNN Grammar의 91.7), semi-supervised 설정에서 92.7로 같은 설정의 기존 모델(최고 92.1)보다 높았습니다.
+
+## 10. 정리
 
 | 문제 | Transformer의 해법 |
 |---|---|
