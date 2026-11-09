@@ -3,7 +3,7 @@ title: "[RL] NoisyNet(Noisy Networks for Exploration): 가중치에 노이즈를
 date: 2026-08-10 21:56:00 +0900
 categories: [Reinforcement Learning, Model-Free]
 tags: [reinforcement-learning, model-free, dqn, noisy-net, exploration, a3c, dueling-dqn]
-description: "Noisy Networks for Exploration(ICLR 2018) 논문 리뷰. ε-greedy 대신 네트워크 가중치에 학습 가능한 노이즈를 넣어 탐험하는 NoisyNet의 noisy linear layer, factorized Gaussian, DQN·Dueling·A3C 적용 방법과 Atari 57게임 실험 수치를 PyTorch 코드·그림과 함께 정리합니다."
+description: "Noisy Networks for Exploration(ICLR 2018) 논문 리뷰. ε-greedy 대신 네트워크 가중치에 학습 가능한 노이즈를 넣어 탐험하는 NoisyNet의 noisy linear layer, factorized Gaussian, DQN·Dueling·A3C 적용 방법과 Atari 57게임 실험 수치를 PyTorch 코드·그림과 함께 정리한다."
 math: true
 ---
 
@@ -12,16 +12,16 @@ math: true
 > - **학회**: ICLR 2018 · [arXiv:1706.10295](https://arxiv.org/abs/1706.10295)
 {: .prompt-tip }
 
-> [Double DQN]({% post_url 2026-08-04-double-dqn %})이 **가치 추정**을 개선했다면, **NoisyNet**은 **탐험(exploration)** 방식을 바꿉니다. ε-greedy처럼 행동에 무작위성을 더하는 대신, **네트워크 가중치 자체에 학습 가능한 노이즈**를 넣습니다.
+> [Double DQN]({% post_url 2026-08-04-double-dqn %})이 가치 추정을 개선했다면, **NoisyNet**은 **탐험(exploration)** 방식을 바꾼다. ε-greedy처럼 행동에 무작위성을 더하는 대신, 네트워크 가중치 자체에 학습 가능한 노이즈를 넣는다.
 
 ## 1. 기존 탐험 방식의 한계
 
-DQN은 **ε-greedy**, A3C는 **entropy bonus**로 탐험합니다.
+DQN은 **ε-greedy**, A3C는 **entropy bonus**로 탐험한다.
 
-- **ε-greedy**: step마다 독립적으로 확률 $$\varepsilon$$만큼 무작위 행동. 상태와 무관하게 무작위성이 들어가고, 연속적이고 일관된 탐험(예: 한 방향으로 꾸준히 가 보기)을 하기 어렵습니다.
-- **Entropy bonus**: 정책이 너무 빨리 확정되지 않게 막지만, 역시 행동 수준의 국소적인 무작위성입니다.
+- **ε-greedy**: step마다 독립적으로 확률 $$\varepsilon$$만큼 무작위 행동. 상태와 무관하게 무작위성이 들어가고, 연속적이고 일관된 탐험(예: 한 방향으로 꾸준히 가 보기)을 하기 어렵다.
+- **Entropy bonus**: 정책이 너무 빨리 확정되지 않게 막지만, 역시 행동 수준의 국소적인 무작위성이다.
 
-두 방법 모두 **얼마나 탐험할지($$\varepsilon$$, 엔트로피 계수)를 사람이 정해야** 하고, 상태마다 다르게 조절하지 못합니다.
+두 방법 모두 얼마나 탐험할지($$\varepsilon$$, 엔트로피 계수)를 사람이 정해야 하고, 상태마다 다르게 조절하지 못한다.
 
 ## 2. 핵심 아이디어
 
@@ -42,7 +42,7 @@ $$
 y = wx + b
 $$
 
-NoisyNet의 선형층은 가중치와 bias를 **평균 + 학습되는 표준편차 × 노이즈**로 바꿉니다.
+NoisyNet의 선형층은 가중치와 bias를 **평균 + 학습되는 표준편차 × 노이즈**로 바꾼다.
 
 $$
 y = (\mu^w + \sigma^w \odot \varepsilon^w)\,x + \mu^b + \sigma^b \odot \varepsilon^b
@@ -53,9 +53,9 @@ $$
 - $$\odot$$: 원소별 곱
 
 ![Noisy linear layer](/assets/img/posts/noisy-network/fig4.webp)
-_Figure 4. Noisy linear layer. 학습 파라미터 $$\mu, \sigma$$와 외부에서 들어오는 노이즈 $$\varepsilon$$로 가중치·bias를 만든 뒤, 일반 선형층처럼 $$y = wx + b$$를 계산합니다. (출처: Fortunato et al., 2018)_
+_Figure 4. Noisy linear layer. 학습 파라미터 $$\mu, \sigma$$와 외부에서 들어오는 노이즈 $$\varepsilon$$로 가중치·bias를 만든 뒤, 일반 선형층처럼 $$y = wx + b$$를 계산한다. (출처: Fortunato et al., 2018)_
 
-네트워크가 **$$\sigma$$를 키우면 탐험을 많이, 줄이면 적게** 하게 됩니다. 탐험 정도를 데이터로부터 스스로 정하는 것입니다.
+네트워크가 $$\sigma$$를 키우면 탐험을 많이, 줄이면 적게 하게 된다. 탐험 정도를 데이터로부터 스스로 정하는 것이다.
 
 ### 노이즈를 만드는 두 가지 방법
 
@@ -67,23 +67,23 @@ _Figure 4. Noisy linear layer. 학습 파라미터 $$\mu, \sigma$$와 외부에�
 | 필요한 난수 개수 | $$pq + q$$ | $$p + q$$ |
 | 사용처 | A3C (분산 학습이라 난수 비용이 문제되지 않음) | DQN, Dueling DQN (단일 스레드라 난수 생성 비용 절감이 중요) |
 
-Factorized 방식은 다음과 같습니다.
+Factorized 방식은 다음과 같다.
 
 $$
 \varepsilon^w_{i,j} = f(\varepsilon_i)\,f(\varepsilon_j),\qquad \varepsilon^b_j = f(\varepsilon_j),\qquad f(x) = \text{sgn}(x)\sqrt{\lvert x\rvert}
 $$
 
-bias에는 $$f(x) = x$$를 써도 되지만, 논문은 가중치와 bias가 같은 출력 노이즈를 공유하도록 같은 $$f$$를 썼습니다.
+bias에는 $$f(x) = x$$를 써도 되지만, 논문은 가중치와 bias가 같은 출력 노이즈를 공유하도록 같은 $$f$$를 썼다.
 
 ### 기울기 계산
 
-NoisyNet의 loss는 노이즈에 대한 기댓값 $$\bar{L}(\zeta) = \mathbb{E}_\varepsilon[L(\theta)]$$이므로, 기울기를 쉽게 구할 수 있습니다.
+NoisyNet의 loss는 노이즈에 대한 기댓값 $$\bar{L}(\zeta) = \mathbb{E}_\varepsilon[L(\theta)]$$이므로, 기울기를 쉽게 구할 수 있다.
 
 $$
 \nabla\bar{L}(\zeta) = \mathbb{E}_\varepsilon\big[\nabla_{\mu, \Sigma}L(\mu + \Sigma \odot \varepsilon)\big]
 $$
 
-실제로는 최적화 step마다 **노이즈 샘플 하나**로 Monte Carlo 근사합니다.
+실제로는 최적화 step마다 노이즈 샘플 하나로 Monte Carlo 근사한다.
 
 ### 초기화
 
@@ -92,7 +92,7 @@ $$
 | Independent | $$\mathcal{U}\left[-\sqrt{3/p},\ \sqrt{3/p}\right]$$ | $$0.017$$ |
 | Factorized | $$\mathcal{U}\left[-1/\sqrt{p},\ 1/\sqrt{p}\right]$$ | $$\sigma_0/\sqrt{p}$$, $$\sigma_0 = 0.5$$ |
 
-Independent 쪽의 0.017은 저자들의 이전 지도학습 연구에서 잘 동작한 값을 가져온 것이고, 따로 튜닝하지 않았다고 밝힙니다.
+Independent 쪽의 0.017은 저자들의 이전 지도학습 연구에서 잘 동작한 값을 가져온 것이고, 따로 튜닝하지 않았다고 밝힌다.
 
 ```python
 import math
@@ -146,27 +146,27 @@ print("eval:", layer(x).detach().numpy().round(3))
 eval: [[-0.559  0.46 ]]
 ```
 
-같은 입력이라도 노이즈를 다시 뽑을 때마다 Q 값(출력)이 달라지고, 그에 따라 greedy 행동도 바뀔 수 있습니다. 이것이 NoisyNet의 탐험입니다. 평가 모드에서는 평균 가중치 $$\mu$$만 쓰므로 출력이 고정됩니다. (평가 때 노이즈를 끌지는 구현마다 다르며, 논문 공식 설정과 다를 수 있습니다.)
+같은 입력이라도 노이즈를 다시 뽑을 때마다 Q 값(출력)이 달라지고, 그에 따라 greedy 행동도 바뀔 수 있다. NoisyNet의 탐험은 이렇게 일어난다. 평가 모드에서는 평균 가중치 $$\mu$$만 쓰므로 출력이 고정된다. (평가 때 노이즈를 끌지는 구현마다 다르며, 논문 공식 설정과 다를 수 있다.)
 
 ## 4. 알고리즘에 적용하기
 
-NoisyNet 에이전트는 **최적화 step마다 새 노이즈를 샘플링**하고, 그 사이에는 고정된 가중치로 행동합니다. 논문의 DQN·Dueling 설정은 행동 한 번마다 최적화를 한 번 하므로 **행동할 때마다** 노이즈를 새로 뽑고, A3C는 $$n$$-step rollout마다 한 번 최적화하므로 **rollout 하나 동안 같은 노이즈**로 행동합니다. 노이즈가 행동이 아니라 가중치에 들어가므로, ε-greedy보다 **상태에 의존하는 탐험**이 됩니다.
+NoisyNet 에이전트는 **최적화 step마다 새 노이즈를 샘플링**하고, 그 사이에는 고정된 가중치로 행동한다. 논문의 DQN·Dueling 설정은 행동 한 번마다 최적화를 한 번 하므로 행동할 때마다 노이즈를 새로 뽑고, A3C는 $$n$$-step rollout마다 한 번 최적화하므로 rollout 하나 동안 같은 노이즈로 행동한다. 노이즈가 행동이 아니라 가중치에 들어가므로, ε-greedy보다 **상태에 의존하는 탐험**이 된다.
 
-> 왜 "상태에 의존"할까요? ε-greedy의 무작위성은 상태와 상관없이 동전을 던지는 것이지만, NoisyNet은 **가중치**가 흔들리므로 같은 노이즈라도 상태에 따라 Q 값이 흔들리는 정도가 달라집니다. 어떤 상태에서는 노이즈가 있어도 최선의 행동이 분명해 거의 바뀌지 않고, 애매한 상태에서는 쉽게 다른 행동이 선택됩니다.
+> 왜 "상태에 의존"할까? ε-greedy의 무작위성은 상태와 상관없이 동전을 던지는 것이지만, NoisyNet은 가중치가 흔들리므로 같은 노이즈라도 상태에 따라 Q 값이 흔들리는 정도가 달라진다. 어떤 상태에서는 노이즈가 있어도 최선의 행동이 분명해 거의 바뀌지 않고, 애매한 상태에서는 쉽게 다른 행동이 선택된다.
 {: .prompt-info }
 
 ### NoisyNet-DQN / Dueling DQN
 
-- **ε-greedy를 쓰지 않습니다.** 노이즈가 섞인 Q 값에 대해 그냥 greedy하게 행동합니다.
-- Value network의 **FC layer**를 noisy layer로 바꿉니다. (Factorized Gaussian)
-- Replay batch 하나를 학습하는 동안에는 현재 노이즈 샘플을 batch 전체에 고정합니다.
-- Online network와 target network에 **서로 독립적인 노이즈** $$\varepsilon, \varepsilon'$$를 써서, 두 네트워크 노이즈의 상관관계로 생기는 편향을 피합니다. 행동 선택에는 online network에 또 다른 독립 노이즈 $$\varepsilon''$$를 씁니다.
+- **ε-greedy를 쓰지 않는다.** 노이즈가 섞인 Q 값에 대해 그냥 greedy하게 행동한다.
+- Value network의 **FC layer**를 noisy layer로 바꾼다. (Factorized Gaussian)
+- Replay batch 하나를 학습하는 동안에는 현재 노이즈 샘플을 batch 전체에 고정한다.
+- Online network와 target network에 **서로 독립적인 노이즈** $$\varepsilon, \varepsilon'$$를 써서, 두 네트워크 노이즈의 상관관계로 생기는 편향을 피한다. 행동 선택에는 online network에 또 다른 독립 노이즈 $$\varepsilon''$$를 쓴다.
 
 $$
 \bar{L}(\zeta) = \mathbb{E}\Big[\mathbb{E}_{(x, a, r, y) \sim D}\big[r + \gamma\max_{b}Q(y, b, \varepsilon'; \zeta^-) - Q(x, a, \varepsilon; \zeta)\big]^2\Big]
 $$
 
-Dueling DQN에서는 target 계산에 Double DQN 방식을 함께 씁니다. 다음 상태의 행동 $$b^*(y)$$는 online network(노이즈 $$\varepsilon''$$)로 고르고, 그 행동의 값은 target network(노이즈 $$\varepsilon'$$)로 평가합니다.
+Dueling DQN에서는 target 계산에 Double DQN 방식을 함께 쓴다. 다음 상태의 행동 $$b^*(y)$$는 online network(노이즈 $$\varepsilon''$$)로 고르고, 그 행동의 값은 target network(노이즈 $$\varepsilon'$$)로 평가한다.
 
 $$
 \bar{L}(\zeta) = \mathbb{E}\Big[\mathbb{E}_{(x, a, r, y) \sim D}\big[r + \gamma Q(y, b^*(y), \varepsilon'; \zeta^-) - Q(x, a, \varepsilon; \zeta)\big]^2\Big],\qquad b^*(y) = \arg\max_b Q(y, b, \varepsilon''; \zeta)
@@ -182,11 +182,11 @@ action = q_net(state).argmax(dim=1)        # ε-greedy 없이 greedy
 
 ### NoisyNet-A3C
 
-- Policy loss의 **entropy bonus를 제거**합니다.
-- Policy network의 FC layer를 noisy layer로 바꿉니다. (Independent Gaussian)
-- A3C는 on-policy라서, rollout 하나 안에서 노이즈가 일정해야 기울기가 편향되지 않습니다. 그래서 rollout 동안 같은 $$\varepsilon$$을 씁니다.
+- Policy loss의 **entropy bonus를 제거**한다.
+- Policy network의 FC layer를 noisy layer로 바꾼다. (Independent Gaussian)
+- A3C는 on-policy라서, rollout 하나 안에서 노이즈가 일정해야 기울기가 편향되지 않는다. 그래서 rollout 동안 같은 $$\varepsilon$$을 쓴다.
 
-A3C는 원래 정책에서 행동을 샘플링하므로 별도의 탐험 장치가 없고, 정책이 너무 빨리 결정적으로 굳지 않게 entropy bonus를 더했습니다. NoisyNet에서는 가중치를 새로 뽑는 것 자체가 다른 정책을 고르는 셈이라 entropy bonus 없이도 탐험이 됩니다.
+A3C는 원래 정책에서 행동을 샘플링하므로 별도의 탐험 장치가 없고, 정책이 너무 빨리 결정적으로 굳지 않게 entropy bonus를 더했다. NoisyNet에서는 가중치를 새로 뽑는 것 자체가 다른 정책을 고르는 셈이라 entropy bonus 없이도 탐험이 된다.
 
 ## 5. 결과
 
@@ -203,7 +203,7 @@ A3C는 원래 정책에서 행동을 샘플링하므로 별도의 탐험 장치�
 
 ### 정량 결과
 
-Atari 57개 게임에서 **DQN, Dueling DQN, A3C 세 baseline 모두**에 NoisyNet을 적용했을 때
+Atari 57개 게임에서 DQN, Dueling DQN, A3C 세 baseline 모두에 NoisyNet을 적용했을 때
 
 | 에이전트 | Baseline 평균 | Baseline 중앙값 | NoisyNet 평균 | NoisyNet 중앙값 | 중앙값 향상 |
 |---|---|---|---|---|---|
@@ -215,18 +215,18 @@ Atari 57개 게임에서 **DQN, Dueling DQN, A3C 세 baseline 모두**에 NoisyN
 <small>사람 대비 정규화 점수(%), 논문 Table 1·2</small>
 
 - 대부분의 게임에서 점수가 올랐고
-- 사람 대비 정규화 점수의 **중앙값이 세 알고리즘 모두에서 향상**. 평균도 세 알고리즘 모두 올랐습니다. (A3C에 factorized 노이즈를 쓴 추가 실험에서는 중앙값은 99로 더 좋았지만 평균은 276으로 baseline보다 낮았습니다.)
-- Dueling처럼 이미 여러 개선이 들어간 에이전트에서도 효과가 있어, NoisyNet이 다른 DQN 개선과 겹치지 않는다는 근거가 됩니다.
-- 아래 Figure 2처럼 학습 곡선 전 구간에서 더 높은 점수를 유지하고, 차이는 DQN과 Dueling에서 특히 큽니다.
+- 사람 대비 정규화 점수의 **중앙값이 세 알고리즘 모두에서 향상**. 평균도 세 알고리즘 모두 올랐다. (A3C에 factorized 노이즈를 쓴 추가 실험에서는 중앙값은 99로 더 좋았지만 평균은 276으로 baseline보다 낮았다.)
+- Dueling처럼 이미 여러 개선이 들어간 에이전트에서도 효과가 있어, NoisyNet이 다른 DQN 개선과 겹치지 않는다는 근거가 된다.
+- 아래 Figure 2처럼 학습 곡선 전 구간에서 더 높은 점수를 유지하고, 차이는 DQN과 Dueling에서 특히 크다.
 
 ![NoisyNet과 baseline의 학습 곡선](/assets/img/posts/noisy-network/fig2.webp)
-_Figure 2. 57개 게임의 사람 대비 정규화 점수 중앙값 학습 곡선. 왼쪽부터 DQN, Dueling, A3C이고 초록색이 NoisyNet입니다. (출처: Fortunato et al., 2018)_
+_Figure 2. 57개 게임의 사람 대비 정규화 점수 중앙값 학습 곡선. 왼쪽부터 DQN, Dueling, A3C이고 초록색이 NoisyNet이다. (출처: Fortunato et al., 2018)_
 
-특히 baseline이 사람보다 크게 못하던 Beam Rider(DQN), Asteroids(Dueling), Freeway(A3C)에서는 NoisyNet 버전이 사람 수준을 넘었습니다. 일부 게임에서는 점수가 10배 이상 오르기도 했습니다. 다만 논문도 비용 함수가 바뀐 만큼 최적화 측면의 효과가 섞여 있을 수 있어, 탐험 효과와 분리하는 분석이 더 필요하다고 적습니다.
+특히 baseline이 사람보다 크게 못하던 Beam Rider(DQN), Asteroids(Dueling), Freeway(A3C)에서는 NoisyNet 버전이 사람 수준을 넘었다. 일부 게임에서는 점수가 10배 이상 오르기도 했다. 다만 논문도 비용 함수가 바뀐 만큼 최적화 측면의 효과가 섞여 있을 수 있어, 탐험 효과와 분리하는 분석이 더 필요하다고 적는다.
 
 ### 노이즈는 결국 사라질까?
 
-$$\sigma$$는 학습되는 값이므로, 최적해가 결정적(deterministic)이라면 네트워크가 $$\sigma$$를 0으로 줄여 노이즈를 없앨 것이라고 예상할 수 있습니다. 이를 확인하기 위해 noisy layer의 평균 노이즈 크기를 측정했습니다.
+$$\sigma$$는 학습되는 값이므로, 최적해가 결정적(deterministic)이라면 네트워크가 $$\sigma$$를 0으로 줄여 노이즈를 없앨 것이라고 예상할 수 있다. 이를 확인하기 위해 noisy layer의 평균 노이즈 크기를 측정했다.
 
 $$
 \bar{\Sigma} = \frac{1}{N_{weights}}\sum_i \lvert\sigma_i^w\rvert
@@ -236,10 +236,10 @@ $$
 _Figure 3. NoisyNet-DQN에서 5개 게임의 $$\bar{\Sigma}$$ 학습 곡선 (3 seed 평균, 막대는 표준편차). 왼쪽: 마지막 직전 층, 오른쪽: 마지막 층. (출처: Fortunato et al., 2018)_
 
 - **마지막 층**에서는 모든 게임에서 $$\bar{\Sigma}$$가 줄었지만
-- **그 앞 층(penultimate layer)**에서는 5개 중 2개 게임(Pong, Beam Rider)에서만 줄었고, 나머지 3개(Breakout, Road Runner, Space Invaders)에서는 오히려 늘었습니다.
-- 게임마다, 같은 게임이라도 seed마다 변화 양상이 크게 달랐습니다.
+- **그 앞 층(penultimate layer)**에서는 5개 중 2개 게임(Pong, Beam Rider)에서만 줄었고, 나머지 3개(Breakout, Road Runner, Space Invaders)에서는 오히려 늘었다.
+- 게임마다, 같은 게임이라도 seed마다 변화 양상이 크게 달랐다.
 
-즉 에이전트가 무조건 결정적인 해로 수렴하는 것이 아니라, **문제마다 다른 탐험 전략**을 스스로 만들어 낸다는 뜻입니다.
+이는 에이전트가 무조건 결정적인 해로 수렴하는 것이 아니라, **문제마다 다른 탐험 전략**을 스스로 만들어 낸다는 뜻이다.
 
 ## 6. 정리
 
@@ -250,7 +250,7 @@ _Figure 3. NoisyNet-DQN에서 5개 게임의 $$\bar{\Sigma}$$ 학습 곡선 (3 s
 | 탐험의 성격 | step마다 독립 | 상태 의존적 (A3C는 rollout 동안 같은 노이즈) |
 | 추가 비용 | 없음 | 파라미터 약 2배, 연산은 거의 동일 |
 
-NoisyNet은 [Double DQN]({% post_url 2026-08-04-double-dqn %}), [C51]({% post_url 2026-08-12-c51-distributional-rl %}) 등과 함께 **Rainbow**의 구성 요소가 됐습니다.
+NoisyNet은 [Double DQN]({% post_url 2026-08-04-double-dqn %}), [C51]({% post_url 2026-08-12-c51-distributional-rl %}) 등과 함께 **Rainbow**의 구성 요소가 됐다.
 
 ## References
 

@@ -3,11 +3,11 @@ title: "[AI 기초 6] Normalization 총정리: Feature Scaling부터 BN, LN, IN,
 date: 2026-05-23 15:46:00 +0900
 categories: [Neural Network, Basics]
 tags: [normalization, batch-normalization, layer-normalization, instance-normalization, group-normalization, weight-normalization, standardization]
-description: Normalization·Standardization·Regularization의 차이부터, BN·LN·IN·GN이 어떤 축으로 평균과 분산을 구하는지, 학습·추론 모드 차이와 배치 크기 의존성, Weight Normalization까지 PyTorch로 확인하며 정리합니다.
+description: Normalization·Standardization·Regularization의 차이부터, BN·LN·IN·GN이 어떤 축으로 평균과 분산을 구하는지, 학습·추론 모드 차이와 배치 크기 의존성, Weight Normalization까지 PyTorch로 확인하며 정리한다.
 math: true
 ---
 
-> "Normalization"이라는 단어는 문맥에 따라 다른 뜻으로 쓰여서 헷갈리기 쉽습니다. 이번 글에서는 먼저 Normalization·Standardization·Regularization의 차이를 정리하고, 딥러닝에서 쓰는 BN, LN, IN, GN, WN이 **어떤 축으로 평균과 분산을 구하는지**를 중심으로 비교합니다.
+> "Normalization"이라는 단어는 문맥에 따라 다른 뜻으로 쓰여서 헷갈리기 쉽다. 이번 글에서는 먼저 Normalization·Standardization·Regularization의 차이를 정리하고, 딥러닝에서 쓰는 BN, LN, IN, GN, WN이 **어떤 축으로 평균과 분산을 구하는지**를 중심으로 비교한다.
 
 ## 1. 비슷한 세 단어
 
@@ -19,7 +19,7 @@ math: true
 
 ## 2. 입력 데이터의 Feature Scaling
 
-키(150~190cm)와 연봉(2000만~1억 원)을 함께 입력으로 쓰면, 숫자가 큰 연봉이 기울기를 지배해 학습이 비효율적입니다. 그래서 feature들의 스케일을 맞춥니다.
+키(150~190cm)와 연봉(2000만~1억 원)을 함께 입력으로 쓰면, 숫자가 큰 연봉이 기울기를 지배해 학습이 비효율적이다. 그래서 feature들의 스케일을 맞춘다.
 
 ### Min-Max Scaling
 
@@ -27,7 +27,7 @@ $$
 x' = \frac{x - x_{\min}}{x_{\max} - x_{\min}}
 $$
 
-모든 값을 0~1 사이로 맞춥니다. 좁은 의미의 "Normalization"은 보통 이것을 말합니다. **이상치가 있으면** 나머지 값들이 아주 좁은 범위로 압축되는 단점이 있습니다.
+모든 값을 0~1 사이로 맞춘다. 좁은 의미의 "Normalization"은 보통 이것을 말한다. 이상치가 있으면 나머지 값들이 아주 좁은 범위로 압축되는 단점이 있다.
 
 ### Standardization (Z-score)
 
@@ -35,9 +35,9 @@ $$
 x' = \frac{x - \mu}{\sigma}
 $$
 
-평균 0, 표준편차 1인 분포로 바꿉니다. 각 값이 **평균에서 얼마나 떨어져 있는지**를 나타내며, 데이터가 정규분포에 가까울 때 특히 유용합니다.
+평균 0, 표준편차 1인 분포로 바꾼다. 각 값이 평균에서 얼마나 떨어져 있는지를 나타내며, 데이터가 정규분포에 가까울 때 특히 유용하다.
 
-이미지에서는 `transforms.Normalize(mean, std)`가 채널별로 이 표준화를 합니다.
+이미지에서는 `transforms.Normalize(mean, std)`가 채널별로 이 표준화를 한다.
 
 ```python
 from torchvision import transforms as T
@@ -46,9 +46,9 @@ T.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225))   # ImageNet 
 
 ## 3. 왜 네트워크 내부에도 Normalization이 필요한가
 
-입력만 정규화해도, 층을 지날 때마다 가중치가 업데이트되면서 **중간 활성값의 분포가 계속 바뀝니다.** 앞쪽 층이 조금만 바뀌어도 뒤쪽 층 입장에서는 입력 분포가 매번 달라지는 셈입니다. BN 논문은 이를 **Internal Covariate Shift**라고 불렀습니다. (이후 연구에서 BN의 진짜 효과는 loss surface를 매끄럽게 만드는 것이라는 해석이 더 유력해졌습니다.)
+입력만 정규화해도, 층을 지날 때마다 가중치가 업데이트되면서 중간 활성값의 분포가 계속 바뀐다. 앞쪽 층이 조금만 바뀌어도 뒤쪽 층 입장에서는 입력 분포가 매번 달라지는 셈이다. BN 논문은 이를 **Internal Covariate Shift**라고 불렀다. (이후 연구에서 BN의 진짜 효과는 loss surface를 매끄럽게 만드는 것이라는 해석이 더 유력해졌다.)
 
-그래서 각 층의 입력을 정규화해 분포를 안정시키는 기법들이 나왔습니다.
+그래서 각 층의 입력을 정규화해 분포를 안정시키는 기법들이 나왔다.
 
 ## 4. Batch Normalization (BN)
 
@@ -68,7 +68,7 @@ $$
 
 ### $$\gamma$$와 $$\beta$$는 왜 필요한가
 
-무조건 평균 0, 분산 1로 만들면 표현력이 제한됩니다. 예를 들어 Sigmoid 앞에서 정규화하면 값이 대부분 선형 구간에 몰려 비선형성을 잃습니다. 그래서 **학습 가능한 scale $$\gamma$$와 shift $$\beta$$**를 둬서, 필요하면 네트워크가 원래 분포로 되돌릴 수도 있게 합니다. 채널마다 2개씩 학습 파라미터가 생깁니다(초기값 $$\gamma = 1$$, $$\beta = 0$$).
+무조건 평균 0, 분산 1로 만들면 표현력이 제한된다. 예를 들어 Sigmoid 앞에서 정규화하면 값이 대부분 선형 구간에 몰려 비선형성을 잃는다. 그래서 **학습 가능한 scale $$\gamma$$와 shift $$\beta$$**를 둬서, 필요하면 네트워크가 원래 분포로 되돌릴 수도 있게 한다. 채널마다 2개씩 학습 파라미터가 생긴다(초기값 $$\gamma = 1$$, $$\beta = 0$$).
 
 ### 학습 모드 vs 추론 모드
 
@@ -77,13 +77,13 @@ $$
 | 평균·분산 | **현재 미니배치**의 통계 | 학습 중 모은 **이동 평균(running mean/var)** |
 | $$\gamma, \beta$$ | 역전파로 학습 | 학습된 값 고정 |
 
-추론 때는 배치에 샘플이 하나뿐일 수도 있고, 같은 입력에는 항상 같은 출력이 나와야(deterministic) 하므로 저장해 둔 통계를 씁니다. 이동 평균은 지수 이동 평균으로 갱신됩니다.
+추론 때는 배치에 샘플이 하나뿐일 수도 있고, 같은 입력에는 항상 같은 출력이 나와야(deterministic) 하므로 저장해 둔 통계를 쓴다. 이동 평균은 지수 이동 평균으로 갱신된다.
 
 $$
 \hat{\mu} \leftarrow (1 - \text{momentum})\,\hat{\mu} + \text{momentum}\cdot\mu_\mathcal{B}
 $$
 
-**평균과 분산은 역전파로 학습되는 값이 아닙니다.** 그래서 `model.eval()`을 빼먹으면 추론 때도 배치 통계를 써서 결과가 이상해집니다.
+평균과 분산은 역전파로 학습되는 값이 아니다. 그래서 `model.eval()`을 빼먹으면 추론 때도 배치 통계를 써서 결과가 이상해진다.
 
 ### PyTorch에서
 
@@ -101,7 +101,7 @@ nn.BatchNorm2d(64,
     track_running_stats=True)  # 이동 평균 추적 여부
 ```
 
-CNN에서는 보통 **Conv → BN → Activation** 순서로 배치합니다. BN 뒤에 bias $$\beta$$가 있으므로 앞의 Conv는 `bias=False`로 둡니다.
+CNN에서는 보통 **Conv → BN → Activation** 순서로 배치한다. BN 뒤에 bias $$\beta$$가 있으므로 앞의 Conv는 `bias=False`로 둔다.
 
 ### 장점
 
@@ -112,39 +112,39 @@ CNN에서는 보통 **Conv → BN → Activation** 순서로 배치합니다. BN
 
 ### 단점
 
-- **미니배치 크기에 의존**: 배치가 작으면 통계가 불안정합니다. 극단적으로 `BatchNorm1d`에 배치 크기 1을 넣으면 채널마다 값이 하나뿐이라 분산을 구할 수 없어, PyTorch는 학습 모드에서 `Expected more than 1 value per channel when training` 에러를 냅니다. `BatchNorm2d`는 배치가 1이어도 H×W개의 위치로 통계를 내므로 동작은 하지만, 한 이미지의 통계라 불안정합니다.
-- **RNN에 적용하기 어려움**: 시점마다 통계가 달라서 시점별로 따로 BN을 둬야 하고, 시퀀스 길이가 제각각이면 더 복잡해집니다.
+- **미니배치 크기에 의존**: 배치가 작으면 통계가 불안정하다. 극단적으로 `BatchNorm1d`에 배치 크기 1을 넣으면 채널마다 값이 하나뿐이라 분산을 구할 수 없어, PyTorch는 학습 모드에서 `Expected more than 1 value per channel when training` 에러를 낸다. `BatchNorm2d`는 배치가 1이어도 H×W개의 위치로 통계를 내므로 동작은 하지만, 한 이미지의 통계라 불안정하다.
+- **RNN에 적용하기 어려움**: 시점마다 통계가 달라서 시점별로 따로 BN을 둬야 하고, 시퀀스 길이가 제각각이면 더 복잡해진다.
 - 학습과 추론의 동작이 달라 버그의 원인이 되기 쉬움
 
 ## 5. Layer Normalization (LN)
 
-BN이 **배치 방향**으로 평균을 낸다면, LN은 **샘플 하나 안의 모든 feature**로 평균을 냅니다.
+BN이 **배치 방향**으로 평균을 낸다면, LN은 **샘플 하나 안의 모든 feature**로 평균을 낸다.
 
 $$
 \mu = \frac{1}{H}\sum_{i=1}^{H}x_i,\qquad \sigma^2 = \frac{1}{H}\sum_{i=1}^{H}(x_i - \mu)^2
 $$
 
 - **배치 크기와 무관**하게 동작 → 배치 1에서도, 학습과 추론에서 똑같이 동작
-- 시퀀스 길이와도 무관 → **RNN과 Transformer의 표준** ([Transformer 글]({% post_url 2026-06-10-attention-is-all-you-need %})의 Add & Norm). Transformer에서는 입력이 (N, 길이, $$d_{model}$$)이고, **토큰 하나의 $$d_{model}$$차원**에 대해 평균·분산을 구합니다(`nn.LayerNorm(d_model)`).
+- 시퀀스 길이와도 무관 → **RNN과 Transformer의 표준** ([Transformer 글]({% post_url 2026-06-10-attention-is-all-you-need %})의 Add & Norm). Transformer에서는 입력이 (N, 길이, $$d_{model}$$)이고, 토큰 하나의 $$d_{model}$$차원에 대해 평균·분산을 구한다(`nn.LayerNorm(d_model)`).
 
 ## 6. Instance Normalization (IN)
 
-LN에서 한 단계 더 나아가, **샘플 하나의 채널 하나** 안에서(H×W 공간에 대해서만) 정규화합니다.
+LN에서 한 단계 더 나아가, **샘플 하나의 채널 하나** 안에서(H×W 공간에 대해서만) 정규화한다.
 
-이미지의 채널별 평균·분산에는 **스타일(색감, 대비)** 정보가 많이 담겨 있어서, IN은 이를 지워 버립니다. 그래서 **Style Transfer**처럼 원본의 스타일을 없애고 새 스타일을 입혀야 하는 작업에서 효과적입니다. 공간 축(H, W)이 있는 CNN에서만 의미가 있습니다.
+이미지의 채널별 평균·분산에는 **스타일(색감, 대비)** 정보가 많이 담겨 있어서, IN은 이를 지워 버린다. 그래서 Style Transfer처럼 원본의 스타일을 없애고 새 스타일을 입혀야 하는 작업에서 효과적이다. 공간 축(H, W)이 있는 CNN에서만 의미가 있다.
 
 ## 7. Group Normalization (GN)
 
-채널을 $$G$$개 그룹으로 묶어, **샘플 하나의 그룹 하나** 안에서 정규화합니다. LN과 IN의 중간입니다.
+채널을 $$G$$개 그룹으로 묶어, **샘플 하나의 그룹 하나** 안에서 정규화한다. LN과 IN의 중간이다.
 
 - 모든 채널이 한 그룹($$G=1$$) → LN
 - 채널마다 한 그룹($$G=C$$) → IN
 
-배치 크기와 무관하므로, **메모리 문제로 배치를 크게 못 쓰는** Detection, Segmentation, 온디바이스 학습에서 BN 대신 씁니다. 논문 실험에서 BN은 배치 크기가 줄수록 error가 급격히 오르지만, GN은 거의 일정합니다. [TinyTL]({% post_url 2026-06-19-edge-ai-hardware %})도 이 성질을 이용해 배치를 1~8로 줄여 메모리를 아낍니다.
+배치 크기와 무관하므로, 메모리 문제로 배치를 크게 못 쓰는 Detection, Segmentation, 온디바이스 학습에서 BN 대신 쓴다. 논문 실험에서 BN은 배치 크기가 줄수록 error가 급격히 오르지만, GN은 거의 일정하다. [TinyTL]({% post_url 2026-06-19-edge-ai-hardware %})도 이 성질을 이용해 배치를 1~8로 줄여 메모리를 아낀다.
 
 ## 8. 네 가지를 한 그림으로
 
-입력 텐서가 (N, C, H, W)일 때 **평균과 분산을 구하는 범위**는 다음과 같습니다.
+입력 텐서가 (N, C, H, W)일 때 **평균과 분산을 구하는 범위**는 다음과 같다.
 
 | 방법 | 정규화 범위 | 통계 개수 | 배치 의존 |
 |---|---|---|---|
@@ -170,7 +170,7 @@ print(torch.allclose(manual.view_as(x), nn.GroupNorm(8, 32, affine=False)(x), at
 
 ## 9. Weight Normalization (WN)
 
-앞의 방법들이 **활성값**을 정규화한다면, WN은 **가중치**를 다시 매개변수화합니다. 가중치 벡터를 **크기와 방향으로 분리**합니다.
+앞의 방법들이 **활성값**을 정규화한다면, WN은 **가중치**를 다시 매개변수화한다. 가중치 벡터를 크기와 방향으로 분리한다.
 
 $$
 \mathbf{w} = \frac{g}{\lVert\mathbf{v}\rVert}\mathbf{v}
@@ -179,7 +179,7 @@ $$
 - $$g$$: 크기 (스칼라, 학습)
 - $$\mathbf{v} / \lVert\mathbf{v}\rVert$$: 방향 (단위 벡터)
 
-BN에서 입력을 표준편차로 나누는 것과 비슷한 효과를 내면서, 배치 통계를 쓰지 않습니다. CNN은 보통 **가중치 수가 활성값 수보다 훨씬 적기 때문에** 계산이 더 가볍습니다.
+BN에서 입력을 표준편차로 나누는 것과 비슷한 효과를 내면서, 배치 통계를 쓰지 않는다. CNN은 보통 가중치 수가 활성값 수보다 훨씬 적기 때문에 계산이 더 가볍다.
 
 ```python
 import torch.nn as nn
@@ -190,13 +190,13 @@ print(layer.parametrizations.weight.original0.shape)      # g: torch.Size([64, 1
 print(layer.parametrizations.weight.original1.shape)      # v: torch.Size([64, 128])
 ```
 
-예전 코드에서 보이는 `torch.nn.utils.weight_norm`은 deprecated되었고, 위의 `parametrizations` 버전이 권장됩니다.
+예전 코드에서 보이는 `torch.nn.utils.weight_norm`은 deprecated되었고, 위의 `parametrizations` 버전이 권장된다.
 
 ## 10. 그 밖의 변형
 
-- **Batch Renormalization**: 미니배치 통계와 이동 평균의 차이를 보정 항으로 넣어, **작은 배치**나 샘플들이 독립적이지 않은 배치에서도 BN을 쓸 수 있게 합니다.
-- **Batch-Instance Normalization (BIN)**: IN은 스타일 정보를 완전히 지우는데, 스타일이 중요한 특징인 작업에서는 문제가 됩니다. BIN은 BN과 IN을 **학습 가능한 게이트로 섞어서**, 필요한 만큼만 스타일을 지웁니다. 게이트를 닫으면 IN처럼 동작합니다.
-- **Cross mini-Batch Normalization (CmBN)**: 이전 iteration들의 통계를 함께 써서 작은 배치에서 BN을 보완합니다(YOLOv4).
+- **Batch Renormalization**: 미니배치 통계와 이동 평균의 차이를 보정 항으로 넣어, 작은 배치나 샘플들이 독립적이지 않은 배치에서도 BN을 쓸 수 있게 한다.
+- **Batch-Instance Normalization (BIN)**: IN은 스타일 정보를 완전히 지우는데, 스타일이 중요한 특징인 작업에서는 문제가 된다. BIN은 BN과 IN을 학습 가능한 게이트로 섞어서, 필요한 만큼만 스타일을 지운다. 게이트를 닫으면 IN처럼 동작한다.
+- **Cross mini-Batch Normalization (CmBN)**: 이전 iteration들의 통계를 함께 써서 작은 배치에서 BN을 보완한다(YOLOv4).
 
 ## 11. 정리
 
@@ -215,7 +215,7 @@ print(layer.parametrizations.weight.original1.shape)      # v: torch.Size([64, 1
 | Style Transfer, 이미지 생성 | IN |
 | 배치가 작음 (Detection, 온디바이스 학습) | GN |
 
-다음 글부터는 Part 2로 넘어가서, 이미지를 다루는 **CNN의 기본 연산**을 정리합니다.
+다음 글부터는 Part 2로 넘어가서, 이미지를 다루는 CNN의 기본 연산을 정리한다.
 
 ## References
 
