@@ -117,6 +117,12 @@ teacher sample: id cosine 0.3, quality 0.3 -> distillation weight alpha = 0.03
 
 **정성.** SimSwap 교사보다 아티팩트가 적고(의미 융합 덕에 머리·배경이 안정, 안경 주변 깨끗), FaceShifter 교사보다 표정을 잘 지키며 가림·큰 포즈에서도 동작한다(Figure 3, 4). 아래 Figure 6처럼 FF++에서 DeepFakes·FSGAN은 부자연스러운 색이 보이고, FaceController보다 목표 표정을 잘 지키며, SimSwap·FaceShifter와는 대등하다.
 
+![SimSwap 교사와의 비교](/assets/img/posts/mobilefaceswap/fig3.webp)
+_Figure 3. SimSwap 교사와 그 교사로 증류한 학생의 비교. 첫째·둘째 행에서 학생은 머리카락과 배경을 목표 그대로 유지하고, 소스가 안경을 쓴 셋째·넷째 행에서 교사의 눈가 아티팩트가 학생에서는 줄어든다. (출처: Xu et al., 2022)_
+
+![FaceShifter 교사와의 비교](/assets/img/posts/mobilefaceswap/fig4.webp)
+_Figure 4. FaceShifter 교사와 그 교사로 증류한 학생의 비교. 첫째 행에서 학생 쪽이 목표의 표정을 더 잘 따르고, 큰 포즈나 마이크·안경 같은 가림이 있는 목표에서도 결과가 자연스럽다. (출처: Xu et al., 2022)_
+
 ![FF++에서의 비교](/assets/img/posts/mobilefaceswap/fig6.webp)
 _Figure 6. FaceForensics++에서 DeepFakes, FSGAN, FaceShifter, FaceController, SimSwap과 비교. 오른쪽 두 열이 SimSwap·FaceShifter를 교사로 증류한 MobileFaceSwap. (출처: Xu et al., 2022)_
 
@@ -157,6 +163,12 @@ FSGAN의 영상 FLOPs(2240)와 이미지 FLOPs(2440)는 논문 표에 적힌 그
 | **Ours** | **95.98** | 1.32 | 6.79 |
 
 가중치 예측을 빼거나(ID 16.29) 변조를 AdaIN으로 바꾸면(ID 18.34) 학습이 불안정해져 신원이 무너진다. 이는 사실상 SimSwap을 압축한 것과 같다. 변조를 빼면 ID 86.20, 의미 모듈을 빼면 배경 차이, U-Net을 오토인코더로 바꾸면 아티팩트가 나타난다. 증류를 빼면 ID 88.48·포즈 3.21·FID 17.37로 크게 나빠지고, 신원 재가중을 넣으면 ID가 2.27%p(93.71 → 95.98), 품질 재가중은 소폭 오른다. 신원 손실을 빼면 FID(4.76)와 포즈는 오히려 좋아지지만 ID가 28.13으로 무너진다. 신원을 거의 안 바꾸고 목표를 복사하는 쪽으로 가기 때문이다. 전체 마스크 감독은 목표와의 색 차이가 커진다. 최종 FID 6.79는 교사(10.26)보다 좋다.
+
+![네트워크 구조 ablation](/assets/img/posts/mobilefaceswap/fig8.webp)
+_Figure 8. 네트워크 구조 ablation. 가중치 예측을 빼거나 변조를 AdaIN으로 바꾸면 결과가 목표 얼굴에 가까워져 신원이 거의 옮겨지지 않고, 가중치 변조를 빼면 얼굴이 흐려진다. (출처: Xu et al., 2022)_
+
+![학습 목표 ablation](/assets/img/posts/mobilefaceswap/fig9.webp)
+_Figure 9. 학습 목표 ablation. 증류를 빼면 얼굴이 뭉개지고, 신원 손실을 빼면 목표가 거의 그대로 남는다. 전체 마스크 감독(All Mask Loss)은 얼굴 영역의 색이 목표와 달라진다. (출처: Xu et al., 2022)_
 
 ## 6. 해석
 

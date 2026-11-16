@@ -235,11 +235,17 @@ _Figure 2. (a) Montezuma's Revenge 학습 곡선. (b) 첫 번째 방에서 FuN�
 
 LSTM은 BPTT를 100으로 늘리면 오히려 성능이 크게 떨어졌지만, FuN은 dilated LSTM 덕분에 BPTT 400에서도 잘 학습됐다.
 
+![Atari 학습 곡선](/assets/img/posts/feudal-networks/fig4.webp)
+_Figure 4. Atari 10개 게임의 학습 곡선. 범례의 숫자는 할인율이고, 노란 선은 BPTT를 100으로 늘린 LSTM이다. 윗줄(Ms. Pac-Man, Amidar, Gravitar, Enduro, Frostbite)에서 FuN이 앞서고, 아랫줄의 Seaquest·Alien·Breakout에서는 LSTM이 더 좋다. (출처: Vezhnevets et al., 2017)_
+
 Option-Critic과 같은 게임에서 200 epoch 뒤를 비교하면, Seaquest는 비슷하고 Ms. Pac-Man은 2배, Zaxxon은 3배 이상, Asterix는 20배 이상 높았다. 다만 Option-Critic 점수(Asterix 약 8000, Zaxxon 약 6000)는 원 논문 그래프에서 읽은 근삿값이고, 그 논문의 baseline이 DQN이라 A3C 기반인 FuN과 학습 조건이 다르다는 점은 감안해야 한다.
 
 ### Labyrinth 기억 과제
 
 Water maze, T-maze, T-maze+, Non-match 네 과제 모두에서 FuN이 LSTM보다 빨리 배우고 최종 보상도 높았다. Water maze에서 FuN은 첫 시도에서 목표를 찾은 뒤 그 반지름의 원을 따라 탐색해 매번 목표를 찾았고, LSTM은 기억을 쓰지 않는 듯 거의 같은 반지름으로 원을 돌기만 했다.
+
+![Labyrinth 기억 과제와 water maze 궤적](/assets/img/posts/feudal-networks/fig5.webp)
+_Figure 5. (a) non-match와 T-maze 과제의 구성. (b) water maze에서 FuN의 궤적. 앞의 두 그림은 한 에피소드의 궤적으로, 첫 시도(초록)는 여러 곳을 헤매며 목표를 찾고 이후 시도는 목표까지의 반지름에 맞춘 원을 따라 돈다. 맨 오른쪽은 무작위 목표 $$g$$를 200 step 고정했을 때의 하위 정책으로, 색마다 다른 $$g$$이다. (출처: Vezhnevets et al., 2017)_
 
 ### Ablation
 
@@ -254,6 +260,12 @@ Figure 8~10의 학습 곡선(Ms. Pac-Man, Amidar, Gravitar, Enduro)에서 나온
 | No dilation | Manager에 일반 LSTM | 완전히 실패 |
 | $$c = 1$$ | Manager 예측 범위를 1 step으로 | 성능이 떨어지지만 다른 ablation보다는 덜함 |
 | dLSTM 단독 | FuN 없이 CNN + dilated LSTM agent | LSTM과 FuN 모두보다 대체로 낮음 |
+
+![Manager 학습 방식 ablation](/assets/img/posts/feudal-networks/fig8.webp)
+_Figure 8. Manager 학습 방식과 목표 형태에 대한 ablation. Non-feudal FuN(초록), Manager via PG(분홍), Absolute goals(노랑)는 FuN(파랑)보다 크게 낮고, Pure feudal FuN(주황)은 대체로 그 사이에 있다. Enduro에서 Non-feudal FuN은 전혀 학습하지 못한다. (출처: Vezhnevets et al., 2017)_
+
+![dilation과 예측 범위 ablation](/assets/img/posts/feudal-networks/fig10.webp)
+_Figure 10. Manager의 dilated LSTM과 예측 범위 $$c$$에 대한 ablation. 일반 LSTM을 쓴 No dilation(초록)은 네 게임 모두에서 무너지고, $$c = 1$$(주황)은 FuN보다 낮지만 Enduro에서는 거의 같다. (출처: Vezhnevets et al., 2017)_
 
 $$\alpha$$를 0~1에서 바꿔 본 실험에서는 Gravitar, Amidar에서 $$\alpha$$가 클수록 점수가 높았지만, 다른 게임에서는 최적값이 1보다 작았다. 또 action repeat 4로 학습한 FuN을 action repeat 없는 환경으로 옮길 때(할인율 조정, dilation과 $$c$$를 4배로) 네 게임 모두에서 긍정적 전이가 나타났고, LSTM은 Ms. Pac-Man에서만 그랬다.
 

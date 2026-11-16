@@ -28,6 +28,9 @@ math: true
 2. 이미지 생성에서 보인 것처럼 고차원 출력에 잘 확장되어 행동 시퀀스를 통째로 낸다. 시간 일관성과 비근시안적 계획에 중요하다.
 3. 정규화 상수를 추정하기 위한 negative sampling이 필요 없어 학습이 안정적이다.
 
+![세 가지 정책 표현](/assets/img/posts/diffusion-policy/fig1.webp)
+_Figure 1. 정책 표현 비교. (a) 명시적 정책은 관측에서 행동을 바로 내며 행동 표현으로 회귀, 가우시안 혼합, 범주를 쓴다. (b) 암시적 정책은 에너지 $$E_\theta(o, a)$$를 배우고 그 최솟값을 찾는다. (c) Diffusion Policy는 행동 공간의 기울기장을 배우고 $$K$$번 반복해 행동을 다듬는다. (출처: Chi et al., 2023)_
+
 ## 2. 정식화
 
 ### DDPM
@@ -63,6 +66,9 @@ _Figure 3. a) 최근 $$T_o$$ step의 관측 $$O_t$$를 조건으로 $$T_p$$ step
 ### 왜 IBC보다 안정적인가
 
 암시적 정책은 에너지 기반 모델 $$p_\theta(a \mid o) = e^{-E_\theta(o, a)} / Z(o, \theta)$$를 InfoNCE로 학습하는데, 다루기 어려운 $$Z$$를 negative sample로 추정하는 부정확함이 학습을 불안정하게 만든다. Diffusion Policy는 같은 분포의 **score** $$\nabla_a \log p(a \mid o) = -\nabla_a E_\theta(a, o) - \underbrace{\nabla_a \log Z(o, \theta)}_{= 0}$$를 배우므로 학습에도 추론에도 $$Z$$가 나타나지 않는다. IBC는 학습 손실이 매끄럽게 줄어도 평가 성공률이 요동쳐 checkpoint 선택이 어려웠지만, Diffusion Policy는 하이퍼파라미터가 작업 간에 거의 일정했다.
+
+![학습 안정성](/assets/img/posts/diffusion-policy/fig7.webp)
+_Figure 7. 학습 안정성. 왼쪽: 실제 Push-T 이미지 데이터에서 학습 행동 예측 MSE. IBC는 학습이 진행돼도 오차가 들쭉날쭉하지만 Diffusion Policy는 0 근처로 꾸준히 내려간다. 오른쪽: 시뮬레이션 Push-T 상태 관측의 평가 성공률. IBC의 성공률은 epoch마다 크게 흔들려 checkpoint 선택이 어렵다. (출처: Chi et al., 2023)_
 
 ## 3. 설계 결정
 
@@ -171,6 +177,12 @@ MSE 회귀는 두 모드의 평균인 장애물 한가운데(+0.20)를 내놓아
 - **행동 horizon의 trade-off**: $$T_a$$가 1보다 크면 일관성과 멈춤 보정에 좋지만 너무 길면 반응이 느려진다. 대부분의 작업에서 **8 step**이 최적이었다.
 - **지연에 강함**: receding horizon 위치 제어 덕에 관측에서 실행까지 4 step의 지연에도 성능을 유지한다. 속도 제어는 지연에 더 취약하다.
 
+![속도 제어 대 위치 제어](/assets/img/posts/diffusion-policy/fig5.webp)
+_Figure 5. 속도 제어에서 위치 제어로 바꿨을 때의 성공률 변화. Square와 Kitchen p4 모두 LSTM-GMM과 BET는 나빠지고 Diffusion Policy는 좋아지며, Kitchen p4의 DP-CNN에서 이득이 가장 크다. (출처: Chi et al., 2023)_
+
+![행동 horizon과 지연 ablation](/assets/img/posts/diffusion-policy/fig6.webp)
+_Figure 6. 왼쪽: 행동 horizon에 따른 성능 변화(작업별 최댓값 대비). Push-T와 Square 모두 8 step에서 가장 좋고, 너무 길면(Square는 64 step, Push-T는 128 step) 크게 떨어진다. 오른쪽: 관측에서 실행까지의 지연. 4 step까지는 거의 그대로이고 그 뒤로 떨어진다. (출처: Chi et al., 2023)_
+
 ## 6. 실험
 
 ### 시뮬레이션: 12개 작업, 4개 벤치마크
@@ -205,8 +217,20 @@ Robomimic 5개 작업(PH: 숙련자 시연, MH: 숙련·비숙련 혼합), Push-
 | IoU | 0.84 | 0.14 / 0.19 | 0.24 / 0.25 | 0.53 | 0.24 | 0.66 | **0.80** |
 | 성공률 | 1.00 | 0.00 / 0.00 | 0.20 / 0.10 | 0.65 | 0.15 | 0.80 | **0.95** |
 | 소요 시간(초) | 20.3 | 56.3 / 41.6 | 47.3 / 51.7 | 57.5 | 55.8 | 31.7 | **22.9** |
+
+![실제 Push-T 비교](/assets/img/posts/diffusion-policy/fig8.webp)
+_Figure 8. 실제 Push-T rollout. 1~4열은 주요 순간의 궤적, 마지막 열은 끝 상태들을 평균한 이미지이다. A: end-to-end Diffusion Policy는 끝 상태가 거의 일정하다. B: R3M 인코더 변형은 처음에 막혔다가 회복한다. C: LSTM-GMM은 T 블록을 고치다 종료 구역에 가지 못한다. D: IBC는 밀기를 일찍 끝낸다. (출처: Chi et al., 2023)_
+
 - **교란 실험**: 카메라를 3초 가리면 약간 떨리지만 계속 수행하고, 밀던 블록을 옮기면 즉시 반대쪽에서 다시 밀며, 종료 구역으로 가던 중 블록을 옮기면 되돌아와 고친 뒤 다시 간다. 시연에 없던 행동이다.
+
+![교란 실험](/assets/img/posts/diffusion-policy/fig9.webp)
+_Figure 9. 교란 실험. 왼쪽: 카메라 앞에서 손을 3초 흔들어 가린다. 가운데: 밀기 단계에서 블록을 옮기면 곧바로 다시 밀어 목표 자세로 맞춘다. 오른쪽: 종료 구역으로 가던 중 블록이 옮겨지면 되돌아와 고친다. 위 줄이 교란 순간, 아래 줄이 그 뒤의 궤적이다. (출처: Chi et al., 2023)_
+
 - **머그 뒤집기**(6DoF): 잡기 대 밀기, 정방향 대 역방향 잡기 등 매우 다봉인 시연(250개)에서 20회 중 **90%** 성공. 같은 데이터 일부로 학습한 LSTM-GMM은 20회 모두 머그에 제대로 정렬하지 못해 0%였다.
+
+![머그 뒤집기 작업](/assets/img/posts/diffusion-policy/fig10.webp)
+_Figure 10. 머그 뒤집기 작업. 아무렇게나 놓인 머그를 집어 입구가 아래로 가게 놓고(①), 손잡이가 왼쪽을 향하도록 돌린다(②). 왼쪽 아래가 목표 상태이다. (출처: Chi et al., 2023)_
+
 - **소스 붓기·바르기**(Franka, 액체, 주기적 동작): Push-T 하이퍼파라미터를 그대로 써서 첫 시도에 성공했다. 붓기는 IoU 0.74(사람 0.79)·성공률 79%, 바르기는 coverage 0.77(사람 0.79)·성공률 100%이고, LSTM-GMM은 두 작업 모두 0%이다. LSTM-GMM은 붓기 20회 중 15회에서 국자를 들어 올리지 못했다.
 
 ## 7. 해석

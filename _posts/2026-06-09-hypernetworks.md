@@ -41,7 +41,8 @@ RNN에서는 하이퍼네트워크 자체도 작은 RNN(HyperRNN cell)이어서,
 
 ![HyperRNN 구조](/assets/img/posts/hypernetworks/fig3.webp)
 _Figure 3. HyperRNN. 검정이 메인 RNN, 주황이 작은 HyperRNN cell이다. HyperRNN cell은 $$x_t$$와 $$h_{t-1}$$을 이어 붙인 $$\hat{x}_t$$를 받아 매 시점 메인 RNN의 $$W_h, W_x, b$$를 만든다(점선). (출처: Ha et al., 2017)_
- 임베딩에서 전체 가중치 행렬을 선형 결합으로 만들면 메모리가 $$N_z$$배 늘어 비실용적이므로, **가중치 스케일링 벡터** $$d(z) \in \mathbb{R}^{N_h}$$로 행렬의 각 행을 스케일하는 방식으로 바꾼다.
+
+임베딩에서 전체 가중치 행렬을 선형 결합으로 만들면 메모리가 $$N_z$$배 늘어 비실용적이므로, **가중치 스케일링 벡터** $$d(z) \in \mathbb{R}^{N_h}$$로 행렬의 각 행을 스케일하는 방식으로 바꾼다.
 
 $$
 h_t = \phi\!\left( d_h(z_h) \odot W_h h_{t-1} + d_x(z_x) \odot W_x x_t + b(z_b) \right)
@@ -143,6 +144,9 @@ Hyper WRN은 일반 WRN과 optimizer와 학습 길이가 다르다. 표의 오�
 
 **MNIST.** 두 층 CNN의 둘째 층 커널(7×7×16×16, 12,544개 가중치)을 크기 4의 임베딩과 4,240개 파라미터의 하이퍼네트워크로 생성해 99.24%(일반 학습 99.28%)를 냈다. 생성된 커널은 일반 학습된 커널과 시각적으로 비슷하다.
 
+![MNIST 커널 비교](/assets/img/posts/hypernetworks/fig2.webp)
+_Figure 2. MNIST 분류 ConvNet의 둘째 층 커널. 왼쪽은 일반 학습한 커널, 오른쪽은 하이퍼네트워크가 생성한 커널이다. 파라미터가 훨씬 적은데도 비슷한 획 방향 필터가 나온다. (출처: Ha et al., 2017)_
+
 **CIFAR-10, Wide ResNet (Table 2).** conv2~conv4의 36개 커널을 하나의 하이퍼네트워크($$N_z = 64$$)로 생성한다. WRN 수치는 저자들이 직접 재구현해 학습한 값이다.
 
 | 모델 | 테스트 오류 | 파라미터 |
@@ -179,11 +183,17 @@ Hyper WRN은 일반 WRN과 optimizer와 학습 길이가 다르다. 표의 오�
 
 enwik8에서는 2048유닛 Layer Norm HyperLSTM이 1.340 BPC로, 논문 표에 함께 실린 기존 방법(HM-LSTM 1.40, Recurrent Highway Networks 1.42 등, dynamic evaluation 계열 제외)보다 낮다. 논문은 이를 "near state-of-the-art"라고 표현한다. 같은 학습 step 기준으로 LSTM, Layer Norm LSTM보다 빨리 수렴한다고도 보고한다.
 
+![검증 손실 곡선](/assets/img/posts/hypernetworks/fig6.webp)
+_Figure 6. 학습 step에 따른 검증 손실. 왼쪽은 enwik8의 BPC, 오른쪽은 IAM 필기 생성의 로그 손실이다. 두 과제 모두 HyperLSTM(노랑) 계열이 LSTM보다 빨리 내려가고 더 낮은 곳에서 멈춘다. (출처: Ha et al., 2017)_
+
 **필기 생성(IAM, Table 5).** 900유닛 HyperLSTM이 로그 손실(log-loss, 낮을수록 좋음) -1,162로 2층 650유닛 LSTM(-1,135), Layer Norm LSTM(900유닛 -1,096, 1000유닛 -1,106)을 모두 앞선다. 이 과제에서는 Layer Norm과 결합하면 오히려 나빠졌다(-1,067). IAM은 별도 테스트셋이 없어 검증셋 수치이고, 논문도 검증셋에 다소 과적합됐을 수 있다고 밝힌다.
 
 **기계 번역 (Table 6).** GNMT의 LSTM을 Layer Norm HyperLSTM으로 바꾸면 WMT'14 En→Fr(newstest2014)에서 단일 모델 BLEU 38.95 → 40.03, log perplexity 1.027 → 0.993으로, 8개 앙상블(40.35)에 근접한다.
 
 **가중치 변화 시각화.** 생성된 텍스트와 필기 아래에 가중치 변화량을 그리면, 단어 안에서는 가중치가 거의 고정되고 단어 사이나 괄호에서 급격히 바뀐다. 아래 Figure 7처럼 가중치가 서서히 변하는 것이 아니라 "체제 전환"처럼 움직인다.
+
+![HyperLSTM이 생성한 텍스트와 가중치 변화](/assets/img/posts/hypernetworks/fig4.webp)
+_Figure 4. enwik8로 학습한 HyperLSTM이 생성한 텍스트와, 글자마다 메인 LSTM의 가중치 행렬 4개가 얼마나 바뀌는지를 네 줄의 색 칸으로 표시한 그림. 진한 칸은 단어 사이나 괄호 근처에 몰려 있다. (출처: Ha et al., 2017)_
 
 ![HyperLSTM이 생성한 필기와 가중치 변화](/assets/img/posts/hypernetworks/fig7.webp)
 _Figure 7. HyperLSTM이 생성한 필기 샘플과, 그 아래 메인 LSTM의 가중치 행렬 4개($$W_h^i, W_h^g, W_h^f, W_h^o$$)가 시점마다 얼마나 바뀌는지를 색 막대로 표시한 그림. 진할수록 크게 바뀐다. (출처: Ha et al., 2017)_
@@ -193,6 +203,9 @@ _Figure 7. HyperLSTM이 생성한 필기 샘플과, 그 아래 메인 LSTM의 �
 **1. 가중치 공유의 연속체를 제시했다.** CNN(공유 없음)과 RNN(완전 공유) 사이에서 임베딩 차원 $$N_z$$가 공유 정도를 조절한다. 위 실험의 파라미터-성능 트레이드오프가 이 축을 따라 움직인다. 이후 [ALBERT]({% post_url 2026-07-04-albert %})의 층 간 완전 공유, 조건부 가중치 생성(CondConv, dynamic filter) 등이 이 연속체 위에 놓인다.
 
 **2. 동적 가중치는 정규화의 학습된 버전으로 읽힌다.** 행 스케일링 형태의 HyperLSTM은 [Layer Normalization]({% post_url 2026-05-23-normalization %})과 수식이 닮았지만, 은닉 상태 히스토그램을 보면 Layer Norm은 포화를 줄이는 반면 HyperLSTM은 대부분 포화 상태에서 동작한다. 같은 성능에 도달하는 전혀 다른 정책이며, 문자 단위 언어 모델링에서 둘을 합치면 더 좋아지는 것도 설명된다(필기 생성에서는 반대로 나빠졌다).
+
+![은닉 상태 히스토그램](/assets/img/posts/hypernetworks/fig5.webp)
+_Figure 5. 샘플링 중 $$\phi(c_t)$$(출력 게이트 전 LSTM 은닉 상태)의 정규화 히스토그램. LSTM과 Layer Norm 계열은 0 근처에 몰려 있지만, HyperLSTM(노랑)은 값의 절반가량이 −1과 1 양 끝에 몰려 포화 상태로 동작한다. (출처: Ha et al., 2017)_
 
 **3. 압축보다 조건부 계산의 씨앗으로 더 중요하다.** 정적 하이퍼네트워크의 압축률은 가지치기나 양자화만큼 실용적이지 않다. 반면 "입력에 따라 가중치를 바꾼다"는 동적 하이퍼네트워크의 발상은 이후 메타러닝, 신경망 구조 탐색의 가중치 생성(SMASH, one-shot NAS), 조건부 신경망, 최근의 LoRA 생성 연구까지 이어진다.
 

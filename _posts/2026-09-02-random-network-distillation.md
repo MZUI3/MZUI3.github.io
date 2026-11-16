@@ -173,6 +173,20 @@ adv = 2.0 * adv_ext + 1.0 * adv_int                         # 두 value head의 
 | 병렬 환경 수 | 환경이 많을수록 평균 return이 높음. RNN·32개 환경을 오래 돌리면 16억 프레임에서 평균 7,570, 그중 한 run은 24개 방을 모두 방문하고 첫 레벨을 통과해 최고 17,500점. RNN·1,024개 환경은 학습 끝 평균 10,070 |
 | autoencoder 복원 오차를 보너스로 (부록) | RND보다 나쁘지만 PPO보다는 좋음 |
 
+표의 앞 네 줄은 아래 Figure 3~6에 해당한다.
+
+![순수 탐험 실험](/assets/img/posts/random-network-distillation/fig3.webp)
+_Figure 3. extrinsic reward 없이 intrinsic reward만으로 학습한 에이전트의 평균 return(왼쪽)과 찾은 방 수(오른쪽). episodic 설정(파랑)은 방을 3개 남짓밖에 못 찾지만, non-episodic 설정(초록·주황)은 15개 안팎까지 찾는다. (출처: Burda et al., 2019)_
+
+![intrinsic·extrinsic 보상 결합 방식 비교](/assets/img/posts/random-network-distillation/fig4.webp)
+_Figure 4. (a) RNN 정책, (b) CNN 정책에서 보상을 합치는 세 방식의 비교. non-episodic intrinsic을 쓴 dual value(주황)이 찾은 방 수는 가장 많고, 평균 return은 세 방식이 비슷하다. 차이는 RNN 정책에서 더 크다. (출처: Burda et al., 2019)_
+
+![discount factor 비교](/assets/img/posts/random-network-distillation/fig5.webp)
+_Figure 5. $$\gamma_I = 0.99$$, $$\gamma_E = 0.999$$(초록)이 평균 return이 가장 높다. 두 discount를 모두 0.999로 올리면(파랑) return도, 찾은 방 수도 가장 낮다. (출처: Burda et al., 2019)_
+
+![병렬 환경 수 비교](/assets/img/posts/random-network-distillation/fig6.webp)
+_Figure 6. 병렬 환경 수(32, 128, 1,024)에 따른 평균 return. 왼쪽은 CNN 정책, 오른쪽은 RNN 정책이다. 환경이 많을수록 return이 높고, CNN 정책은 일찍 포화하는 반면 RNN 정책은 1,024개 환경에서 10,000 근처까지 올라간다. (출처: Burda et al., 2019)_
+
 ### RNN vs CNN 정책
 
 Montezuma's Revenge처럼 **부분 관측** 환경에서는 과거 기억이 중요하니 RNN 정책이 더 좋을 것으로 예상했지만, 실제로는 $$\gamma_E = 0.99$$ 설정에서 **CNN 정책이 더 좋았다.** (다만 $$\gamma_E = 0.999$$에서는 모든 환경 수에서 RNN 정책이 더 좋았고, 6게임 전체로 봐도 RNN이 CNN을 이기는 경우가 더 많았다.)

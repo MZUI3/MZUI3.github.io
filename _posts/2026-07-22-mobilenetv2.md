@@ -42,6 +42,9 @@ V2의 기본 블록은 입력 $$k$$채널, 확장 비율 $$t$$에 대해 세 층
 
 곱셈-덧셈 수는 $$h \cdot w \cdot k \cdot t \,(k + d^2 + k')$$이다. 확장 때문에 1×1 항이 하나 더 붙지만, depthwise 층이 저렴해서 전체는 V1보다 작은 입력·출력 채널로 같은 표현력을 낸다. 논문은 $$t = 6$$을 기본으로 쓰고, 5~10 사이에서는 성능이 비슷하며 작은 네트워크일수록 작은 $$t$$가 약간 낫다고 보고한다.
 
+![separable convolution 블록의 변천](/assets/img/posts/mobilenetv2/fig2.webp)
+_Figure 2. (a) 일반 convolution, (b) V1의 depthwise separable 블록, (c) 끝에 선형 bottleneck을 둔 separable 블록, (d) 앞에 확장 층을 둔 bottleneck 블록이다. 빗금 친 층은 비선형성이 없는 층이고, (c)와 (d)는 블록을 쌓으면 같은 구조가 된다. (출처: Sandler et al., 2018)_
+
 잔차 연결은 bottleneck끼리, 즉 얇은 $$k$$채널 텐서 사이에 건다. 기존 [ResNet]({% post_url 2026-05-28-resnet %}) bottleneck은 넓은 층을 입출력으로 두고 가운데를 좁히는 반면, 여기서는 얇은 층이 입출력이고 가운데가 넓다. 그래서 "inverted"이다(아래 Figure 3).
 
 ![Residual block과 inverted residual block](/assets/img/posts/mobilenetv2/fig3.webp)
@@ -168,6 +171,9 @@ memory-efficient inference: split the expanded 384x56x56 tensor into t=6 slices
 | **MobileNetV2 (1.4)** | 74.7 | 6.9M | 585M | 143ms |
 
 기본 MobileNetV2는 V1보다 1.4%p 정확하면서 MAdds는 약 절반, 지연은 113ms → 75ms이다. NASNet-A보다는 정확도가 2%p 낮지만 연산량은 절반 수준이고 지연은 2.4배 짧다. 1.4 배율 모델은 NASNet-A보다 정확하면서 빠르다. ShuffleNet은 그룹 합성곱과 shuffle이 TF-Lite에서 효율적으로 지원되지 않아 지연을 재지 않았다.
+
+![MAdds 대비 ImageNet top-1](/assets/img/posts/mobilenetv2/fig5.webp)
+_Figure 5. 입력 해상도(96~224)와 폭 배율(0.35~1.4)을 바꾼 MobileNetV2(네모)와 MobileNetV1(파란 원), ShuffleNet, NASNet의 MAdds 대비 top-1이다. 같은 MAdds에서 V2가 V1보다 일관되게 위에 있고, V2 1.4는 NASNet보다 약간 위에 놓인다. (출처: Sandler et al., 2018)_
 
 ### COCO 검출 (Table 6)
 

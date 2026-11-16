@@ -49,6 +49,9 @@ $$
 
 장점은 셋이다. 정확도 차이가 거의 없고, 조각 선형이라 양자화 때 수치 정밀도 손실이 없으며, ReLU6 하나로 구현되어 메모리 접근을 줄인다. 비선형성의 비용은 텐서 크기에 비례하므로, 해상도가 큰 앞쪽 층에서는 ReLU를 쓰고 **뒤쪽 절반에서만 h-swish**를 쓴다.
 
+![sigmoid·swish와 hard 버전](/assets/img/posts/mobilenetv3/fig6.webp)
+_Figure 6. 왼쪽은 sigmoid와 h-sigmoid, 오른쪽은 swish와 h-swish이다. hard 버전은 -3과 3에서 꺾이는 조각 선형 함수인데도 원래 곡선을 거의 그대로 따라간다. (출처: Howard et al., 2019)_
+
 ### Squeeze-and-Excite
 
 [SENet]({% post_url 2026-06-02-cnn-architectures %})의 SE 블록을 MnasNet처럼 residual 블록 안(depthwise 뒤)에 넣되, MnasNet에서는 conv bottleneck 크기에 비례하던 SE의 bottleneck 채널을 확장 층의 **1/4**로 고정하고 시그모이드 대신 h-sigmoid를 쓴다. 파라미터는 조금 늘지만 지연 증가 없이 정확도가 오른다.
@@ -59,6 +62,9 @@ _Figure 4. MobileNetV3 블록. V2의 inverted residual(1×1 확장 → 3×3 dept
 ### 분할용 헤드: LR-ASPP
 
 분할에서는 Lite R-ASPP를 제안한다. SE처럼 큰 stride의 average pooling으로 전역 정보를 뽑아 곱하고, 저해상도 특징과 고해상도 특징을 1×1 conv로 합친다. Cityscapes에서 V2 기반 R-ASPP와 비슷한 mIOU로 34% 빠르다(초록 기준).
+
+![LR-ASPP 분할 헤드](/assets/img/posts/mobilenetv3/fig10.webp)
+_Figure 10. Lite R-ASPP. 1/16 해상도 특징에 한 가지는 1×1 conv를, 다른 가지는 큰 average pooling과 sigmoid를 적용해 곱한다. 이를 업샘플한 뒤 1/8 해상도 특징을 1×1 conv로 바꾼 것과 더해 19클래스 분할 맵을 낸다. (출처: Howard et al., 2019)_
 
 ## 3. 코드로 보기: h-swish, SE, 마지막 단계
 
@@ -151,6 +157,9 @@ Pixel 1 단일 코어, TFLite 벤치마크 기준이다.
 
 V3-Large는 V2보다 **3.2% 정확하면서 20% 빠르고**, V3-Small은 비슷한 지연의 V2 0.35보다 6.6% 정확하다. 양자화해도 Large 73.8%/44ms 대 V2 70.9%/52ms, Small 64.9%/15.5ms 대 V2 0.35 57.2%/16.7ms로 우위가 유지된다(Pixel 1). Figure 7에서는 MobileNetV3-Small이 multiplier를 줄여 지연을 맞춘 Large보다 약 3% 정확하다. 해상도 조절이 width multiplier보다 좋은 트레이드오프를 주지만, 해상도는 과제가 정하는 경우가 많아 항상 쓸 수 있는 손잡이는 아니다.
 
+![multiplier와 해상도에 따른 성능](/assets/img/posts/mobilenetv3/fig7.webp)
+_Figure 7. multiplier(실선)와 입력 해상도(점선)를 바꿔 가며 잰 Pixel 1 지연 대비 top-1이다. 같은 지연에서 V3 곡선이 V2보다 위에 있고, 해상도를 바꾼 점선이 multiplier 실선보다 대체로 위에 놓인다. (출처: Howard et al., 2019)_
+
 ### Ablation: 비선형성 위치 (Table 5)
 
 h-swish @N은 h-swish를 처음 켜는 층의 채널 수이다. 기본 V3는 80채널 층부터 쓴다.
@@ -168,6 +177,9 @@ h-swish @N은 h-swish를 처음 켜는 층의 채널 수이다. 기본 V3는 80�
 ### 구성 요소별 효과와 다운스트림
 
 Figure 9의 개발 진행을 보면 MnasNet 75.2% → +SE/4 75.5% → +h-swish 76.1% → +NetAdapt와 compact 재설계로 정확도를 75.2%로 유지하면서 지연이 크게 줄어든다.
+
+![V3 개발 과정](/assets/img/posts/mobilenetv3/fig9.webp)
+_Figure 9. MobileNetV3 개발 과정. MnasNet(75.2)에서 SE/4와 h-swish로 정확도를 76.1까지 올리고, 최적화된 h-swish로 지연을 줄인 뒤, NetAdapt와 compact 재설계로 정확도를 75.2로 되돌리는 대신 지연을 약 51ms까지 낮춘다. (출처: Howard et al., 2019)_
 
 **검출 (Table 6).** SSDLite의 백본만 바꿔 COCO test에서 비교한다. C4는 stride 16의 마지막 층(Large는 13번째 bottleneck의 확장 층), C5는 pooling 직전 층이고, †는 C4~C5 사이 채널을 절반으로 줄인 것이다(COCO는 90클래스라 1000클래스용 채널이 남는다는 이유).
 

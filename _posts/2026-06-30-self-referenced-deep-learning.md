@@ -52,11 +52,10 @@ $$
 \epsilon_t = \epsilon_0 \times f_{\text{step}}(t, 0.5M)
 $$
 
-아래 Figure 3처럼 $$M/2$$ epoch 안에 50%, 75% 지점의 decay를 모두 거쳐 안정된 상태에 도달하게 한다.
+아래 Figure 3처럼 $$M/2$$ epoch 안에 50%, 75% 지점의 decay를 모두 거쳐 안정된 상태에 도달하게 한다. 이 설계 하나가 결과를 가른다. ResNet-32·CIFAR-100에서 stage-incomplete 스케줄은 **58.11%**, stage-complete는 **71.63%**이다. 설익은 지식은 도움이 되기는커녕 방해가 된다.
 
 ![stage-complete 학습률 스케줄](/assets/img/posts/self-referenced-deep-learning/fig3.webp)
 _Figure 3. 200 epoch 기준 vanilla step-decay(주황 실선, 100·150 epoch에서 감소)와 SRDL의 stage-complete 스케줄(파랑 점선, 단계마다 50·75 epoch 지점에서 감소하고 2단계 시작에 다시 초기값). (출처: Lan et al., 2018)_
- 이 설계 하나가 결과를 가른다. ResNet-32·CIFAR-100에서 stage-incomplete 스케줄은 **58.11%**, stage-complete는 **71.63%**이다. 설익은 지식은 도움이 되기는커녕 방해가 된다.
 
 ### 무작위 재시작
 

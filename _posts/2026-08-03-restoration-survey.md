@@ -24,6 +24,9 @@ NCSN(점수 + 담금질 랑주뱅), DDPM(고정 분산 순방향 + 변분 하한
 
 SR3는 DDPM 틀에서 저해상도 $$y$$를 bicubic으로 목표 해상도로 키운 뒤 **$$x_t$$와 채널 방향으로 이어 붙여** U-Net에 넣는 가장 직접적인 조건화이다. 학습 설정은 batch 32, 1M iteration, lr 1e-4, 학습·추론 모두 2,000 step이다(서베이 Table 9). 질감 생성은 뛰어나지만 두 한계가 있다. 처음부터 학습하려면 대량의 쌍 데이터가 필요하고, 실세계에서 왜곡/정답 쌍을 모으기 어렵다.
 
+![SR3 백본](/assets/img/posts/restoration-survey/fig5.webp)
+_Figure 5. SR3의 백본이다. 키운 저해상도 이미지 $$y$$와 잡음 이미지 $$x_t$$를 채널 방향으로 이어 붙여 U-Net에 넣는다. (출처: Li et al., 2023)_
+
 ### 제로샷: ILVR
 
 사전학습된 무조건 디퓨전은 ImageNet·FFHQ 같은 대규모 자연 이미지로 학습되어 구조와 질감의 저장소로 볼 수 있다. ILVR은 샘플링의 매 단계에서 예측된 $$x'_{t-1}$$의 **저주파 성분을 참조 이미지의 것으로 교체**한다.
@@ -44,7 +47,13 @@ _Figure 4. 서베이의 분류. 위(파랑)는 지도 학습, 가운데(초록)�
 
 **지도 학습 디퓨전**은 조건 전략으로 (1) 저화질 참조 이미지(SR3처럼 직접 이어 붙임), (2) 전처리된 참조(다른 네트워크로 먼저 복원한 이미지를 조건으로 쓰는 CDPMSR·ResDiff, 특징을 조건으로 쓰는 IDM 등), (3) 디퓨전 과정 수정(저화질 이미지에서 시작하거나 순방향 자체를 왜곡 과정으로 정의, IR-SDE·Refusion 등)으로 나뉘고, 생성 공간으로 이미지·**잔차**(SRDiff·ResDiff처럼 전처리 결과와 정답의 차이만 생성)·**잠재**(DiffIR·LDM처럼 저차원에서 생성)로 나뉜다.
 
+![전처리 참조를 쓰는 구조](/assets/img/posts/restoration-survey/fig7.webp)
+_Figure 7. 전처리 참조를 조건으로 쓰는 구조이다. 저화질 이미지 $$y$$를 학습 가능한 전처리 모듈 $$\mathcal{F}_1$$이나 사전학습 복원 모델 $$\mathcal{F}_2$$에 먼저 통과시키고, 그 결과 이미지 $$I_c$$나 특징 $$f$$를 $$x_t$$와 이어 붙여 디노이저에 넣는다. (출처: Li et al., 2023)_
+
 **제로샷 디퓨전**은 데이터 일관성을 어떻게 강제하느냐로 나뉜다. 저주파 교체(ILVR), 선형 역문제의 **분해**(DDRM의 SVD, DDNM의 영공간 분해로 측정과 일치하는 성분은 $$y$$에서, 나머지는 생성에서), **사후 기울기**(DPS는 $$\nabla_{x_t} \log p(y \mid x_t)$$를 근사해 매 단계 보정, GDP는 경험적 공식), **플러그 앤 플레이**(DiffPIR은 디퓨전을 디노이저 사전으로 쓰는 HQS 분할) 등이다.
+
+![DDNM 구조](/assets/img/posts/restoration-survey/fig11.webp)
+_Figure 11. DDNM. 매 단계 예측한 깨끗한 이미지 $$x_{0\mid t}$$에서 영공간 성분 $$(\mathbf{I}-A^\dagger A)x_{0\mid t}$$만 남기고, 치역 성분은 저화질 이미지에서 온 $$A^\dagger y$$로 채운다. 이렇게 고친 $$\hat{x}_{0\mid t}$$로 다음 단계 $$x_{t-1}$$을 뽑는다. (출처: Li et al., 2023)_
 
 **블라인드/실세계 복원**은 왜곡이 미지이고 다양해 두 흐름 모두 어렵다. 네 방향이 있다. **왜곡 시뮬레이션**(Real-ESRGAN류의 고차 왜곡 파이프라인으로 쌍을 합성), **커널 추정**(블러 커널을 디퓨전으로 함께 추정), **도메인 변환**(실세계 왜곡을 합성 왜곡 도메인으로 옮긴 뒤 복원), **왜곡 불변 디퓨전**(왜곡에 불변인 표현에서 생성).
 
@@ -167,6 +176,9 @@ Figure 15의 아래 줄에서 DPS는 개선문의 시점과 배경까지 달라�
 
 서베이 본문은 DiffPIR과 Dirac-DO가 DDRM·DDNM보다 PSNR이 평균 1.0~1.4dB 높다고 쓰지만, 표를 보면 그 차이는 **CelebA에서만** 성립한다(DiffPIR 28.35, Dirac-DO 28.46 대 DDNM 27.25). ImageNet에서는 DDNM이 25.37로 오히려 가장 높다. Dirac-PO와 DiffPIR은 지각 지표가 좋고, DiffPIR은 플러그 앤 플레이에 DDIM을 합쳐 충실도와 사실성을 함께 잡는다. DiracDiffusion은 점진적 복원과 조기 종료로 지각 최적화(PO)·왜곡 최적화(DO) 두 버전을 만든다. DDRM은 20 step으로 한 장 10초 미만이다. 제로샷 방법은 모두 ImageNet 552.8M, CelebA 126M 파라미터의 사전학습 모델을 쓴다.
 
+![디블러링 정성 비교](/assets/img/posts/restoration-survey/fig16.webp)
+_Figure 16. 제로샷 방법의 가우시안 디블러링 결과이다. 맨 왼쪽은 블러 입력이다. DPS는 건물 아치의 형태가 입력과 달라지고, GDP는 색조가 바뀐다. (출처: Li et al., 2023)_
+
 **인페인팅, 좁은 마스크 (Table 6).**
 
 | 방법 | ImageNet PSNR / SSIM / LPIPS / FID | CelebA-HQ PSNR / SSIM / LPIPS / FID | 시간(s/장) |
@@ -178,6 +190,9 @@ Figure 15의 아래 줄에서 DPS는 개선문의 시점과 배경까지 달라�
 | CoPaint | 31.93 / **0.976** / 0.08 / **4.23** | 34.97 / 0.975 / **0.04** / **4.86** | 293.8 |
 
 왜곡 지표는 DDRM·DDNM이, 지각 지표는 인페인팅 전용인 RePaint·CoPaint가 좋다. 대신 RePaint와 CoPaint는 resampling·time travel 때문에 한 장에 5분 안팎이 걸린다.
+
+![인페인팅 정성 비교](/assets/img/posts/restoration-survey/fig17.webp)
+_Figure 17. 좁은 마스크 인페인팅 결과이다. 맨 왼쪽은 마스크를 씌운 입력이다. 그림의 비교 대상은 DDRM·DDNM·DPS·RePaint·DiffPIR로, 표의 CoPaint 대신 DiffPIR이 들어 있다. (출처: Li et al., 2023)_
 
 **처음 보는 왜곡으로의 일반화 (Table 7).** DIV2K 합성 데이터로 학습해 실세계 RealSR에서 시험하면, CNN(RRDB)·Transformer(SwinIR)·SRDiff 모두 LPIPS가 0.43~0.45로 무너진다. Real-ESRGAN식 왜곡 합성으로 학습한 StableSR만 LPIPS 0.095를 유지한다(PSNR은 21.14dB로 가장 낮음).
 

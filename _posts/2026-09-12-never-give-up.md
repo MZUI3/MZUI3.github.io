@@ -194,6 +194,12 @@ R2D2와 같은 데이터 양(350억 frame)과 설정으로 학습했고, seed 3�
 - Pitfall!에서는 RND를 빼는 편이 오히려 나았다. 논문은 방들이 서로 비슷하게 생겨 새 방 발견 보상이 크지 않고, 화면의 타이머가 가짜 새로움을 만들며, RND 에이전트가 위험한 물체 근처에서 노는 경향이 함정이 많은 Pitfall!에서 특히 해롭다는 가설을 든다. 반대로 Montezuma's Revenge에서는 RND가 NGU(N=32)를 크게 개선했다.
 - 6게임 중 4게임에서 NGU(N=32)가 NGU(N=1)보다 크게 좋았다. 사람 정규화 점수의 평균·중앙값 모두 기존 방법보다 높다.
 
+![hard exploration 6게임의 사람 정규화 점수](/assets/img/posts/never-give-up/fig4.webp)
+_Figure 4. hard exploration 6게임의 사람 정규화 점수 평균(왼쪽)과 중앙값(오른쪽) 학습 곡선. 학습 후반에는 NGU(32)(파랑)가 두 지표 모두 R2D2(Retrace), NGU(1), NGU(1)-RND, RND(점선)보다 위에 있다. (출처: Badia et al., 2020)_
+
+![RND 유무에 따른 Pitfall!·Montezuma's Revenge 학습 곡선](/assets/img/posts/never-give-up/fig5.webp)
+_Figure 5. NGU(N=32)에서 RND 배율을 쓴 경우(파랑)와 뺀 경우(주황). Pitfall!(왼쪽)은 RND를 뺀 쪽이 초반에 훨씬 빨리 오르고, Montezuma's Revenge(오른쪽)는 RND를 빼면 3,000 근처에서 멈춘다. (출처: Badia et al., 2020)_
+
 ### Ablation (8개 게임)
 
 dense reward 게임 5개와 hard exploration 게임 3개(Montezuma's Revenge, Pitfall!, Private Eye)로 설계 선택을 검증했다.
@@ -207,6 +213,9 @@ dense reward 게임 5개와 hard exploration 게임 3개(Montezuma's Revenge, Pi
 | extrinsic reward 제거 | dense 게임 5개에서도 평균적으로 사람 이상 |
 
 dense reward 게임에서는 extrinsic reward 제거를 빼면 어떤 설정도 거의 영향이 없었다. 보상이 촘촘하면 intrinsic reward의 상대적 비중이 자연히 작아지기 때문이다.
+
+![ablation 결과](/assets/img/posts/never-give-up/fig3.webp)
+_Figure 3. 설정별 사람 정규화 점수 평균. hard exploration 게임(왼쪽)에서는 기본 NGU(N=32)가 가장 높고, CMR 0.5, $$N = 16$$, $$\beta$$ 0.2·0.5, RND 제거가 모두 점수를 낮춘다. dense reward 게임(오른쪽)에서는 extrinsic reward를 뺀 경우만 크게 떨어진다. (출처: Badia et al., 2020)_
 
 ### 활용 정책과 탐험 정책은 실제로 다르게 행동하나
 

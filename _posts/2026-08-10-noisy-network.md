@@ -222,7 +222,13 @@ Atari 57개 게임에서 DQN, Dueling DQN, A3C 세 baseline 모두에 NoisyNet�
 ![NoisyNet과 baseline의 학습 곡선](/assets/img/posts/noisy-network/fig2.webp)
 _Figure 2. 57개 게임의 사람 대비 정규화 점수 중앙값 학습 곡선. 왼쪽부터 DQN, Dueling, A3C이고 초록색이 NoisyNet이다. (출처: Fortunato et al., 2018)_
 
+![factorized와 independent NoisyNet-A3C 비교](/assets/img/posts/noisy-network/fig5.webp)
+_Figure 5. A3C(빨강), independent 노이즈 NoisyNet-A3C(파란 점선), factorized 노이즈 NoisyNet-A3C(초록)의 정규화 점수 중앙값 학습 곡선이다. 두 NoisyNet 변형 모두 대체로 A3C보다 위에 있고, 둘 사이의 차이는 크지 않다. (출처: Fortunato et al., 2018)_
+
 특히 baseline이 사람보다 크게 못하던 Beam Rider(DQN), Asteroids(Dueling), Freeway(A3C)에서는 NoisyNet 버전이 사람 수준을 넘었다. 일부 게임에서는 점수가 10배 이상 오르기도 했다. 다만 논문도 비용 함수가 바뀐 만큼 최적화 측면의 효과가 섞여 있을 수 있어, 탐험 효과와 분리하는 분석이 더 필요하다고 적는다.
+
+![게임별 NoisyNet 개선율](/assets/img/posts/noisy-network/fig1.webp)
+_Figure 1. 게임별로 NoisyNet이 baseline보다 점수를 몇 % 올렸는지 정렬한 막대그래프이다. 위부터 DQN, Dueling, A3C이고 250%에서 잘랐다. 손해를 본 게임도 있지만 대부분의 막대가 0 위에 있다. (출처: Fortunato et al., 2018)_
 
 ### 노이즈는 결국 사라질까?
 

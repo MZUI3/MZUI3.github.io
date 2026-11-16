@@ -54,6 +54,9 @@ _Figure 1. Thought Generator는 생각 이력·임무·관측을 받아 다음 �
 
 두 모듈 모두 BabyAI 1.1 baseline 구조를 바탕으로 처음부터 학습한다. 부분 관측을 다루기 위해 LSTM 메모리를 쓰고, 텍스트(임무·생각)와 관측은 FiLM으로 섞는다. Thought Generator는 이전 생각들을 LSTM으로 요약하고, 2층·2-head Transformer encoder로 생각 이력(query)과 임무(key, value)를 함께 처리한다. Action Generator는 BC baseline과 같은 구조에 생각 임베딩만 더한 것이다. 논문은 더 복잡한 도메인이라면 Thought Generator를 사전학습된 VLM으로 바꿀 수 있다고 본다.
 
+![Thought Generator와 Action Generator의 세부 구조](/assets/img/posts/thought-cloning/fig6.webp)
+_Figure 6. 왼쪽 Thought Generator는 이전 생각들($$th_1, \dots, th_{t-1}$$)을 LSTM으로 요약하고, 임무 $$m$$과 함께 Transformer encoder와 attention을 거친 뒤 관측 $$o_t$$와 합쳐 decoder로 생각 $$th_t$$를 만든다. 오른쪽 Action Generator는 임무와 생각($$sg_t$$)을 각각 attention으로 처리해 관측과 합치고, LSTM과 head로 행동 $$a_t$$를 낸다. (출처: Hu & Clune, 2023)_
+
 ### 학습 목적
 
 $$
@@ -98,6 +101,9 @@ def thought_cloning_loss(thought_gen, action_gen, batch, alpha=2.0, teacher_forc
 3. 이렇게 **100만 개의 궤적** 생성
 4. 실제 영상 자막처럼 잡음이 섞이도록, 매 step 1% 확률로 무작위 생각과 무작위 행동 1~6개로 된 noise 구간을 끼워 넣음
 
+![합성 생각 데이터 예시](/assets/img/posts/thought-cloning/fig8.webp)
+_Figure 8. 합성 생각 데이터의 한 궤적. 시점 구간마다 생각 문장과 그동안의 행동이 짝지어 있고, 빨간 줄이 일부러 끼워 넣은 noise 구간이다. (출처: Hu & Clune, 2023)_
+
 ### 결과: 학습 속도와 최종 성능
 
 TC는 BC보다 훨씬 빨리 배우고, 학습 25%·50%·75%·100% 시점 모두에서 BC보다 높았다(Mann-Whitney U test, p < 0.05). 파라미터 수나 데이터 양 때문이 아님을 보이려고 여러 대조군도 두었다(부록 Table 2, BossLevel 성공률, 5회 평균).
@@ -115,9 +121,12 @@ TC는 BC보다 훨씬 빨리 배우고, 학습 25%·50%·75%·100% 시점 모두
 - **TC w/o Imitating Thought**는 TC와 구조·파라미터가 같지만 생각 loss 없이 행동 loss만으로 학습한 대조군이다. 단어를 샘플링하면 미분이 안 되므로 Thought Generator의 logit을 그대로 Action Generator에 넘긴다. "latent 벡터로 생각할 수는 있지만 생각을 지도받지는 못하는" 모델인데, 오히려 BC보다 낮다(65.5%).
 - BC에 데이터를 2배로 주거나 파라미터를 TC만큼 늘려도 92% 안팎에 머문다. 논문은 성능 차이가 생각 데이터로 지도한 것에서 나온다고 결론짓는다.
 
+![학습 진행에 따른 성공률](/assets/img/posts/thought-cloning/fig3.webp)
+_Figure 3. 학습 frame에 따른 BossLevel 성공률. TC(파랑)는 초반부터 빠르게 90% 가까이 오르고, BC(주황)는 천천히 따라오며, 생각 loss를 뺀 TC w/o Imitating Thought(초록)는 50% 안팎에 머문다. (출처: Hu & Clune, 2023)_
+
 ### 결과: OOD 일반화
 
-환경 난이도를 두 축으로 정의한다. **Behavioral Difficulty**는 Oracle 해답의 길이(쉬운 것은 약 20 step, 어려운 것은 500 step 이상), **Cognitive Difficulty**는 임무 복잡도(1~9)이다. 학습 분포는 각각 84.2 ± 68.8, 2.7 ± 1.6이고, Behavioral Difficulty > 175 또는 Cognitive Difficulty ≥ 4를 OOD로 본다. 가장 먼 OOD 환경(Behavioral Difficulty > 425, Cognitive Difficulty 9)은 학습 중에 뽑힐 확률이 각각 $$5.7 	imes 10^{-5}$$, $$1.6 	imes 10^{-4}$$ 미만이다.
+환경 난이도를 두 축으로 정의한다. **Behavioral Difficulty**는 Oracle 해답의 길이(쉬운 것은 약 20 step, 어려운 것은 500 step 이상), **Cognitive Difficulty**는 임무 복잡도(1~9)이다. 학습 분포는 각각 84.2 ± 68.8, 2.7 ± 1.6이고, Behavioral Difficulty > 175 또는 Cognitive Difficulty ≥ 4를 OOD로 본다. 가장 먼 OOD 환경(Behavioral Difficulty > 425, Cognitive Difficulty 9)은 학습 중에 뽑힐 확률이 각각 $$5.7 \times 10^{-5}$$, $$1.6 \times 10^{-4}$$ 미만이다.
 
 ![OOD 환경에서의 zero-shot과 fine-tuning 성공률](/assets/img/posts/thought-cloning/fig4.webp)
 _Figure 4. (a) 학습 분포(회색)에서 멀어질수록의 zero-shot 성공률. 빨간 선은 Oracle 생각을 넣어 준 TC의 Action Generator. (b) OOD 환경에서 15 epoch fine-tuning한 뒤의 성공률(진한 색: zero-shot, 연한 색: fine-tuning으로 오른 부분). (출처: Hu & Clune, 2023)_
@@ -130,7 +139,10 @@ _Figure 4. (a) 학습 분포(회색)에서 멀어질수록의 zero-shot 성공�
 
 논문은 **Future Action Declaration Score**라는 지표를 만든다. 이동이 아닌 행동(집기, 내려놓기, 문 열기 등)을 하기 전에 그 행동을 생각에서 미리 선언한 비율이다. TC 에이전트는 학습 분포뿐 아니라 모든 OOD 영역에서도 이 점수가 거의 1이었다(아래 Figure 5 (a)).
 
-논문에 실린 재계획 예시(논문 Figure 2)는 다음과 같다. 보라색 상자로 가야 하는데 보라색 공이 길을 막자, 에이전트는 "remove blocking object purple ball"이라는 생각을 끼워 넣고 공을 집어 빈 곳에 내려놓은 뒤, 다시 원래 생각("go to purple box ...")으로 돌아온다. 계획과 재계획이 문장으로 드러나는 셈이다.
+논문에 실린 재계획 예시(아래 Figure 2)는 다음과 같다. 보라색 상자로 가야 하는데 보라색 공이 길을 막자, 에이전트는 "remove blocking object purple ball"이라는 생각을 끼워 넣고 공을 집어 빈 곳에 내려놓은 뒤, 다시 원래 생각("go to purple box ...")으로 돌아온다. 계획과 재계획이 문장으로 드러나는 셈이다.
+
+![BabyAI 환경과 재계획 예시](/assets/img/posts/thought-cloning/fig2.webp)
+_Figure 2. 왼쪽은 BossLevel 환경으로, 노란 테두리가 에이전트가 보는 7×7 영역이다. 오른쪽은 43 step 이후의 생각과 행동으로, 보라색 공이 길을 막자 "remove blocking object purple ball"을 끼워 넣어 공을 치운 뒤 원래 생각으로 돌아온다. (출처: Hu & Clune, 2023)_
 
 ### Precrime Intervention (안전성)
 

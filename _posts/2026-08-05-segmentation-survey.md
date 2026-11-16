@@ -23,18 +23,33 @@ _Figure 32. 2D 영상 분할 딥러닝 모델의 연표(2014~2020). 주황·초�
 
 **1. 완전 합성곱 네트워크(FCN).** Long 등은 분류 CNN의 FC 층을 합성곱으로 바꿔 임의 크기 입력에 대해 분할 맵을 내게 했다. 깊은 층의 거친 맵을 얕은 층과 **스킵 연결**로 합쳐 세부를 복원한다(FCN-8s). 문제는 느리고, 전역 문맥을 못 보고, 3D로 바로 안 간다는 점이다. ParseNet은 전역 평균 특징을 각 위치에 붙여 문맥을 더했다.
 
+![FCN](/assets/img/posts/segmentation-survey/fig7.webp)
+_Figure 7. FCN. FC 층 없이 합성곱만 쌓아, 입력 이미지 전체에 대해 픽셀마다 클래스를 예측하는 맵(21채널)을 한 번에 낸다. (출처: Minaee et al., 2021)_
+
 **2. 그래프 모델 결합.** FCN의 출력은 경계가 흐릿하고 지역 일관성이 약하다. DeepLab v1은 CRF를 후처리로, CRF-RNN은 CRF 평균장 추론을 RNN으로 펼쳐 종단간 학습하고, Piecewise·DPN은 쌍별 포텐셜을 네트워크로 모델링한다.
 
 **3. 인코더-디코더.** 다운샘플로 압축하고 업샘플로 복원한다. Deconvolution Network와 SegNet(풀링 인덱스를 저장해 비선형 업샘플), 고해상도 표현을 끝까지 유지하는 HRNet이 일반 분할 쪽이고, 의료 영상에서는 **U-Net**(대칭 스킵 연결, 적은 데이터로 학습), V-Net(3D, Dice 손실), 그리고 다수의 변형이 있다.
 
+![U-Net](/assets/img/posts/segmentation-survey/fig14.webp)
+_Figure 14. U-Net. 왼쪽 수축 경로에서 max pooling으로 해상도를 줄이고, 오른쪽 확장 경로에서 up-conv로 되살린다. 회색 화살표는 같은 단계의 인코더 특징을 잘라 디코더에 이어 붙이는 스킵 연결이다. (출처: Minaee et al., 2021)_
+
 **4. 다중 스케일·피라미드.** 물체 크기가 다양하므로 여러 해상도의 특징을 합친다. FPN(검출에서 왔지만 분할에도), **PSPNet**(피라미드 풀링 모듈로 전역·부분 문맥을 네 스케일로 풀링해 결합), DM-Net, APC-Net, MSCI 등.
 
+![PSPNet](/assets/img/posts/segmentation-survey/fig15.webp)
+_Figure 15. PSPNet. CNN 특징 맵을 네 가지 크기로 풀링하고, 각각 합성곱을 거쳐 원래 크기로 업샘플한 뒤 원 특징 맵과 이어 붙여 최종 예측을 만든다. (출처: Minaee et al., 2021)_
+
 **5. R-CNN 기반(인스턴스 분할).** Faster R-CNN의 제안 영역마다 마스크를 예측하는 **Mask R-CNN**(RoIAlign으로 정렬 오차 제거)이 중심이고, PANet(경로 집계), MaskLab, TensorMask(밀집 슬라이딩 윈도우), 실시간 YOLACT 등이 뒤따른다.
+
+![Mask R-CNN](/assets/img/posts/segmentation-survey/fig17.webp)
+_Figure 17. Mask R-CNN. RoIAlign으로 뽑은 영역 특징에서 한 가지는 클래스와 박스를, 다른 가지는 합성곱으로 그 영역의 마스크를 예측한다. (출처: Minaee et al., 2021)_
 
 **6. 팽창 합성곱과 DeepLab.** 이 계보는 풀링 없이 수용 영역을 키우는 **팽창(atrous) 합성곱**에 기반한다. DeepLab v2는 여러 팽창률의 병렬 가지 **ASPP**로 다중 스케일을, v3는 배치 정규화와 이미지 수준 특징을 더하고, v3+는 인코더-디코더 구조와 Xception 백본, 깊이별 분리 팽창 합성곱을 합쳐 PASCAL VOC 89.0%에 이른다(COCO·JFT 사전학습). DenseASPP, DUC-HDC도 이 계보이다.
 
 ![팽창 합성곱](/assets/img/posts/segmentation-survey/fig21.webp)
 _Figure 21. 팽창률 1, 2, 3인 3×3 커널. 가중치는 9개 그대로인데 덮는 영역이 넓어진다. (출처: Minaee et al., 2021)_
+
+![DeepLabv3+](/assets/img/posts/segmentation-survey/fig23.webp)
+_Figure 23. DeepLabv3+. 인코더는 팽창률 6·12·18의 3×3 합성곱, 1×1 합성곱, 이미지 풀링을 병렬로 둔 ASPP로 다중 스케일 특징을 모은다. 디코더는 이를 4배 업샘플해 얕은 층 특징과 합친 뒤 다시 4배 키워 경계를 다듬는다. (출처: Minaee et al., 2021)_
 
 **7. 순환 네트워크.** 픽셀 간 장거리 의존을 RNN·LSTM으로 모델링한다(ReSeg, 2D LSTM, Graph LSTM, DA-RNN). 자연스럽지만 느리고 이후 attention으로 대체된다.
 

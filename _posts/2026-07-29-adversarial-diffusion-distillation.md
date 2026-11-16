@@ -154,6 +154,12 @@ ADD-M(SD 2.1 backbone, 860M)으로 COCO zero-shot FID-5k와 CLIP score를 쟀다
 
 주 비교는 FID나 CLIP 대신 **사용자 선호 연구**로 했다. 이 지표들이 미학이나 장면 구성을 충분히 잡지 못하기 때문이다. PartiPrompts에서 고른 100개 프롬프트로 모든 모델 쌍을 1 대 1 비교하고(프롬프트 충실도와 시각 품질을 따로, 비교당 평균 4표), ELO 점수로 순위를 매겼다. 비교 대상은 SD 1.5, SDXL-Base 1.0(refiner 없음), IF-XL(150 step), LCM-1.5, LCM-XL, OpenMUSE(16 step), 그리고 공개된 최신 GAN이 없어 개선된 판별기로 다시 학습한 StyleGAN-T++이다.
 
+![1 step ADD-XL의 사용자 선호 비교](/assets/img/posts/adversarial-diffusion-distillation/fig5.webp)
+_Figure 5. 1 step ADD-XL(빨강)과 다른 모델(파랑)의 1 대 1 사용자 선호 비율이다. 왼쪽은 시각 품질, 오른쪽은 프롬프트 정렬이고, 세로선이 50%이다. 1 step ADD-XL은 4 step LCM-XL까지 이기고, SDXL과 4 step ADD-XL에만 진다. (출처: Sauer et al., 2023)_
+
+![4 step ADD-XL의 사용자 선호 비교](/assets/img/posts/adversarial-diffusion-distillation/fig6.webp)
+_Figure 6. 같은 비교를 4 step ADD-XL로 한 결과이다. 50 step SDXL을 포함해 모든 상대에게 품질과 정렬 모두 50%를 넘는다. (출처: Sauer et al., 2023)_
+
 - **1 step ADD-XL이 4 step LCM-XL을 이긴다.** SDXL을 제외한 모든 모델을 품질과 정렬 모두에서 이겼다.
 - **4 step ADD-XL이 50 step SDXL을 대부분의 비교에서 이긴다.** 교사를 넘은 것이다.
 - 512×512, A100 혼합 정밀도에서의 속도와 함께 그리면(아래 Figure 7) ADD-XL 1 step과 4 step이 ELO 대 속도의 Pareto 최전선에 있다.
@@ -186,6 +192,12 @@ Figure 3에서 LCM-XL 1 step은 형체가 뭉개지고 4 step에서도 디테일
 
 - 1 step 샘플이 이미 고품질이고, step을 늘리면 일관성과 세부, 다양성, 글자 철자가 좋아진다. 같은 시드에서 전체 구도가 step 수와 무관하게 유지되어 빠르게 탐색한 뒤 정제할 수 있다. 순수 GAN에는 없는 능력이다.
 - 교사 SDXL과 비교하면 adversarial loss가 **사실감**, 특히 털·천·피부 질감을 끌어올리고 diffusion 샘플 특유의 과도한 매끄러움을 줄인다. 대신 샘플 다양성은 약간 줄어든다.
+
+![sampling step 수에 따른 ADD-XL 샘플](/assets/img/posts/adversarial-diffusion-distillation/fig4.webp)
+_Figure 4. ADD-XL을 1, 2, 4 step으로 샘플링한 결과로, 열마다 시드가 같다. 1 step에서도 품질이 높고, step을 늘리면 독수리 머리 같은 세부와 일관성이 나아진다. 같은 열 안에서 전체 구도는 그대로 유지된다. (출처: Sauer et al., 2023)_
+
+![ADD-XL과 교사 SDXL의 정성 비교](/assets/img/posts/adversarial-diffusion-distillation/fig8.webp)
+_Figure 8. 4 step ADD-XL(위)과 50 step SDXL-Base(아래)의 비교이다. ADD-XL 쪽이 돼지 피부, 쥐 털 같은 질감이 더 사실적이지만, 네 장 사이의 구도와 자세는 SDXL보다 서로 비슷해 다양성이 조금 낮다. (출처: Sauer et al., 2023)_
 
 ## 6. 해석
 

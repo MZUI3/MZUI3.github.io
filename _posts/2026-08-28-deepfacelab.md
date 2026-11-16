@@ -20,6 +20,12 @@ math: true
 - **정렬**: 랜드마크가 시간 안정성을 좌우한다. 표준 포즈는 히트맵 기반 2DFAN, 큰 오일러 각은 3D 사전을 가진 PRNet을 쓰고, 연속 프레임의 랜드마크를 시간 평활화하는 옵션이 있다. Umeyama의 점 패턴 정합으로 기준 템플릿에 대한 **유사 변환**을 구하며, 변환이 가역이므로 변환 단계에서 되돌린다. 추출 범위는 half/full/whole-face.
 - **분할**: TernausNet으로 머리카락·손가락·안경을 제외한 얼굴 마스크를 만들고, 특정 영상에서 실패하면 **XSeg**로 사용자가 몇 장만 라벨링해 전용 분할 모델을 few-shot 학습한다.
 
+![추출 단계](/assets/img/posts/deepfacelab/fig2.webp)
+_Figure 2. 추출 단계. 입력 프레임에서 얼굴을 검출하고, 랜드마크를 프레임마다 따로(Single) 또는 시간 평활화해(Temporal Smooth) 구해 정렬한 뒤, 분할 네트워크로 정렬된 얼굴의 마스크를 만든다. (출처: Petrov et al., 2020)_
+
+![XSeg 편집기와 학습 미리보기](/assets/img/posts/deepfacelab/fig8.webp)
+_Figure 8. XSeg. 왼쪽 편집기에서 사용자가 몇 장의 얼굴 마스크를 직접 그리면, 오른쪽처럼 그 영상 전용 분할 모델이 학습되며 마스크를 예측한다. (출처: Petrov et al., 2020)_
+
 ## 2. 학습: DF와 LIAE
 
 ![DF 구조와 LIAE 구조](/assets/img/posts/deepfacelab/fig3.webp)
@@ -27,9 +33,15 @@ _Figure 3. 학습 단계의 두 구조. 위 DF는 Encoder와 Inter를 공유하�
 
 **DF 구조**는 DeepFakes와 같다. src와 dst가 공유하는 Encoder + Inter, 그리고 신원별 Decoder 둘. 각 디코더는 자기 신원만 재구성하도록 학습되므로 표정이 짝지어질 필요가 없다. 추론 때 dst 얼굴을 src 디코더에 넣으면 "왜곡된 src"로 착각해 src 신원에 dst 포즈·표정의 얼굴을 낸다([SimSwap]({% post_url 2026-08-31-simswap %})이 분석하듯 신원 정보가 디코더 가중치에 들어 있어 일반화는 안 된다). 약점은 dst의 **조명** 같은 정보를 충분히 물려받지 못한다는 것이다.
 
-**LIAE 구조**는 Encoder와 Decoder를 공유하고 Inter를 두 개(InterAB, InterB) 둔다. InterAB는 src·dst 모두의 잠재를, InterB는 dst의 잠재만 만들고, src는 $$F^{AB}_{src} \Vert F^{AB}_{src}$$, dst는 $$F^{AB}_{dst} \Vert F^{B}_{dst}$$를 채널 연결해 디코더에 넣는다. $$F^B_{dst}$$를 붙이는 것은 잠재의 방향을 필요한 클래스 쪽으로 옮기기 위한 것이고, InterAB가 두 신원의 **정렬된 공통 표현**을 갖게 된다. LIAE를 만든 동기는 DF가 dst의 조명을 충분히 물려받지 못하는 문제였고, ablation(Figure 6)에서는 LIAE가 dst의 얼굴 형태를 더 잘 물려받아 DF의 얼굴형 불일치 문제를 줄인다는 것을 보여 준다.
+**LIAE 구조**는 Encoder와 Decoder를 공유하고 Inter를 두 개(InterAB, InterB) 둔다. InterAB는 src·dst 모두의 잠재를, InterB는 dst의 잠재만 만들고, src는 $$F^{AB}_{src} \Vert F^{AB}_{src}$$, dst는 $$F^{AB}_{dst} \Vert F^{B}_{dst}$$를 채널 연결해 디코더에 넣는다. $$F^B_{dst}$$를 붙이는 것은 잠재의 방향을 필요한 클래스 쪽으로 옮기기 위한 것이다. 또 InterAB가 두 신원의 **정렬된 공통 표현**을 갖게 된다. LIAE를 만든 동기는 DF가 dst의 조명을 충분히 물려받지 못하는 문제였다. ablation(아래 Figure 6)에서는 LIAE가 dst의 얼굴 형태를 더 잘 물려받아 DF의 얼굴형 불일치 문제를 줄인다는 것을 보여 준다.
+
+![구조별 ablation](/assets/img/posts/deepfacelab/fig6.webp)
+_Figure 6. 같은 src·dst 쌍을 LIAE, DF, LIAEHD, DFHD로 학습한 결과. 후처리 영향을 빼려고 변환 결과 대신 학습 미리보기를 보여 준다. (출처: Petrov et al., 2020)_
 
 **손실과 기법**: DSSIM + MSE 혼합(DSSIM은 얼굴을 빨리 일반화하고 MSE는 선명도), 눈 영역에 가중치를 둔 마스크 SSIM, GAN 옵션(세부·주름·점이 살아남), **TrueFace**(LIAE에서 $$F^{AB}_{src} \approx F^{AB}_{dst}$$, DF에서 $$F_{src} \approx F_{dst}$$가 되도록 강제해 변환 결과가 dst를 더 닮게 함), 합성곱 인식 초기화, 학습률 드롭아웃. 다중 GPU, 반정밀도, 2GB VRAM에서도 동작한다.
+
+![GAN 유무 비교](/assets/img/posts/deepfacelab/fig7.webp)
+_Figure 7. 왼쪽은 원본 얼굴, 가운데는 GAN 없이 학습한 모델의 재구성, 오른쪽은 GAN을 더한 모델의 재구성이다. 확대한 눈가·입술·주름을 보면 GAN을 쓴 쪽이 세부가 더 선명하고 덜 뭉개진다. (출처: Petrov et al., 2020)_
 
 ## 3. 변환
 

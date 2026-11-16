@@ -62,6 +62,9 @@ $$
 
 로 $$\theta \ge 180^\circ$$가 되도록 밀어 준다. 전체 손실은 $$\mathcal{L}_{\text{UDF}} + 0.01\,\mathcal{L}_{\text{Xing}}$$이다. 부록의 가중치 실험에서는 작은 가중치(0.01)가 가장 좋았고, 1.0으로 키우면 최적화가 항상 실패했다.
 
+![자기 교차와 Xing 손실](/assets/img/posts/live-vectorization/fig3.webp)
+_Figure 3. 위: 자기 교차가 생긴 원과 그 제어점(왼쪽), 교차가 없는 도형과 제어점(오른쪽). 제어점 다각형이 꼬이면 곡선도 꼬인다. 아래: Xing 손실은 $$\vec{AB}$$와 $$\vec{CD}$$ 사이 각 $$\theta$$가 180°보다 작으면(왼쪽, 교차하기 쉬움) 벌을 주어 180° 이상(오른쪽, 볼록해지기 쉬움)이 되게 한다. (출처: Ma et al., 2022)_
+
 ### 데이터
 
 평가용으로 NotoEmoji에서 모은 **Emoji**(134장, 240×240)와 폰트·아이콘·클립아트 **Pics**(153장)를 소개한다. 모델이 없으므로 둘 다 평가에만 쓴다.
@@ -159,14 +162,23 @@ Xing loss  convex control polygon: 0.000   twisted (self-intersecting) polygon: 
 
 **재구성 품질.** 경로 4개(이모지의 성분 수)와 20개(Im2Vec 기본값)로 비교하면 LIVE는 4개만으로 각 성분을 정확히 복원하고, DiffVG와 Im2Vec은 20개에서도 아티팩트가 남는다. 정량적으로는 세그먼트 수를 DiffVG 기본값인 4로 맞추고, Emoji는 경로 8~64개, Pics는 32~256개에서 이미지별 MSE를 평균했다. 아래 Figure 6처럼 두 데이터셋 모두에서 LIVE의 MSE가 DiffVG보다 낮고, **경로 수가 적을수록 격차가 크다**. 그래프에서 읽으면 Emoji 8경로에서 DiffVG는 약 0.009, LIVE는 약 0.002이다. 경로가 충분해지면 두 방법 모두 성능이 포화한다.
 
+![이모지 재구성 정성 비교](/assets/img/posts/live-vectorization/fig5.webp)
+_Figure 5. 경로 4개와 20개로 이모지를 재구성한 결과. Im2Vec은 위쪽이 비거나 눈·입이 일그러지고, DiffVG는 4개로는 얼굴 형태도 못 잡는다. LIVE는 4개만으로 얼굴·눈·입을 각각 경로 하나씩으로 복원한다. (출처: Ma et al., 2022)_
+
 ![경로 수에 따른 MSE](/assets/img/posts/live-vectorization/fig6.webp)
 _Figure 6. Emoji(왼쪽)와 Pics(오른쪽)에서 경로 수별 MSE. 논문은 표 없이 이 그래프로만 수치를 보고한다. (출처: Ma et al., 2022)_
 
 **레이어 표현.** 이모지와 단순 클립아트에서는 성분 하나가 경로 하나로 끊김 없이 학습된다. 사진 같은 복잡한 이미지에서는 완벽한 분리는 안 되지만 coarse-to-fine으로 전체 맥락을 먼저, 지역 세부를 나중에 채우며, 같은 경로 수에서 DiffVG·Neural Painting보다 지역 정보를 잘 복원한다.
 
+![사진 벡터화 비교](/assets/img/posts/live-vectorization/fig8.webp)
+_Figure 8. 일러스트(위)와 풍경 사진(아래)을 경로 수 N을 늘려 가며 DiffVG, Neural Painting(Painter), LIVE로 벡터화한 결과. LIVE는 적은 N에서 하늘·산 같은 큰 영역부터 잡고, 오른쪽 확대 부분(눈 덮인 산, 나무)의 세부도 더 또렷하다. (출처: Ma et al., 2022)_
+
 **사용자 연구(부록 A).** Emoji·Pics에서 무작위로 고른 21장을 20명에게 보여 주고 학습 과정이 가장 좋은 방법을 고르게 했더니, LIVE 73.8%, DiffVG 14.3%, Neural Painting 11.9%였다.
 
 **보간.** VAE가 아닌데도 두 SVG의 대응 경로 제어점을 선형 보간하면 그럴듯한 중간 도형이 나온다. 경로 순서가 안정적이기 때문이다. 부록 D에서는 같은 실험을 DiffVG로 하면 seed를 고정해도 경로 순서가 어긋나 보간이 망가지는 것을 보여 준다. MNIST VAE의 잠재 보간 결과를 LIVE로 순차 벡터화해(이전 결과를 다음 초기값으로) 연속 애니메이션도 만들 수 있다.
+
+![SVG 보간](/assets/img/posts/live-vectorization/fig10.webp)
+_Figure 10. 위 두 줄: LIVE로 만든 두 이모지 SVG의 베지어 제어점을 선형 보간한 결과로, 무표정이 찡그린 얼굴로, 혀 내민 얼굴이 윙크로 자연스럽게 바뀐다. 아래 두 줄: 회색 상자가 입력 래스터이고, 그 사이는 VAE 보간 결과를 LIVE로 벡터화한 중간 숫자이다. (출처: Ma et al., 2022)_
 
 **Ablation.** 원 초기화는 무작위 초기화보다 아티팩트가 훨씬 적고 볼록한 결과로 수렴한다. Xing 손실을 빼면 같은 조건에서 자기 교차가 눈에 띄게 늘어난다.
 

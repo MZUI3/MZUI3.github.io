@@ -51,6 +51,12 @@ Atari 화면처럼 **상태 공간이 거대**하면 정확히 같은 화면을 
 - 이미지 전체 확률은 픽셀 확률의 곱
 - 시간 의존성은 무시한다. 이전 프레임과의 관계를 보는 forward model이 아니라 **프레임 하나의 밀도 모델**이다.
 
+![CTS에 넣는 전처리 화면](/assets/img/posts/count-based-exploration/fig5.webp)
+_Figure 5. Montezuma's Revenge 원본 화면(왼쪽)과 CTS 모델에 넣는 42×42, 3bit 흑백 화면(오른쪽). 세부는 사라지지만 캐릭터·사다리·열쇠 같은 물체는 여전히 알아볼 수 있다. (출처: Bellemare et al., 2016)_
+
+![CTS의 문맥 픽셀](/assets/img/posts/count-based-exploration/fig6.webp)
+_Figure 6. 축소한 화면의 픽셀 $$x^{i,j}$$(빨강)마다 위치별 모델이 따로 있고, 바로 옆 이웃 픽셀 4개(파랑)를 문맥으로 확률을 예측한다. (출처: Bellemare et al., 2016)_
+
 CTS는 최신 이미지 생성 모델보다 훨씬 단순하지만, 내부가 count 기반이라 학습이 매우 빠르다는 점 때문에 탐험용으로 골랐다고 한다.
 
 ### Empirical Count와의 관계
@@ -188,6 +194,9 @@ A3C는 replay memory 없이 여러 병렬 에이전트의 샘플로 global netwo
 
 - 무작위 에이전트보다 50% 이상 나은 점수를 못 낸 게임이 A3C는 **15개**, A3C+는 **10개**였다. A3C+가 실패한 10개 중 8개는 DQN도 같은 의미로 실패한 게임이다.
 - Atari 60개 게임에서 A3C+의 학습 중 점수 중앙값이 A3C보다 조금 높았고, 적어도 4분의 1의 게임에서는 A3C를 크게 앞섰다. ε-greedy로도 탐험이 충분한 게임이 많다는 점을 생각하면 의미 있는 차이라고 논문은 본다.
+
+![A3C와 A3C+의 60개 게임 점수 분포](/assets/img/posts/count-based-exploration/fig4.webp)
+_Figure 4. 60개 게임 점수의 중앙값(굵은 선)과 1·3사분위 구간(음영)이다. 게임마다 무작위 에이전트와 학습을 마친 A3C 점수 중 작은 값을 0, 큰 값을 1로 정규화했다. 중앙값 차이는 작지만, A3C+의 3사분위(초록 음영 위쪽)는 A3C보다 훨씬 높이 올라간다. (출처: Bellemare et al., 2016)_
 
 200M frame 뒤 탐험이 어려운 일부 게임의 평균 점수이다(부록 Table 2, stochastic ALE).
 

@@ -17,6 +17,9 @@ math: true
 ![이질 도메인 교체 결과](/assets/img/posts/faceinpainter/fig1.webp)
 _Figure 1. 소스(왼쪽 위 작은 사진)의 신원을 사진, 3D 만화, 유화, 과장 드로잉, 연필화 목표에 넣은 결과. 아랫줄이 FaceInpainter의 출력이다. (출처: Li et al., 2021)_
 
+![기존 방법의 실패 사례](/assets/img/posts/faceinpainter/fig2.webp)
+_Figure 2. 윗줄 왼쪽은 FaceShifter가 소스의 앞머리·눈썹까지 가져온 경우, 오른쪽은 SimSwap 결과가 목표를 닮은 경우이다. 아랫줄은 그림 목표에서 3D 기반 FaceSwap이 흐릿한 얼굴과 경계 아티팩트를 내는 경우이다. (출처: Li et al., 2021)_
+
 ## 1. 1단계: SFI-Net
 
 ![FaceInpainter 전체 구조](/assets/img/posts/faceinpainter/fig3.webp)
@@ -96,6 +99,12 @@ thinner source face in the target's hole: 230 background pixels must be hallucin
 | 평가 | ID 검색은 CosFace, 포즈는 별도 포즈 추정기의 L2 거리, 표정은 다른 3DMM의 계수 |
 
 **정성.** DeepFill v1/v2, Zheng 등의 일반 인페인팅은 신원 유도 완성을 못 한다(Figure 4). FF++에서 FaceShifter는 눈썹·눈·안경·머리 같은 소스 스타일을 통제 없이 가져오고, DeepFakes·FaceSwap도 비슷한 아티팩트를 보이며, FaceInpainter는 신원과 속성의 균형이 낫다(Figure 5). FSGAN·FaceShifter와의 추가 비교(Figure 6)에서 시선 방향과 피부색을 더 잘 지키고, SimSwap(Figure 7)보다 이마·뺨 경계 아티팩트가 적고 시선·표정 추적이 정확하다.
+
+![FF++ 정성 비교](/assets/img/posts/faceinpainter/fig5.webp)
+_Figure 5. FF++에서 DeepFakes, FaceSwap, FaceShifter와의 비교. FaceShifter는 넷째 줄의 앞머리와 입술 색, 셋째 줄의 안경처럼 소스의 스타일을 결과에 끌어오고, FaceInpainter는 목표의 머리와 속성을 유지한다. (출처: Li et al., 2021)_
+
+![SimSwap과의 비교](/assets/img/posts/faceinpainter/fig7.webp)
+_Figure 7. SimSwap과의 비교. SimSwap 결과에는 이마와 뺨 부근에 경계가 비치고, FaceInpainter는 소스 신원을 더 뚜렷하게 옮기면서 목표의 시선과 표정을 따른다. (출처: Li et al., 2021)_
 
 **정량(FF++, Table 1).** FaceShifter·SimSwap과 같은 프로토콜이다. SimSwap 행은 SimSwap 논문의 수치를 옮긴 것이라 표정·SMD2가 비어 있다.
 

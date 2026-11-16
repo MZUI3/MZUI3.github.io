@@ -36,6 +36,12 @@ _Figure 2. (a) 소스(위)·목표(아래) 입력, (b) 랜드마크로 3D 형상
 
 \* 테스트셋 일부(각각 300장, 437장)로만 보고한 결과이다. Global은 전체 픽셀 정확도, ave(face)는 얼굴 픽셀 재현율이다. 분할 전용 구조(Saito et al.)와 mIoU는 0.2 차이로 대등하고, 얼굴 재현율과 속도는 가장 좋다.
 
+![분할 데이터 만들기](/assets/img/posts/face-segmentation-swapping/fig3.webp)
+_Figure 3. (a) 동영상 프레임에서 얼굴 영역을 클릭으로 골라 라벨을 만드는 반지도 라벨링 도구. (b) 손 이미지를 겹친 가림 증강과 그 라벨. (c) CG 선글라스를 3D 얼굴에 맞춰 붙인 합성 가림과 그 라벨. (출처: Nirkin et al., 2018)_
+
+![얼굴 분할 결과](/assets/img/posts/face-segmentation-swapping/fig4.webp)
+_Figure 4. COFW(1-4)와 LFW(5-8)에서의 분할 결과이다. 빨강이 FCN이 얼굴로 분할한 영역이고 회색은 맞춘 3D 얼굴이다. 선글라스, 손, 마이크, 라켓, 커튼처럼 얼굴을 가린 물체는 빨강에서 빠진다. (출처: Nirkin et al., 2018)_
+
 **교체.** 소스 3D 형상을 소스 이미지에 투영해 정점마다 색을 bilinear로 샘플링하고, 정점 인덱스가 대응하므로 그대로 목표 형상에 옮겨 목표 포즈로 렌더링한 뒤, **목표 분할 마스크**로 가린 영역을 제외하고 Poisson 블렌딩으로 섞는다. GPU에서 1.3 FPS, CPU에서 0.8 FPS이다.
 
 ## 2. 평가 프로토콜
@@ -62,10 +68,19 @@ LFW 검증 정확도(Acc., %, 두 번 시행 평균)를 ablation별로 옮기면
 - **맥락 보존**: 얼굴이 타인으로 바뀌었는데도 64~73%를 맞히고, 반대로 블렌딩이 좋을수록(64.56 → 72.94) 맥락이 더 잘 보존되어 인식이 오른다.
 - **동일인 교체**: 모든 설정이 원본보다 약 1%p 낮은 97% 수준이고, nAUC도 99.5 안팎으로 원본(99.71)과 비슷하다. 일반 형상과 추정 형상의 차이도 거의 없다.
 
+![LFW 동일인 교체 결과](/assets/img/posts/face-segmentation-swapping/fig9.webp)
+_Figure 9. LFW 동일인 교체. 같은 사람의 다른 사진에서 얼굴을 옮겨도 포즈·표정·조명이 크게 다른 목표에서 여전히 같은 사람으로 알아볼 수 있다. (출처: Nirkin et al., 2018)_
+
 ![LFW 타인 교체 결과](/assets/img/posts/face-segmentation-swapping/fig5.webp)
 _Figure 5. LFW 타인 교체 결과. 포즈(4,7,8), 성별(1,2,7,8), 표정(1,7), 인종(1,3,6,8), 나이(3-8), 가림(1,5)이 크게 다른 쌍을 일부러 골랐다. (출처: Nirkin et al., 2018)_
 
 정성적으로는 위 Figure 5처럼 LFW의 극단적 포즈·성별·표정·인종·나이·가림 차이의 쌍에서도 결과가 나오며, Kemelmacher-Shlizerman의 방법과 같은 쌍 비교에서 머리선 처리가 낫다(분할 품질 차이). 실패는 주로 랜드마크 오류, 큰 해상도 차이, 극단적 피부톤 블렌딩이다(Figure 7).
+
+![Kemelmacher-Shlizerman 방법과 비교](/assets/img/posts/face-segmentation-swapping/fig6.webp)
+_Figure 6. 같은 소스·목표 쌍에서 Kemelmacher-Shlizerman(2016)의 결과와 이 논문의 결과. 이 논문의 결과는 머리선 부근에서 목표의 머리카락이 더 자연스럽게 남는다. (출처: Nirkin et al., 2018)_
+
+![교체 실패 사례](/assets/img/posts/face-segmentation-swapping/fig7.webp)
+_Figure 7. 실패 사례. (1) 가장 흔한 원인인 랜드마크 위치 오류로 얼굴이 어긋나 붙는다. (2) 두 이미지의 해상도 차이가 크다. (3) 피부톤 차이를 블렌딩이 메우지 못한다. (출처: Nirkin et al., 2018)_
 
 ## 4. 구현 디테일
 

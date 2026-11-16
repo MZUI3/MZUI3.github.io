@@ -105,6 +105,15 @@ mapping 3DMM pose -> basis coordinates: residual pose error 0.000, identity loss
 
 **기저의 성질.** StyleIPSB는 pitch·yaw 회전, 색·방향·세기가 다른 조명, 입·눈 개폐, 안구 방향, 눈썹 올리기를 표현한다(Figure 4). 포즈 편집 시 yaw 각도 대비 신원 손실(Figure 5)은 비지도 GANSpace보다 낮고 지도 InterFaceGAN과 대등하며, 메트릭에 신원 손실을 넣지 않으면 나빠진다. 표정(미소) 편집에서 다른 방법은 얼굴 형태가 변형되지만 StyleIPSB는 유지한다(Figure 6). FLAME 3DMM 파라미터로 생성 이미지의 속성을 제어하는 예(Figure 7)로 3DMM과의 호환을 보인다.
 
+![기저 좌표로 속성 편집](/assets/img/posts/styleipsb/fig4.webp)
+_Figure 4. 기저 좌표를 바꿔 속성을 편집한 결과. 위 줄은 포즈·조명 기저, 아래 줄은 표정 기저를 움직인 것이다. 포즈, 조명, 눈·입 모양이 바뀌어도 같은 사람으로 보인다. (출처: Jiang et al., 2023)_
+
+![포즈 편집 시 신원 손실](/assets/img/posts/styleipsb/fig5.webp)
+_Figure 5. yaw 각도를 바꿀 때의 신원 손실. GANSpace(파랑)는 각도가 커질수록 신원 손실이 가장 빨리 커지고, 신원 손실을 메트릭에 넣은 StyleIPSB(빨강)는 InterFaceGAN(주황)과 비슷하거나 낮다. 메트릭에서 신원 손실을 뺀 경우(초록)는 그 사이이다. (출처: Jiang et al., 2023)_
+
+![미소 편집 비교](/assets/img/posts/styleipsb/fig6.webp)
+_Figure 6. 미소를 줄여 가는 표정 편집. GANSpace와 InterFaceGAN은 표정을 바꾸는 동안 얼굴형까지 변하지만, StyleIPSB(Ours)는 얼굴형을 유지한다. (출처: Jiang et al., 2023)_
+
 **Ablation(1단계, Table 2).** 기저 없이 매핑망이 $$w_{s \to t}$$를 직접 회귀하면 모공 수준 세부가 사라진다(Figure 8). CelebAMask-HQ 1만 쌍으로 잰 수치이다.
 
 | 1단계 | FID ↓ | 표정 오차 ↓ | 포즈 오차 ↓ | ID 유사도 ↑ |
@@ -113,6 +122,9 @@ mapping 3DMM pose -> basis coordinates: residual pose error 0.000, identity loss
 | **기저 사용** | **22.15** | **3.37** | 0.078 | **0.67** |
 
 포즈만 기저 없이가 조금 낫고 나머지는 기저 쪽이 좋다.
+
+![기저 유무 ablation](/assets/img/posts/styleipsb/fig8.webp)
+_Figure 8. 1단계 ablation. 기저 없이 $$w_{s \to t}$$를 직접 회귀하면(No basis) 피부가 뭉개지고 흐려지지만, 기저 좌표를 회귀하면(With basis) 모공 수준 세부가 남는다. (출처: Jiang et al., 2023)_
 
 **교체 비교.** MegaFS와 FSLSD 대비 모공 수준 세부와 신원 보존이 좋다는 것이 Figure 1의 주장이다. FaceForensics++ 정량 비교(Table 3)는 다음과 같다. ID 검색은 885명 중 소스와 top-1로 맞는 비율이다.
 
@@ -136,6 +148,9 @@ CelebA-HQ(Table 4, 교체 이미지 10만 장)에서는 StyleGAN 기반 방법�
 
 신원·표정·화질은 모두 가장 좋고 포즈만 가장 나쁘다. 저자들은 포즈 기저가 yaw와 pitch 두 방향뿐이라 정확한 포즈를 표현하기 어렵기 때문으로 보고, 오차가 몇 도 수준이라 눈으로는 정확해 보인다고 덧붙인다. 사용자 연구는 없다.
 
+![어려운 조건에서의 비교](/assets/img/posts/styleipsb/fig9.webp)
+_Figure 9. 과장된 표정, 큰 포즈, 가림, 유화 같은 어려운 조건에서 FSLSD, MegaFS와 비교한 결과. StyleIPSB(Ours)는 표정과 포즈를 따라가면서 소스의 신원과 피부 세부를 유지한다. (출처: Jiang et al., 2023)_
+
 ## 5. 해석
 
 **1. "선명함 = 부분 공간 안에 있기"라는 진단이 유용하다.** 역변환·회귀가 $$\mathcal{W}+$$ 밖으로 나가면 StyleGAN은 흐릿하거나 왜곡된 이미지를 내므로, 편집을 생성기가 아는 부분 공간으로 제한하는 것이 세부 보존의 조건이다. MegaFS·FSLSD가 코드를 자유롭게 조합해 흐려진 것과 대비되고, GAN 역변환 연구의 "분포 안 편집"(e4e)과 같은 문제의식이다.
@@ -145,6 +160,9 @@ CelebA-HQ(Table 4, 교체 이미지 10만 장)에서는 StyleGAN 기반 방법�
 **3. 3DMM과 StyleGAN의 다리.** StyleRig(생성 이미지만), PIE(느린 최적화), GIF(아티팩트)와 달리 매핑망 하나로 실제 이미지의 포즈·표정·조명을 3DMM 파라미터로 제어하고, 세부 속성은 DAT-MLP가 보충한다. [FaceInpainter]({% post_url 2026-09-01-faceinpainter %})가 3DMM 코드를 StyleGAN에 직접 넣은 것보다 분리가 명시적이다.
 
 **4. 한계는 3DMM과 소스 지향 구조이다.** 포즈·표정·조명이라는 3DMM이 잡는 속성 외의 변화(가림, 머리 모양 변화)는 2단계 혼합에 의존하고, 소스를 목표 속성으로 "재연기"한 뒤 배경을 섞는 구조라 [FSGAN]({% post_url 2026-08-16-fsgan %})류의 얼굴 형태 문제(목표 윤곽과의 불일치)를 블렌딩이 떠안는다. 기저는 StyleGAN 하나, 층 분할 하나에 묶여 있다. 논문이 직접 꼽은 한계(Figure 10)는 마스크에 묶인 가림 처리, 소스 이미지의 안경을 지우지 못함, 복잡한 조명에서 빛과 그림자를 완전히 복원하지 못함이다.
+
+![한계 사례](/assets/img/posts/styleipsb/fig10.webp)
+_Figure 10. 논문이 꼽은 한계. 머리카락 같은 가림은 얼굴 마스크에 묶여 처리가 제한되고, 소스의 선글라스가 그대로 옮겨지며, 복잡한 조명의 빛과 그림자가 결과에 재현되지 않는다. (출처: Jiang et al., 2023)_
 
 **5. 평가를 읽을 때 주의할 점.** 교체의 정량 비교는 FaceForensics++·CelebA-HQ 두 표뿐이고 사용자 연구는 없으며, 두 표 모두에서 포즈 오차는 대부분의 비교 방법보다 크다(FaceForensics++에서는 Deepfakes만 더 큼). 기저 구성의 $$w_0$$ 100개 평균·직교화가 비선형 다양체에서 얼마나 안정적인지는 논의되지 않았다. 위 toy는 선형 잠재 공간이라 헤시안 근사의 어려움(비율 메트릭)을 일반화 고유문제로 우회했고, 실제 StyleGAN 다양체의 곡률은 반영하지 않는다.
 

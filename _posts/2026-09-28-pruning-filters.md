@@ -50,6 +50,12 @@ _Figure 2. CIFAR-10 VGG-16. (a) 층별 필터의 ℓ1 합을 정렬해 최댓값
 - **ResNet**은 제약이 있다. residual block의 첫 층은 자유롭게 자를 수 있지만, 둘째 층의 출력은 identity와 더해지므로 shortcut의 projection 층이 선택한 인덱스를 그대로 따라야 한다. identity 쪽 feature map이 residual보다 중요하므로 shortcut 기준으로 정한다. CIFAR용 ResNet은 projection이 없어 첫 층만 자른다.
 - **재학습 전략**은 "한 번에 자르고 재학습"이다. 민감하지 않은 층은 상당량을 한 번에 잘라도 짧은 재학습(CIFAR 40 epoch, ImageNet 20 epoch, 원래 학습의 1/4)으로 복구된다. 민감한 층을 많이 자르면 반복 가지치기가 낫지만 비용이 크다.
 
+![연속한 두 층을 자를 때의 노름 계산](/assets/img/posts/pruning-filters/fig3.webp)
+_Figure 3. 앞 층에서 feature map 하나(파랑)가 이미 제거된 상태에서 다음 층 필터(초록 열)의 절댓값 합을 구하는 방식. 독립 가지치기는 이미 사라진 feature map에 걸린 커널(노랑)까지 더하고, 탐욕 가지치기는 그 커널을 빼고 계산한다. (출처: Li et al., 2017)_
+
+![projection shortcut이 있는 residual block 가지치기](/assets/img/posts/pruning-filters/fig4.webp)
+_Figure 4. residual block의 첫 층(파랑)은 자유롭게 자른다. 둘째 층에서 자를 필터(초록)는 shortcut projection 층에서 고른 인덱스를 그대로 따른다. 두 출력을 더해야 하므로 채널이 맞아야 하기 때문이다. (출처: Li et al., 2017)_
+
 ## 3. 코드로 보기: ℓ1 기준 대 무작위·최대 기준
 
 합성 4클래스 이미지로 작은 CNN을 학습한 뒤, conv1 16개 필터 중 8개를 ℓ1이 가장 작은 순, 가장 큰 순, 무작위로 **물리적으로 제거**(conv2의 대응 입력 커널 포함)하고, 재학습 전후 정확도와 FLOP을 비교한다.

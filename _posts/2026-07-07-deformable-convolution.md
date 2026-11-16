@@ -71,6 +71,9 @@ $$
 - 입력 feature에 따라 offset이 달라지므로, 물체가 커지면 넓게, 회전하면 돌려서, 변형되면 그 모양을 따라 샘플링한다.
 - Offset 층은 0으로 초기화해 처음에는 일반 convolution처럼 동작한다.
 
+![일반 convolution과 deformable convolution의 샘플링 위치](/assets/img/posts/deformable-convolution/fig1.webp)
+_Figure 1. 3×3 필터의 샘플링 위치. (a)는 일반 convolution의 고정 격자(초록 점), (b)는 offset(연한 화살표)만큼 옮겨진 deformable convolution의 위치(파란 점)이다. (c)와 (d)는 offset이 스케일 변화, 비율·회전 변화 같은 특수한 변환도 표현할 수 있음을 보여 준다. (출처: Dai et al., 2017)_
+
 ![3x3 deformable convolution](/assets/img/posts/deformable-convolution/fig2.webp)
 _Figure 2. 3×3 deformable convolution. 위쪽 conv가 입력 feature map에서 $$2N$$채널 offset field를 만들고, 각 출력 위치는 그 offset만큼 옮겨진 9개 위치(파란 사각형)에서 값을 모은다. (출처: Dai et al., 2017)_
 
@@ -139,6 +142,9 @@ _Figure 3. 3×3 deformable RoI pooling. 일반 RoI pooling 결과를 fc 층에 �
 
 물체의 부분(머리, 다리 등)이 어디 있든 각 칸이 해당 부분으로 이동해 특징을 뽑는다. offset을 RoI의 너비·높이로 정규화하는 이유는 offset 학습이 RoI 크기와 무관해지게 하기 위해서이다. R-FCN의 position-sensitive RoI pooling에도 같은 방식을 적용하는데, 이때는 fc 대신 conv 층이 전체 해상도의 offset field를 만든다.
 
+![deformable PS RoI pooling의 칸 이동](/assets/img/posts/deformable-convolution/fig7.webp)
+_Figure 7. R-FCN의 deformable PS RoI pooling에서 입력 RoI(노란 상자)의 3×3 칸(빨간 상자)이 옮겨진 결과이다. 칸들이 고정 격자를 버리고 사람·말·고양이처럼 모양이 일정하지 않은 물체의 부분 쪽으로 이동한다. (출처: Dai et al., 2017)_
+
 ## 5. 구현 디테일
 
 | 항목 | 값 |
@@ -156,7 +162,10 @@ _Figure 3. 3×3 deformable RoI pooling. 일반 RoI pooling 결과를 fc 층에 �
 - 기존 네트워크의 일부 conv 층과 RoI pooling만 바꾸면 되므로, 새 구조를 설계하지 않고 간단한 수정으로 적용할 수 있다.
 - ResNet-101 기준 파라미터 증가는 작았고(DeepLab 46.0M → 46.1M, 논문 Table 4), COCO test-dev에서 ResNet-101 기반 Faster R-CNN의 mAP@[0.5:0.95]가 **29.4 → 33.1**(상대적으로 약 13%), R-FCN은 **30.8 → 34.5**로 올랐다(논문 Table 5).
 - Semantic segmentation(DeepLab), 객체 검출(Faster R-CNN, R-FCN)에서 일관되게 성능이 올랐다.
-- 학습된 offset을 시각화하면, 큰 물체에서는 샘플링 위치가 넓게 퍼지고 작은 물체에서는 좁게 모이며 배경에서는 비교적 넓게 퍼지는 등 물체의 크기와 모양에 맞춰 적응했다(아래 Figure 6).
+- 학습된 offset을 시각화하면, 큰 물체에서는 샘플링 위치가 넓게 퍼지고 작은 물체에서는 좁게 모이며 배경에서는 비교적 넓게 퍼지는 등 물체의 크기와 모양에 맞춰 적응했다(아래 Figure 5, Figure 6).
+
+![고정 receptive field와 적응형 receptive field](/assets/img/posts/deformable-convolution/fig5.webp)
+_Figure 5. 두 층을 쌓았을 때의 receptive field. (a) 일반 convolution은 물체 크기와 상관없이 같은 격자로 샘플링하지만, (b) deformable convolution은 물체 모양을 따라 샘플링 위치가 퍼지는데, 작은 양(주황)에서는 좁게, 큰 양(파랑)에서는 넓게 퍼진다. (출처: Dai et al., 2017)_
 
 ![deformable 필터의 샘플링 위치](/assets/img/posts/deformable-convolution/fig6.webp)
 _Figure 6. 세 장씩 한 묶음으로, 3층의 3×3 deformable 필터를 거슬러 올라간 샘플링 위치($$9^3 = 729$$개, 빨간 점)를 배경(왼쪽), 작은 물체(가운데), 큰 물체(오른쪽)의 활성 위치(초록 점)에 대해 그린 것이다. (출처: Dai et al., 2017)_

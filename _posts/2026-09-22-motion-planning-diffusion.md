@@ -169,7 +169,7 @@ _Figure 1. 같은 시작·목표 자세에서 MPD로 뽑은 두 궤적(파랑, �
 | 전문가 데이터 | 환경마다 시작·목표 문맥 500개 × 문맥당 궤적 20개 |
 | 데이터 생성 | RRTConnect로 초기 해 → B-spline으로 평활화 → Stochastic-GPMP로 오래 최적화 (오프라인 1회) |
 | 검증 분할 | 데이터의 5% |
-| 궤적 표현 | $$H 	imes d$$, Panda는 $$H = 64$$, $$d = 14$$ (관절 위치 7 + 속도 7) |
+| 궤적 표현 | $$H \times d$$, Panda는 $$H = 64$$, $$d = 14$$ (관절 위치 7 + 속도 7) |
 | 네트워크 | Diffuser의 시간 U-Net. CVAE 기준선도 같은 인코더·디코더 사용 |
 | 디퓨전 step | 25, exponential noise schedule (linear보다 좋았음) |
 | 학습 종료 | validation loss 기준 early stopping |

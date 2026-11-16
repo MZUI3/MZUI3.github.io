@@ -168,6 +168,9 @@ $$
 
 평균 119.5에서 144.3으로 오른다(논문 표현으로 20.8% 향상). 가장 긴 경로를 계획해야 하는 Maze2D-Large에서 차이가 가장 크고, 논문은 Diffuser가 아예 경로를 못 만드는 어려운 사례에서 AdaptDiffuser가 가능한 경로를 만드는 예(Figure 3)도 보여 준다.
 
+![Maze2D의 어려운 사례](/assets/img/posts/adaptdiffuser/fig3.webp)
+_Figure 3. 시작점(●)에서 목표(★)까지 긴 경로를 계획해야 하는 두 사례. Maze2D-Medium(a, b)에서는 AdaptDiffuser의 경로가 더 짧고 매끄러워 보상이 크고, Maze2D-Large(c, d)에서는 Diffuser가 목표에 닿지 못하지만 AdaptDiffuser는 경로를 완성한다. (출처: Liang et al., 2023)_
+
 ### 기존 과제: MuJoCo (Table 2, 3 seed 평균)
 
 | 데이터 | 환경 | IQL | DT | TT | Diffuser | AdaptDiffuser |
@@ -193,6 +196,9 @@ _Figure 4. (a)(b) 금화가 없을 때의 경로, (c)(d) (4, 2)에 금화를 두
 금화 줍기 미로는 Figure 4 같은 정성 결과만 있고 수치 표는 없다. 두 planner 모두 guidance로 금화를 지나는 경로를 만들지만, Diffuser는 벽과 충돌하고 AdaptDiffuser는 충돌 없는 경로를 만든다. 저자들도 금화가 최적 경로에서 멀어 되돌아가야 하는 극단적인 경우에는 성공률이 낮다고 부록에서 인정한다.
 
 KUKA pick-and-place는 무작위로 놓인 블록 4개를 정해진 목표 위치로 옮기는 과제이고, 이 과제의 전문가 데이터는 주지 않는다. 설정 1은 블록이 바닥에 흩어져 있고, 설정 2는 한곳에 쌓여 있다(Table 3).
+
+![KUKA pick-and-place 과정](/assets/img/posts/adaptdiffuser/fig5.webp)
+_Figure 5. AdaptDiffuser가 KUKA 팔로 블록 4개를 하나씩 집어 옮기는 과정. (a) 시작 상태에서 (b)~(e) 블록을 차례로 놓고 (f) 끝난다. 이 과제의 전문가 궤적 없이 블록 쌓기 데이터와 보상 guidance만으로 만든 결과이다. (출처: Liang et al., 2023)_
 
 | 설정 | Diffuser | AdaptDiffuser |
 |---|---|---|

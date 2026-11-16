@@ -44,6 +44,9 @@ _픽셀 공간 Diffusion: 저해상도(64) 이미지에서 직접 denoising (출
 
 더 근본적인 문제도 있다. 이미지의 bit 중 상당수는 사람이 거의 알아채지 못하는 고주파 디테일이다. 픽셀 공간 diffusion은 이런 의미 없는 디테일까지 모델링하느라 연산을 낭비한다.
 
+![지각적 압축과 의미적 압축](/assets/img/posts/latent-diffusion/fig2.webp)
+_Figure 2. 학습된 픽셀 공간 diffusion 모델의 rate-distortion 곡선. 오른쪽 긴 꼬리(perceptual compression)는 bit를 많이 쓰지만 왜곡은 거의 줄지 않는 구간으로, 눈에 띄지 않는 디테일에 해당한다. LDM은 이 구간을 autoencoder+GAN에 맡기고, 왼쪽의 의미를 정하는 구간(semantic compression)만 diffusion으로 학습한다. (출처: Rombach et al., 2022)_
+
 ## 3. 아이디어: 압축은 Autoencoder에, 생성은 Diffusion에
 
 LDM은 학습을 두 단계로 나눈다.
@@ -98,6 +101,9 @@ latent 공간이 너무 제멋대로 퍼지지 않도록 약한 KL 정규화(KL-
 | VQGAN ($$\lvert Z \rvert$$=16384) | 16 | 19.9 | 4.98 |
 
 ($$c$$는 latent 채널 수, R-FID는 복원 이미지의 FID)
+
+![autoencoder별 복원 비교](/assets/img/posts/latent-diffusion/fig1.webp)
+_Figure 1. DIV2K 검증 이미지(512px)를 autoencoder로 압축했다가 복원한 결과. LDM의 $$f = 4$$ autoencoder(PSNR 27.4, R-FID 0.58)는 DALL-E($$f = 8$$)나 VQGAN($$f = 16$$)보다 접시 테두리와 눈가 같은 디테일을 잘 살린다. 그림 위의 수치는 ImageNet-val에서 잰 값이다. (출처: Rombach et al., 2022)_
 
 ## 5. Stage 2: Latent 공간에서의 Diffusion
 
@@ -223,6 +229,9 @@ _Figure 6. ImageNet class-conditional LDM을 2M step 학습하며 잰 FID(왼쪽
 
 샘플링 속도까지 함께 본 비교(논문 Figure 7)에서는 LDM-4와 LDM-8이 가장 좋았고, ImageNet처럼 복잡한 데이터일수록 압축을 덜 해야 품질이 유지됐다. 학습 속도와 샘플 품질은 $$f$$에 대해 trade-off 관계이고, 그 균형점을 찾은 것이 LDM의 성과이다.
 
+![샘플링 속도 대비 FID](/assets/img/posts/latent-diffusion/fig7.webp)
+_Figure 7. CelebA-HQ(왼쪽)와 ImageNet(오른쪽)에서 압축률별 LDM의 처리량 대비 log FID. 한 선 위의 점은 오른쪽부터 DDIM 10, 20, 50, 100, 200 step이고, 점선은 200 step 결과를 이은 것이다. LDM-4와 LDM-8(초록, 빨강)이 같은 처리량에서 가장 낮은 FID를 낸다. (출처: Rombach et al., 2022)_
+
 ### 무조건 생성 (Table 1, 256×256, FID ↓)
 
 | 데이터셋 | LDM | 비교 대상 |
@@ -267,6 +276,12 @@ _Figure 5. LAION으로 학습한 1.45B LDM-KL-8의 text-to-image 샘플. 200 DDI
 - **ImageNet 64→256 super-resolution** (Table 5): LDM-4(169M, 100 step)의 FID는 2.8(val 통계 기준)로 SR3(625M)의 5.2보다 낮지만, IS는 166.3으로 SR3의 180.1보다 낮다. PSNR·SSIM은 단순 회귀 모델이 가장 높다(27.9 / 0.801).
 - **Places 512×512 inpainting** (Table 7, 전체 샘플): 큰 LDM-4(387M, 512에서 반 epoch fine-tuning)가 FID 1.50으로 LaMa 2.21(재계산 2.23), CoModGAN 1.82보다 좋다. LPIPS는 LaMa(0.134)가 약간 낮다(LDM 0.137).
 - Inpainting 효율(Table 6): 같은 파라미터 수에서 LDM-4는 픽셀 기반 LDM-1보다 학습 처리량이 약 3배(0.11 → 0.32~0.35 samples/s)이고, 6 epoch 뒤 FID는 24.74에서 14.99~15.95로 낮다.
+
+![64→256 super-resolution 비교](/assets/img/posts/latent-diffusion/fig10.webp)
+_Figure 10. ImageNet-val 64→256 super-resolution. LDM-SR은 털이나 흙바닥 같은 질감을 더 사실적으로 그리고, SR3는 세밀한 구조를 더 일관되게 만든다. (출처: Rombach et al., 2022)_
+
+![inpainting으로 물체 지우기](/assets/img/posts/latent-diffusion/fig11.webp)
+_Figure 11. 큰 inpainting LDM(fine-tuning 포함)으로 빨간 선 안의 사람과 나무를 지운 결과. 철망, 벤치, 건물 창문처럼 반복되는 배경 구조가 지운 자리에 이어진다. (출처: Rombach et al., 2022)_
 
 ## 10. 한계
 

@@ -14,6 +14,9 @@ math: true
 
 > 복잡한 장면은 단순한 도형 원소들의 **배치**로 표현된다. 문서는 제목·본문·그림 상자, 앱 화면은 버튼·아이콘·텍스트, 자연 이미지는 물체 바운딩 박스, 3D 의자는 등받이·팔걸이·다리이다. **LayoutTransformer**는 이 모든 도메인을 하나의 토큰 열 모델로 다룬다. 각 원소를 (카테고리, x, y, h, w) 다섯 토큰으로 펼치고, [Transformer 디코더]({% post_url 2026-07-01-transformer-decoder-to-gpt %})가 다음 토큰을 예측한다. 빈 캔버스에서 생성하거나, 몇 개의 원소가 주어진 상태에서 나머지를 완성하거나, 기존 레이아웃의 가능도를 계산할 수 있고, 네 도메인에서 같은 구조와 하이퍼파라미터로 경쟁력 있는 결과를 냈다.
 
+![여러 도메인의 순차 레이아웃 생성](/assets/img/posts/layout-transformer/fig1.webp)
+_Figure 1. 한 모델 구조로 문서, 앱 화면, 자연 장면, 3D 의자를 원소 하나씩 순서대로 생성하는 모습이다. (a)의 마지막 줄은 생성한 장면 레이아웃(sky-other, sea, surfboard)을 이미지 생성기에 넣은 결과까지 보여 주고, (b)는 의자 좌판에서 시작해 등받이와 다리를 차례로 붙인다. (출처: Gupta et al., 2021)_
+
 ## 1. 문제: 외형보다 배치
 
 장면 이해는 외형 지각과 구조 이해의 두 과정이라는 인지과학 근거에서 출발한다. 생성 모델 연구는 얼굴·동물처럼 **단일 객체의 외형**에 집중해 왔고, 큰 장면을 만들 때는 장면 그래프나 분할 마스크 같은 레이아웃 대리물을 입력으로 받았다. 레이아웃 자체를 생성하는 연구(LayoutGAN, LayoutVAE)는 원소 수가 고정되거나 라벨 집합을 먼저 받아야 했고, 도메인별 가정이 많았다. 저자들이 원하는 것은 원소 수가 가변이고, 부분 레이아웃에서 이어 갈 수 있으며, 도메인 제약이 없는 모델이다.
@@ -130,7 +133,19 @@ x of body elements: mean 0.498, values seen: [0.27, 0.73]
 
 LayoutVAE와 ObjGAN은 라벨 집합을 조건으로 받는 유리한 설정인데도 NLL에서 뒤처진다. 생성된 박스 중심의 $$y$$ 분포는 실제와 비슷하다(하늘은 위, 도로·바다는 아래). 다만 생성 초반에 person, car 같은 고빈도 카테고리로 치우치는 편향이 있다.
 
+![COCO 레이아웃 완성](/assets/img/posts/layout-transformer/fig4.webp)
+_Figure 4. COCO에서 위 줄의 원소 하나(dining table, kite, refrigerator, umbrella)를 주고 나머지를 nucleus sampling으로 완성한 결과(아래 줄)이다. 식탁 위에 그릇과 브로콜리, 연 아래에 사람과 서프보드처럼 함께 나타나는 물체가 그럴듯한 위치에 놓인다. stuff 박스는 생략했다. (출처: Gupta et al., 2021)_
+
+![박스 중심 좌표 분포](/assets/img/posts/layout-transformer/fig7.webp)
+_Figure 7. 카테고리별 박스 중심의 $$y$$(왼쪽)와 $$x$$(오른쪽) 분포이다. 분홍이 실제, 청록이 생성 레이아웃이다. $$y$$ 좌표는 카테고리마다 뚜렷이 달라(sky-other·clouds는 위, road·sea는 아래) $$x$$보다 정보가 많고, 두 분포가 비슷하게 맞는다. (출처: Gupta et al., 2021)_
+
 **RICO 앱 화면(25개 카테고리, 중앙값 36개)과 PubLayNet 문서(5개 카테고리, 중앙값 33개).** RICO는 레이아웃 62,951개, PubLayNet은 원소 128개 이하로 거른 학습 레이아웃 335,703개이다. 두 데이터는 캔버스를 거의 다 덮고, 원소가 겹치지 않으며, 양 축으로 정렬되어 있다. 후처리 없이도 생성 레이아웃이 정렬을 유지한다. 같은 초기 원소에서 여러 완성을 샘플링할 수 있다.
+
+![RICO 앱 화면 생성](/assets/img/posts/layout-transformer/fig8.webp)
+_Figure 8. RICO 앱 화면 레이아웃이다. 위 줄의 상단 바 하나에서 시작해 화면 전체를 채운다(아래 줄). 목록, 카드 격자처럼 앱에서 흔한 정렬된 배치가 나온다. 카테고리 표시는 생략했다. (출처: Gupta et al., 2021)_
+
+![같은 초기 원소에서 나온 여러 완성](/assets/img/posts/layout-transformer/fig9.webp)
+_Figure 9. 같은 초기 원소(왼쪽 열)에서 샘플링한 세 가지 완성. 목록형, 2열 격자형 등 서로 다른 화면 구성이 나온다. (출처: Gupta et al., 2021)_
 
 ![문서 레이아웃 생성 비교](/assets/img/posts/layout-transformer/fig10.webp)
 _Figure 10. PubLayNet 문서 레이아웃 생성 결과. 위: LayoutVAE, 아래: LayoutTransformer. 아래쪽은 박스가 두 열에 맞춰 정렬되고 거의 겹치지 않는다. (출처: Gupta et al., 2021)_
@@ -150,15 +165,23 @@ NLL은 두 데이터셋 모두 가장 낮고, PubLayNet의 Overlap은 0.13%로 �
 
 **PartNet 3D(의자 6,305개, 램프 1,188개).** 부품 하나에서 시작해 나머지 부품의 잠재 벡터와 3D 위치·크기를 순차 생성한다. JSD, MMD, Coverage, 1-NNA의 모든 지표에서 PointFlow, StructureNet, IM-Net, PQ-Net 대비 1·2위이다(JSD 0.81, MMD-EMD 7.38, 1-NNA-EMD 59.11).
 
+![PartNet 3D 물체 생성](/assets/img/posts/layout-transformer/fig3.webp)
+_Figure 3. 위 줄의 부품 하나를 주고 나머지 부품을 생성해 얻은 램프와 의자(아래 줄). 색은 부품 구분이다. 왼쪽에서 세 번째 램프처럼 부품끼리 제대로 이어지지 않는 실패도 보인다. (출처: Gupta et al., 2021)_
+
 | 모델 (Chair) | JSD ↓ | MMD-CD ↓ | MMD-EMD ↓ | Cov-CD ↑ | Cov-EMD ↑ | 1-NNA-CD ↓ | 1-NNA-EMD ↓ |
 |---|---|---|---|---|---|---|---|
 | PointFlow | 1.74 | 2.42 | 7.87 | 46.83 | 46.98 | 60.88 | 59.89 |
 | StructureNet | 4.77 | 0.97 | 15.24 | 29.67 | 31.7 | 75.32 | 74.22 |
 | IM-Net | 0.84 | **0.74** | 12.28 | 52.35 | 54.12 | 68.52 | 67.12 |
 | PQ-Net | 0.83 | 0.83 | 14.16 | 54.91 | **60.72** | 71.31 | 67.8 |
-| **LayoutTransformer** | **0.81** | 0.79 | **7.38** | **55.25** | 55.44 | **60.67** | **59.11** | 실패 사례로 램프의 부품이 서로 연결되지 않는 경우가 있는데, 부품 오토인코더와 레이아웃 생성기를 따로 학습한 한계이다.
+| **LayoutTransformer** | **0.81** | 0.79 | **7.38** | **55.25** | 55.44 | **60.67** | **59.11** |
+
+실패 사례로 램프의 부품이 서로 연결되지 않는 경우가 있는데, 부품 오토인코더와 레이아웃 생성기를 따로 학습한 한계이다.
 
 **레이아웃에서 의미가 생긴다.** 카테고리 임베딩의 t-SNE에서 COCO 상위 카테고리끼리 뭉치고, window-blind와 curtain처럼 상위 카테고리가 달라도 함께 나타나는 것은 가까이 놓인다. word2vec 식 유추도 된다. snowboard:snow::surfboard:? → waterdrops, sea, sand. car:road::train:? → railroad, platform. mouse:keyboard::spoon:? → knife, fork, oven. 언어 임베딩을 전혀 쓰지 않고 **배치만 배워서** 얻은 결과이다.
+
+![카테고리 임베딩 t-SNE](/assets/img/posts/layout-transformer/fig6.webp)
+_Figure 6. COCO에서 학습한 카테고리 임베딩의 t-SNE이다. 색은 COCO 상위 카테고리이다. 동물, 탈것, 음식, 벽·바닥 재질이 각각 뭉치고, cat과 dog가 sheep, zebra, cow보다 서로 가깝다. (출처: Gupta et al., 2021)_
 
 ## 5. 해석
 
