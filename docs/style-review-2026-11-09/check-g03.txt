@@ -1,0 +1,11 @@
+OK  _posts/2026-05-03-python-virtual-environment.md  (bold 3->2)
+OK  _posts/2026-05-07-rethinking-pruning.md  (bold 44->35)
+OK  _posts/2026-05-15-optimizer-and-scheduler.md  (bold 48->44)
+OK  _posts/2026-05-30-mobilenet.md  (bold 31->29)
+OK  _posts/2026-06-17-binary-neural-networks.md  (bold 123->104)
+OK  _posts/2026-08-16-fsgan.md  (bold 31->28)
+OK  _posts/2026-08-31-simswap.md  (bold 29->27)
+OK  _posts/2026-09-22-motion-planning-diffusion.md  (bold 43->39)
+OK  _posts/2026-10-06-rafswap.md  (bold 35->32)
+OK  _posts/2026-10-20-rt-2.md  (bold 38->36)
+0 of 10 files BAD

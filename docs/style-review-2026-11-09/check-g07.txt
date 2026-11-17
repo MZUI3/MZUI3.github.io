@@ -1,0 +1,11 @@
+OK  _posts/2026-05-23-normalization.md  (bold 52->40)
+OK  _posts/2026-06-06-object-detection.md  (bold 129->119)
+OK  _posts/2026-06-15-pruning-and-quantization.md  (bold 55->49)
+OK  _posts/2026-07-06-layout-transformer.md  (bold 40->34)
+OK  _posts/2026-07-29-adversarial-diffusion-distillation.md  (bold 56->49)
+OK  _posts/2026-08-05-segmentation-survey.md  (bold 43->38)
+OK  _posts/2026-08-30-hires-face-swapping.md  (bold 31->26)
+OK  _posts/2026-09-19-diffuser.md  (bold 57->46)
+OK  _posts/2026-10-20-gato.md  (bold 35->30)
+OK  _posts/2026-10-21-gr00t-n1.md  (bold 51->51)
+0 of 10 files BAD

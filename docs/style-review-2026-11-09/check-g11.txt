@@ -1,0 +1,11 @@
+OK  _posts/2026-05-04-lottery-ticket.md  (bold 31->21)
+OK  _posts/2026-06-10-attention-is-all-you-need.md  (bold 58->50)
+OK  _posts/2026-06-27-imbalanced-data.md  (bold 49->34)
+OK  _posts/2026-08-12-c51-distributional-rl.md  (bold 51->40)
+OK  _posts/2026-08-29-icm-curiosity.md  (bold 60->50)
+OK  _posts/2026-09-06-megafs.md  (bold 44->34)
+OK  _posts/2026-09-11-fsganv2.md  (bold 50->42)
+OK  _posts/2026-09-17-agent57.md  (bold 60->52)
+OK  _posts/2026-09-24-online-speculative-decoding.md  (bold 34->34)
+OK  _posts/2026-10-06-primal.md  (bold 50->38)
+0 of 10 files BAD
