@@ -112,7 +112,7 @@ order: 4
   <img src="{{ site.avatar | relative_url }}" alt="양경동 프로필 사진">
   <div>
     <h2>안녕하세요, 양경동입니다</h2>
-    <p>경량 AI 모델과 온디바이스 추론, 로봇 학습을 공부합니다.</p>
+    <p>경량 AI 모델과 온디바이스 추론, 로봇 학습, LLM Agent를 공부합니다.</p>
     <div class="about-links">
       <a href="https://mzui3.notion.site/AI-555b32aeb4c24c189c211ddb6d7ffc1c?source=copy_link" target="_blank" rel="noopener"><i class="fas fa-briefcase"></i> Portfolio</a>
       <a href="https://github.com/MZUI3" target="_blank" rel="noopener"><i class="fab fa-github"></i> GitHub</a>
@@ -146,6 +146,11 @@ order: 4
     <strong>강화학습 · 로봇 학습</strong>
     <span>탐험, 모방학습, Offline RL, Diffusion 기반 정책</span>
   </div>
+  <div class="about-card">
+    <i class="fas fa-diagram-project"></i>
+    <strong>LLM Agent · RAG</strong>
+    <span>LangGraph Agent와 검색 증강 생성, 판정 근거를 원문으로 검증하는 설계</span>
+  </div>
 </div>
 
 ## 프로젝트
@@ -174,6 +179,42 @@ order: 4
     <span class="about-count">2023</span>
     <strong>캐리커처 Manipulator</strong>
     <span>생성형 AI 결과를 G-Code로 바꿔 Manipulator가 그림 · ECHO+ 경진대회 최우수상</span>
+  </a>
+  <a class="about-card" href="https://mzui3.notion.site/4217f0db48dc81b08054c32560574fc3" target="_blank" rel="noopener">
+    <i class="fas fa-magnifying-glass"></i>
+    <span class="about-count">2026</span>
+    <strong>Patent Lab</strong>
+    <span>선행기술 조사 RAG · 판정 근거를 청구항 원문 구절로 검증 · Recall@20 88%</span>
+  </a>
+  <a class="about-card" href="https://mzui3.notion.site/4217f0db48dc81b5bb26f734f60eb313" target="_blank" rel="noopener">
+    <i class="fas fa-calendar-check"></i>
+    <span class="about-count">2026</span>
+    <strong>R&amp;D 공고 플래너</strong>
+    <span>공고 자격을 원문 구절로 검증하는 LangGraph Agent · 거짓 적격 판정률 3.74% → 1.87%</span>
+  </a>
+  <a class="about-card" href="https://mzui3.notion.site/4217f0db48dc81c2a120f8ee4a2ccdf5" target="_blank" rel="noopener">
+    <i class="fas fa-compress"></i>
+    <span class="about-count">2026</span>
+    <strong>Multi-Tool4Compression</strong>
+    <span>압축 기법 48종을 같은 조건으로 CPU 실측 · ResNet18 지연 8.3배 단축</span>
+  </a>
+  <a class="about-card" href="https://mzui3.notion.site/4217f0db48dc8189b736f52e645dc46f" target="_blank" rel="noopener">
+    <i class="fas fa-robot"></i>
+    <span class="about-count">2026</span>
+    <strong>MuJoCo Manipulator</strong>
+    <span>4자유도 로봇팔 RL 벤치마크와 학습형 궤적 플래너 · 장애물 회피 성공률 99.7%</span>
+  </a>
+  <a class="about-card" href="https://mzui3.notion.site/4217f0db48dc8110abd3d46c316afa82" target="_blank" rel="noopener">
+    <i class="fas fa-gauge-high"></i>
+    <span class="about-count">진행 중</span>
+    <strong>vla-lite</strong>
+    <span>SmolVLA를 LIBERO에서 closed-loop로 평가 · 추론 지연의 79%가 action expert</span>
+  </a>
+  <a class="about-card" href="https://mzui3.notion.site/4217f0db48dc81fbafcbe16608450b5a" target="_blank" rel="noopener">
+    <i class="fas fa-comments"></i>
+    <span class="about-count">2026</span>
+    <strong>북문 너머</strong>
+    <span>LLM은 발화 분류와 대사만 맡고 관계·소문·표결은 코드 규칙이 정하는 NPC 시스템</span>
   </a>
 </div>
 
